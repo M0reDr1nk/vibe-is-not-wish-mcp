@@ -1,0 +1,17 @@
+{
+  "displayName": "VINW 螺旋工作流",
+  "shortDescription": "严格软件工程过程控制",
+  "longDescription": "VINW (Vibe Is Not Wish) 是一款螺旋上升式软件工程过程控制引擎。它将需求拆解、文献搜证、方案细化、编码实现、测试验证、检视清理、终验归档七大阶段组织为非线性的螺旋工作流，支持上升回溯与再下降迭代。每次下降都有基线冻结、变更原子记录和人工确认门控，确保代码生成可约束、可追溯、可验证。",
+  "developerName": "VINW",
+  "tryPrompts": [
+    "用 VINW 工作流帮我实现一个 Python CLI 工具",
+    "启动 VINW 项目，拆解需求并搜索现有方案",
+    "检查当前 VINW 项目的一致性并生成报告"
+  ],
+  "skillOverrides": {
+    "vinw-workflow": {
+      "displayName": "VINW 螺旋工作流",
+      "description": "指导 AI 执行严格的 7 层螺旋软件工程过程控制，包含基线冻结、上升回溯、确认门控和变更追溯。"
+    }
+  }
+}

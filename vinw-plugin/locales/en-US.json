@@ -1,0 +1,17 @@
+{
+  "displayName": "VINW Spiral Workflow",
+  "shortDescription": "Strict SE process control",
+  "longDescription": "VINW (Vibe Is Not Wish) is a spiral-ascend software engineering process control engine. It organizes requirements decomposition, evidence gathering, design refinement, implementation, testing, review, and final verification into a non-linear spiral workflow with baseline freeze, ascent rollback, confirmation gates, and atomic change logging. Ensures code generation is constrained, traceable, and verifiable.",
+  "developerName": "VINW",
+  "tryPrompts": [
+    "Develop a Python CLI tool using VINW workflow",
+    "Start a VINW project and decompose requirements",
+    "Check consistency and generate a report for my VINW project"
+  ],
+  "skillOverrides": {
+    "vinw-workflow": {
+      "displayName": "VINW Spiral Workflow",
+      "description": "Guides AI through a strict 7-layer spiral software engineering process with baseline freeze, ascent rollback, confirmation gates, and change traceability."
+    }
+  }
+}

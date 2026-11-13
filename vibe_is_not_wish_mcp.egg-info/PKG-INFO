@@ -1,0 +1,131 @@
+Metadata-Version: 2.4
+Name: vibe-is-not-wish-mcp
+Version: 0.2.0
+Summary: VINW — Vibe Is Not Wish MCP Server. Markdown-first, spiral-ascend workflow engine for strict software engineering process control.
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: python-frontmatter>=1.0.0
+Requires-Dist: textual>=0.50.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: tree-sitter>=0.20.0
+Requires-Dist: tree-sitter-python>=0.20.0
+Requires-Dist: faiss-cpu>=1.7.0
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: scikit-learn; extra == "dev"
+
+# VINW — Vibe Is Not Wish MCP
+
+> **Vibe ≠ Wish.** A Markdown-first, spiral-ascend workflow engine for strict software engineering process control.
+
+## Features
+
+- **7-layer spiral workflow**: L1 需求拆解 → L2 参考文献与方案搜证汇总 → L3 方案细化 → L4 编码实现 → L5 测试验证 → L6 检视清理 → L7 终验
+- **Explicit ascend/descend**: Roll back to any baseline and restart a new descent round
+- **Markdown-first storage**: Every artifact is a human-readable Markdown file with YAML frontmatter
+- **Baseline freeze/rollback**: Each layer can be frozen into read-only baselines; ascending restores them
+- **Gate confirmations**: Blocking confirmation items enforce human-in-the-loop at critical transitions
+- **Atomic changelog**: Every change, ascent, descent, and baseline is appended to a single append-only log
+- **TUI visualization**: Real-time dashboard showing layer states, ascent history, todos, and pending confirmations
+- **Cross-harness MCP**: Works with any MCP-compatible agent (Kimi, Claude Desktop, Cursor, etc.)
+
+## Quick Start
+
+```bash
+# Install
+pip install -e .
+
+# Initialize project
+vinw init ./projects/my-app --name my-app --desc "My application"
+
+# Start MCP Server (stdio mode for agent harness)
+vinw server
+
+# Or start TUI to visualize workflow
+vinw tui ./projects/my-app
+```
+
+## Layer Structure
+
+Each project is a self-contained directory tree:
+
+```
+my-app/
+├── .se/
+│   ├── manifest.md          # Global state machine
+│   ├── changelog.md         # Append-only change log
+│   ├── ascensions.md        # Ascent history
+│   └── decisions.md         # Cross-layer decisions
+├── L1-需求拆解/
+│   ├── README.md
+│   └── proposals.md
+├── L2-参考文献与方案搜证汇总/
+│   ├── README.md
+│   ├── references.md
+│   ├── evidence-matrix.md
+│   └── synthesis.md
+├── L3-方案细化/
+│   ├── README.md
+│   ├── design-doc.md
+│   └── api-design.md
+├── L4-编码实现/
+│   ├── README.md
+│   ├── implementation.md
+│   └── .baseline/
+│       └── v001.md
+├── L5-测试验证/
+│   ├── README.md
+│   ├── test-plan.md
+│   └── debug-sessions/
+├── L6-检视清理/
+└── L7-终验/
+```
+
+## Spiral Ascend Example
+
+```
+descent-1: L1 → L2 → L3 → L4 → L5
+                          ↓ Tests reveal design flaw
+    se_ascend(L5, L3, "v001", "API contract mismatch")
+                          ↓
+descent-2:           L3(rollback to v001) → L4 → L5
+                                  ↓ Another issue found
+    se_ascend(L5, L2, "v001", "Evidence matrix incomplete")
+                          ↓
+descent-3:      L2 → L3 → L4 → L5 → L6 → L7
+```
+
+Each ascent creates an immutable record in `.se/ascensions.md` and increments the descent counter.
+
+## MCP Tools
+
+| Tool | Purpose |
+|------|---------|
+| `se_init_project` | Create project with 7-layer structure |
+| `se_get_project` | Read full state including layer graph |
+| `se_baseline` | Freeze current layer as read-only snapshot |
+| `se_ascend` | Rollback to upper layer baseline (new descent round) |
+| `se_descend` | Move to lower layer |
+| `se_can_descend` | Check if transition is allowed |
+| `se_require_confirmation` | Create blocking gate item |
+| `se_resolve_confirmation` | Approve/reject/modify gate item |
+| `se_store_document` | Write layer document |
+| `se_read_document` | Read layer document |
+| `se_list_documents` | List layer files |
+| `se_log_change` | Atomically log change intent (before modifying) |
+| `se_get_changelog` | Read recent changelog entries |
+| `se_check_consistency` | Compare design doc with code (LLM / text / AST) |
+| `se_store_consistency_report` | Store parsed LLM consistency report |
+| `se_search_proposals` | Search proposals across docs (rg / TF-IDF) |
+| `se_get_todos` | Scan todos across all layers |
+| `se_update_todo` | Update todo list in layer README |
+| `se_get_next_steps` | Get recommended actions for current layer |
+| `se_list_baselines` | List available baselines |
+
+## License
+
+MIT

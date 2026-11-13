@@ -1,0 +1,2 @@
+[console_scripts]
+vinw = vinw.__main__:main

@@ -1,0 +1,30 @@
+[project]
+name = "vibe-is-not-wish-mcp"
+version = "0.2.0"
+description = "VINW — Vibe Is Not Wish MCP Server. Markdown-first, spiral-ascend workflow engine for strict software engineering process control."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+    "python-frontmatter>=1.0.0",
+    "textual>=0.50.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+    "tree-sitter>=0.20.0",
+    "tree-sitter-python>=0.20.0",
+    "faiss-cpu>=1.7.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "black", "ruff", "scikit-learn"]
+
+[project.scripts]
+vinw = "vinw.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vinw*"]
