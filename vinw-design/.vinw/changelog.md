@@ -644,3 +644,23 @@ Columns + Text 直接相加，rich Columns 不支持 __add__
 ```text
 使用 rich.console.Group 垂直组合 Columns/Text/Panel
 ```
+
+## chg-20261113-160702-033 [2026-11-13T16:07:02.696626+00:00]
+
+| 字段 | 内容 |
+|------|------|
+| **变更类型** | `bugfix` |
+| **下降轮次** | descent-2 |
+| **层** | L7-终验 |
+| **范围** | `vinw/server.py: se_update_todo; vinw/store/project.py: get_todos; vinw-design/L1~L3 README` |
+| **原因** | 用户排查待办状态未更新：模板占位符从未通过 se_update_todo 维护 + 轮次标记失真 |
+
+### Before
+```text
+get_todos 对所有待办打当前轮次，descent-1 遗留待办显示为 descent-2；L1/L2/L3 待办停留在未勾选模板占位符
+```
+
+### After
+```text
+se_update_todo 写入 todo_descent frontmatter；get_todos 优先读取写入轮次；L1/L2/L3 待办已按真实完成状态修正
+```

@@ -117,3 +117,48 @@ class TestChangelog:
         changelog = (proj.vinw_dir / "changelog.md").read_text()
         assert "chg-" in changelog
         assert "test entry" in changelog
+
+
+class TestTodoDescentTracking:
+    def test_get_todos_prefers_todo_descent_frontmatter(self, temp_project):
+        proj = temp_project
+        readme = proj.read_layer_readme("L1-需求拆解")
+        content = readme["content"] + "\n- [ ] Old round task\n"
+        readme["todo_descent"] = 1
+        proj.write_layer_readme("L1-需求拆解", readme, content)
+        # Simulate current descent having moved on
+        manifest = proj.read_manifest()
+        manifest["current_descent"] = 3
+        proj.write_manifest(manifest)
+
+        todos = [t for t in proj.get_todos() if t["text"] == "Old round task"]
+        assert len(todos) == 1
+        assert todos[0]["descent"] == 1  # write-time descent, not current
+
+    def test_get_todos_fallback_to_current_descent(self, temp_project):
+        proj = temp_project
+        readme = proj.read_layer_readme("L2-参考文献与方案搜证汇总")
+        content = readme["content"] + "\n- [ ] Untracked task\n"
+        proj.write_layer_readme("L2-参考文献与方案搜证汇总", readme, content)
+
+        todos = [t for t in proj.get_todos() if t["text"] == "Untracked task"]
+        assert todos[0]["descent"] == proj.read_manifest().get("current_descent", 1)
+
+    def test_se_update_todo_stamps_descent(self, temp_project):
+        import json as _json
+
+        import vinw.server as server
+
+        saved = server._active_project
+        server._active_project = temp_project
+        try:
+            server.se_update_todo(
+                "L3-方案细化",
+                _json.dumps([{"done": True, "text": "tracked task"}]),
+            )
+            todos = [t for t in temp_project.get_todos() if t["text"] == "tracked task"]
+            assert todos[0]["descent"] == temp_project.read_manifest().get(
+                "current_descent", 1
+            )
+        finally:
+            server._active_project = saved

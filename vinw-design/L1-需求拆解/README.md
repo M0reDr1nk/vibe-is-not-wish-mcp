@@ -1,16 +1,18 @@
 ---
-se_version: "2.0"
-layer: "L1-需求拆解"
-doc_type: "layer-readme"
-status: "pending"
 descent_count: 0
+doc_type: layer-readme
+layer: L1-需求拆解
+se_version: '2.0'
+status: pending
+todo_descent: 2
 ---
 
 # L1-需求拆解
 
 ## 当前待办
 
-- [ ] 初始化本层工作
+- [x] 需求拆解 → proposals.md（descent-1）
+- [x] L1 基线化 v001（descent-1）
 
 ## 阶段小结
 

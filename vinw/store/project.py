@@ -269,13 +269,17 @@ class Project:
             post = frontmatter.load(readme_path)
             if post.metadata.get("status") == "superseded":
                 continue
+            # Prefer the descent at which this todo list was written
+            todo_descent = post.metadata.get(
+                "todo_descent", manifest.get("current_descent", 1)
+            )
             for line in post.content.split("\n"):
                 m = re.match(r"^\s*-\s+\[([ xX])\]\s+(.+)$", line)
                 if m:
                     todos.append(
                         {
                             "layer": layer,
-                            "descent": manifest.get("current_descent", 1),
+                            "descent": todo_descent,
                             "done": m.group(1).strip().lower() in ("x", "X"),
                             "text": m.group(2).strip(),
                         }

@@ -403,6 +403,7 @@ def se_update_todo(layer: str, todos_json: str) -> str:
         new_content = content.rstrip() + "\n\n" + todo_section
 
     post.content = new_content
+    post.metadata["todo_descent"] = proj.read_manifest().get("current_descent", 1)
     readme_path.write_text(frontmatter.dumps(post), encoding="utf-8")
     return json.dumps({"layer": layer, "todo_count": len(todos)}, ensure_ascii=False)
 
