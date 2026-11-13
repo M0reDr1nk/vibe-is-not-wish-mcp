@@ -246,6 +246,7 @@ vinw tui [<path|name>]     # 无参 → 选择器
 ## 版本历史补充
 
 | v0.7 | 2026-11-13 | 多项目跟踪管理：注册表模块、MCP 每工具 project 参数 + 5 个注册表工具、TUI 选择器与切换、CLI project 子命令 |
+| v0.9 | 2026-11-14 | 一致性校验门控：指纹增量判定（fresh/stale_files/stale_design/missing）、三处触发点、自动 text 兜底；非阻塞门控分类呈现；设计评审门控默认阻塞 |
 | v0.8 | 2026-11-14 | 注册表存储改为 SQLite（控制面/数据面分层、projects + project_events、WAL、JSON 迁移与导出、state 意图与观测分离） |
 
 ---
@@ -334,3 +335,70 @@ CREATE INDEX IF NOT EXISTS idx_events_path ON project_events(path, id DESC);
 - `list()` 返回结构保持 `{name, path, status, ...}`，新增字段（`state`, `probed`）只增不改
 - `prune` 仍默认 dry-run、永不静默删除
 - 工程内 Markdown 与全部既有工具行为不变
+
+---
+
+# v0.9 一致性校验门控（descent-9 / asc-008）
+
+## 问题
+
+1. `se_check_consistency` 纯自觉调用：`baseline()` / `descend()` / `se_complete_project()` 均不校验，漏做无任何提示
+2. 报告不记 `descent` 与代码指纹 → 无法判断"本轮代码是否被检查过"，也无法判断"检查后代码是否又改了"
+3. 非阻塞门控遗留项在各视图中呈现不直观（与普通待办混排，无"待你处置"分组）
+
+## 设计原则
+
+**代码由 agent 直接写盘、不经 MCP**，无法拦截每次写入。因此采用「**指纹 + 转换点门控 + 自动兜底**」：所有推进路径都过门控，门控处比对指纹，逻辑上等价于必然触发。
+
+## 指纹契约
+
+检查时记录（写入报告 frontmatter）：
+
+| 字段 | 说明 |
+|------|------|
+| `descent` | 检查发生时的下降轮次 |
+| `scope` | 扫描范围（`["vinw"]` 等） |
+| `design_hash` | 设计文档内容 sha256 |
+| `file_hashes` | `{相对路径: sha256}`，逐文件 |
+| `code_fingerprint` | `sha256(sorted(file_hashes) + design_hash)` 聚合值 |
+
+## 新鲜度判定（增量，避免重复检查）
+
+`ConsistencyGate.freshness(scope, design_doc)` 三态：
+
+| 状态 | 条件 | 门控行为 |
+|------|------|---------|
+| `fresh` | 本轮存在 passing 报告，且 `code_fingerprint` 与当前一致 | **直接放行，零成本**；`se_check_consistency` 返回 `reused: true` + 上次结论 |
+| `stale_files` | 设计未变，部分代码文件增删改 | 自动跑 **text 检查**（毫秒级，写入新报告）后判定 |
+| `stale_design` | `design_hash` 变化 | text 检查 + 提示需 `method="llm"` 语义重审 |
+| `missing` | 本轮无 passing 报告 | 自动跑 text 检查后判定 |
+
+**为什么 text 每次全量扫**：symbol 存在性检查是跨文件的（符号可能移文件），按文件增量会误报缺失；而其成本是毫秒级，全量扫更正确也更简单。**真正昂贵的是 LLM 语义审计**，故增量只作用于 `method="llm"`：fresh 时直接复用结论，不重复构造/消耗审计。
+
+## 门控触发点（三处全覆盖）
+
+| 触发点 | 位置 | 行为 |
+|--------|------|------|
+| ① L4 基线 | `WorkflowEngine.baseline("L4-编码实现")` | `gate.ensure()`：非 fresh → 自动 text 检查并落盘；`overall != passed` → 拒绝基线（`force=True` 可跳过） |
+| ② L4→L5 下降 | `WorkflowEngine.descend("L5-测试验证")` | 同上，防绕过 ① |
+| ③ 完成 | `se_complete_project` | 校验本轮 L4 存在 passing 报告，否则列入 details |
+
+## 状态记录（可观测）
+
+- `manifest.layer_states["L4-编码实现"]["consistency"] = {report_id, overall, descent, checked_at, code_fingerprint}`
+- `se_get_project` 输出该字段；TUI 层图显示 `✓chk` 标记与过期提示
+
+## 非阻塞门控呈现改进
+
+| 视图 | 变化 |
+|------|------|
+| `se_get_project` | 拆分 `blocking_pending` / `pending_review`（后者含 id/layer/item_type/description/age_days） |
+| `se_get_next_steps` | 新增 `awaiting_review` 字段（即使当前层无待办也会列出） |
+| TUI 待办面板 | 分两组：`🔒 阻塞（会卡流程）` / `🔓 待你审阅（不卡流程）`，标题显示两个计数 |
+| `se_complete_project` 结果 | 回报 `pending_review`（不阻断，但显式列出） |
+
+## 设计评审门控语义（约定 + 校验）
+
+- `requirement-decomposition` / `interface-design` 类门控**默认阻塞**（它们的作用就是拦住实现）
+- `se_require_confirmation` 对这两类 `item_type` 在未显式传 `blocking` 时默认 `True`
+- 其余类型（test-results 等）默认 `False`，作为"知会式审阅"

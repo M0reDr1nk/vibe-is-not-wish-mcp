@@ -16,6 +16,10 @@ from .store.registry import ProjectRegistry, ProjectNotFound
 from .store.document import DocumentStore
 from .workflow.state_machine import WorkflowEngine
 from .workflow.consistency_llm import LLMConsistencyAuditor, TextConsistencyChecker
+from .workflow.consistency_gate import ConsistencyGate
+
+# Gate types whose purpose is to stop work until a human approves
+DESIGN_REVIEW_GATES = {"requirement-decomposition", "interface-design"}
 from .workflow.search import ProposalSearcher
 
 mcp = MCPServer("vinw")
@@ -58,6 +62,34 @@ def _get_registry() -> ProjectRegistry:
     if _registry is None:
         _registry = ProjectRegistry()
     return _registry
+
+
+def _split_pending(pending: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Split unresolved gates into blocking and review-only, oldest first."""
+    now = datetime.now(timezone.utc)
+    blocking: list[dict] = []
+    review: list[dict] = []
+
+    for item in pending:
+        if item.get("resolved_at"):
+            continue
+        summary = {
+            "id": item.get("id"),
+            "layer": item.get("layer"),
+            "descent": item.get("descent"),
+            "item_type": item.get("item_type"),
+            "description": item.get("description"),
+        }
+        proposed = item.get("proposed_at")
+        if proposed:
+            try:
+                age = now - datetime.fromisoformat(proposed)
+                summary["age_days"] = round(age.total_seconds() / 86400, 1)
+            except (ValueError, TypeError):
+                pass
+        (blocking if item.get("blocking", True) else review).append(summary)
+
+    return blocking, review
 
 
 def _project_or_error(project: str | None) -> tuple[Project | None, str | None]:
@@ -149,6 +181,10 @@ def se_get_project(project: str | None = None) -> str:
             }
         )
 
+    blocking_pending, pending_review = _split_pending(
+        manifest.get("pending_confirmations", [])
+    )
+
     return json.dumps(
         {
             "name": manifest.get("name"),
@@ -156,6 +192,9 @@ def se_get_project(project: str | None = None) -> str:
             "current_descent": manifest.get("current_descent"),
             "layer_graph": layer_graph,
             "ascent_history": manifest.get("ascent_history", []),
+            "blocking_pending": blocking_pending,
+            "pending_review": pending_review,
+            "consistency": layer_states.get("L4-编码实现", {}).get("consistency"),
             "pending_confirmations": manifest.get("pending_confirmations", []),
         },
         ensure_ascii=False,
@@ -254,13 +293,23 @@ def se_can_descend(project: str | None = None) -> str:
 
 @mcp.tool()
 def se_require_confirmation(
-    item_type: str, description: str, options: str = '["approve","reject","modify"]', blocking: bool = True,
+    item_type: str,
+    description: str,
+    options: str = '["approve","reject","modify"]',
+    blocking: bool | None = None,
     project: str | None = None,
 ) -> str:
-    """Create a blocking confirmation gate item."""
+    """Create a confirmation gate item.
+
+    Design-review gates (requirement-decomposition, interface-design) block by
+    default because their purpose is to stop the work; other types are review
+    notices and default to non-blocking. Pass `blocking` to override.
+    """
     proj, err = _project_or_error(project)
     if err:
         return err
+    if blocking is None:
+        blocking = item_type in DESIGN_REVIEW_GATES
     engine = WorkflowEngine(proj)
     opts = json.loads(options)
     cfm_id = engine.require_confirmation(item_type, description, opts, blocking)
@@ -397,8 +446,29 @@ def se_check_consistency(
     scope = json.loads(code_scope)
 
     if method == "llm" or method == "ast":
+        gate = ConsistencyGate(proj)
+        freshness = gate.freshness(scope or None)
+        if freshness["state"] == "fresh":
+            report = freshness["report"] or {}
+            return json.dumps(
+                {
+                    "reused": True,
+                    "reason": "代码与设计自上次通过的报告后未改动，复用结论",
+                    "report_id": report.get("report_id"),
+                    "overall": report.get("overall_status"),
+                    "checked_at": report.get("checked_at"),
+                    "changed": [],
+                    "note": "如需强制重审，先修改文件或删除该报告后重试",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
         auditor = LLMConsistencyAuditor(proj)
         result = auditor.audit(design_layer, design_doc, scope or None)
+        result["freshness"] = {
+            "state": freshness["state"],
+            "changed": freshness.get("changed", []),
+        }
         return json.dumps(result, ensure_ascii=False, indent=2)
     elif method == "text":
         checker = TextConsistencyChecker(proj)
@@ -568,6 +638,15 @@ def se_complete_project(project: str | None = None) -> str:
             f"{[p['id'] for p in unresolved]}"
         )
 
+    gate = ConsistencyGate(proj)
+    passing = gate.latest_passing(manifest.get("current_descent", 1))
+    if passing is None:
+        errors.append(
+            "本轮（descent-"
+            f"{manifest.get('current_descent', 1)}）缺少通过的一致性检查报告："
+            "请调用 se_check_consistency 后重试"
+        )
+
     if errors:
         return json.dumps(
             {"error": "完成前置条件未满足", "details": errors},
@@ -604,6 +683,9 @@ def se_complete_project(project: str | None = None) -> str:
             "status": "completed",
             "completed_at": completed_at,
             "purged_confirmations": purged.get("ids", []),
+            "pending_review": _split_pending(
+                proj.read_manifest().get("pending_confirmations", [])
+            )[1],
         },
         ensure_ascii=False,
         indent=2,
@@ -729,17 +811,19 @@ def se_get_next_steps(project: str | None = None) -> str:
     layer_states = manifest.get("layer_states", {})
     state = layer_states.get(current, {})
 
-    unresolved = [p for p in pending if not p.get("resolved_at")]
-    if unresolved:
+    blocking_pending, pending_review = _split_pending(pending)
+    if blocking_pending:
         return json.dumps(
             {
                 "current_layer": current,
                 "descent": descent,
                 "status": "awaiting_confirmation",
                 "actions": [
-                    f"Resolve confirmation {u['id']}: {u['description'][:50]}"
-                    for u in unresolved
+                    f"Resolve blocking gate {u['id']} ({u['item_type']}): "
+                    f"{u['description'][:60]}"
+                    for u in blocking_pending
                 ],
+                "awaiting_review": pending_review,
                 "suggested_tools": ["se_resolve_confirmation"],
             },
             ensure_ascii=False,
@@ -807,6 +891,8 @@ def se_get_next_steps(project: str | None = None) -> str:
             "descend_message": desc_msg,
             "next_layer": next_layer,
             "special_instruction": s.get("special", ""),
+            "awaiting_review": pending_review,
+            "consistency": layer_states.get("L4-编码实现", {}).get("consistency"),
         },
         ensure_ascii=False,
         indent=2,

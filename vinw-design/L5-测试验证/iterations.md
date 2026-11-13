@@ -15,3 +15,4 @@ doc_type: "iterations"
 | descent-6 r1 | 71/71 PASS | 三项结构性缺陷（回滚倒带待办/占位符可入基线/过期门控悬挂） | L3 v0.6 设计 → 实现守卫与清理工具；旧用例适配 | 71/71 PASS |
 | descent-7 r1 | 101/101 PASS | 多项目能力缺失（单活动工程、TUI 单路径） | L1-L3 扩展设计 → registry 模块 + 每工具 project 参数 + TUI 选择器 + CLI | 101/101 PASS |
 | descent-8 r1 | 112/112 PASS | 注册表 JSON 无并发锁、写放大 9.5ms/次、存储选型权重错配 | SQLite（WAL+事务+单行 UPDATE）+ intent/observation 分离 + 迁移与容错 | 112/112 PASS |
+| descent-9 r1 | 126/126 PASS | 一致性检查纯自觉（无门控）、报告无指纹与轮次、非阻塞门控呈现混乱 | 指纹增量判定 + 三处门控 + 自动 text 兜底 + 分组呈现 | 126/126 PASS |

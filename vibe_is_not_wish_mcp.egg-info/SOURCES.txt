@@ -2,6 +2,7 @@ LICENSE
 README.md
 pyproject.toml
 tests/test_bootstrap.py
+tests/test_consistency_gate.py
 tests/test_consistency_llm.py
 tests/test_project.py
 tests/test_registry.py
@@ -31,6 +32,7 @@ vinw/utils/__init__.py
 vinw/utils/templates.py
 vinw/utils/validators.py
 vinw/workflow/__init__.py
+vinw/workflow/consistency_gate.py
 vinw/workflow/consistency_llm.py
 vinw/workflow/gate.py
 vinw/workflow/search.py

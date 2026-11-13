@@ -110,6 +110,10 @@ class TestCompleteProject:
                 readme,
                 replace_todo_section(readme["content"], "## 当前待办\n\n- [x] done"),
             )
+        # Completion requires a passing consistency report for this descent
+        from vinw.workflow.consistency_gate import ConsistencyGate
+
+        ConsistencyGate(proj).ensure()
         return proj
 
     def test_complete_success(self, tmp_path, clean_active_project):

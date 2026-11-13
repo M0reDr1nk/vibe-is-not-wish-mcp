@@ -159,6 +159,7 @@ class TestPurgeConfirmations:
 class TestCompleteProjectGuards:
     def _ready_project(self, proj):
         from vinw.store.project import LAYERS
+        from vinw.workflow.consistency_gate import ConsistencyGate
 
         manifest = proj.read_manifest()
         manifest["current_layer"] = "L7-终验"
@@ -175,6 +176,7 @@ class TestCompleteProjectGuards:
                 readme,
                 replace_todo_section(readme["content"], "## 当前待办\n\n- [x] done"),
             )
+        ConsistencyGate(proj).ensure()  # completion requires a passing report
 
     def test_blocks_on_placeholder_todo(self, active):
         from vinw.store.project import LAYERS
@@ -198,6 +200,10 @@ class TestCompleteProjectGuards:
             {"id": "cfm-stale", "descent": 1, "blocking": False, "resolved_at": None}
         ]
         active.write_manifest(manifest)
+
+        from vinw.workflow.consistency_gate import ConsistencyGate
+
+        ConsistencyGate(active).ensure()  # report must belong to descent 3
 
         result = json.loads(server.se_complete_project())
         assert result["status"] == "completed"

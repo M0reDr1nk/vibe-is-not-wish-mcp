@@ -4,18 +4,17 @@ doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
 status: pending
-todo_descent: 8
+todo_descent: 9
 ---
 
 # L6-检视清理
 
 ## 当前待办
 
-- [x] 未使用导入 AST 扫描（0 处）
-- [x] gitignore 追加 SQLite 产物（*.db/-wal/-shm/corrupt）
-- [x] 遗留 registry.json 保留为 .migrated-*（不静默删数据）
-- [x] 文档全链路同步（L2 更正声明/L3 v0.8/L4/L5）
-- [x] 最终一致性检查（112 测试通过，一致性 30/30 匹配）
+- [x] 死代码删除：gate.py（GateManager 无引用）
+- [x] 未使用导入清理（consistency_gate/consistency_llm）
+- [x] 文档同步（L3 v0.9/L4/L5）
+- [x] 最终一致性检查（126 测试通过，门控自动校验 passed）
 - [x] L6 基线化 → 下降到 L7
 
 ## 阶段小结

@@ -112,3 +112,36 @@ updated_at: "2026-11-13T10:02:19.675591"
 
 ### 修复的自身缺陷
 `list()` 探测分支漏 `entries.append(entry)`，导致 probe 路径返回空列表（开发期自查发现并修复，测试覆盖）
+
+## descent-9 实现记录（asc-008：一致性门控）
+
+### 新增
+- `vinw/workflow/consistency_gate.py`：`ConsistencyGate`
+  - `freshness()` 四态判定：`fresh` / `stale_files` / `stale_design` / `missing`
+  - `ensure()`：非 fresh 时自动跑 text 检查并落盘报告（自动兜底），fresh 时零成本复用
+  - `latest_passing(descent)`：按轮次筛选通过报告
+  - `_record_state()`：把 `{report_id, overall, descent, checked_at, code_fingerprint}` 写入 `manifest.layer_states[L4].consistency`
+- `consistency_llm.py`：`file_hashes()` / `layer_design_hash()` / `aggregate_fingerprint()`；`store_report()` 增加 `descent/scope/design_hash/file_hashes/code_fingerprint` 元数据
+
+### 三处门控（必然触发）
+| 位置 | 行为 |
+|------|------|
+| `WorkflowEngine.baseline("L4-编码实现")` | 自动 ensure；未通过则拒绝（`force` 可跳过） |
+| `WorkflowEngine.descend(L4→L5)` | 同上，防绕过基线门控 |
+| `se_complete_project` | 校验本轮存在 passed 报告 |
+
+### 增量复用（避免重复检查）
+- `se_check_consistency(method="llm")` 先判新鲜度：fresh → 返回 `{reused: true, report_id, overall}`，不构造 prompt、不消耗审计
+- text 检查成本毫秒级且符号存在性跨文件，故始终全量扫描（按文件增量会误报缺失）
+- 实测：`ensure` 首次 `missing` 跑检查，二次 `fresh` 直接复用；MCP 侧同样返回 `reused: true`
+
+### 非阻塞门控呈现改进
+- `se_get_project` 拆分 `blocking_pending` / `pending_review`（含 `age_days`）并输出 `consistency` 状态
+- `se_get_next_steps` 新增 `awaiting_review`（无待办时也列出）
+- `se_complete_project` 结果回报 `pending_review`
+- TUI 待办面板分两组：`🔒 阻塞（会卡流程）` / `🔓 待你审阅（不卡流程）`，标题显示双计数，存在阻塞门控时边框转红
+- `se_require_confirmation`：`requirement-decomposition` / `interface-design` 默认阻塞，其余默认非阻塞
+
+### 开发期自查发现并修复
+1. 报告 frontmatter 手拼 YAML 导致解析失败（`file_hashes` 内嵌引号）→ 改用 `frontmatter.dumps(Post(...))` 由 yaml 序列化
+2. 设计指纹只覆盖 `design-doc.md`，而检查读的是 `api-design.md` → 改为整层 `*.md` 聚合哈希（否则改接口设计不会使缓存失效，属漏检）

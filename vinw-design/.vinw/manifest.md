@@ -60,12 +60,20 @@ ascent_history:
     SQLite（并发写、写放大、崩溃一致性）
   to_baseline: v002
   to_layer: L2-参考文献与方案搜证汇总
+- created_at: '2026-11-13T17:16:46.738688+00:00'
+  descent_after: 9
+  descent_before: 8
+  from_layer: L7-终验
+  id: asc-008
+  reason: 一致性审核无强制触发点（纯自觉）+ 非阻塞门控遗留呈现不直观；需新增指纹增量校验与三处守卫、改进待审呈现、并区分设计评审门控阻塞语义
+  to_baseline: v010
+  to_layer: L3-方案细化
 code_root: ..
-completed_at: '2026-11-13T17:05:28.196751+00:00'
+completed_at: '2026-11-13T17:22:28.121911+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 8
+current_descent: 9
 current_layer: L7-终验
-descent_started_at: '2026-11-13T17:00:41.344218+00:00'
+descent_started_at: '2026-11-13T17:16:46.739602+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
@@ -81,28 +89,34 @@ layer_states:
     latest_baseline: v003
     status: baselined
   L3-方案细化:
-    active_ascent: asc-005
-    baselined_at: '2026-11-13T17:01:09.399204+00:00'
-    descent_count: 8
-    latest_baseline: v010
+    active_ascent: asc-008
+    baselined_at: '2026-11-13T17:16:58.853596+00:00'
+    descent_count: 9
+    latest_baseline: v011
     status: baselined
   L4-编码实现:
-    baselined_at: '2026-11-13T17:04:12.767456+00:00'
-    descent_count: 7
-    latest_baseline: v008
+    baselined_at: '2026-11-13T17:21:05.576006+00:00'
+    consistency:
+      checked_at: '2026-11-13T17:21:05.549885+00:00'
+      code_fingerprint: 97d5973005f26a3ec85bf1be6d7e90babf3de2ac3343c38fb7a9bc0f4119d6ac
+      descent: 9
+      overall: passed
+      report_id: f6edf36a
+    descent_count: 8
+    latest_baseline: v009
     status: baselined
   L5-测试验证:
-    baselined_at: '2026-11-13T17:04:46.480525+00:00'
-    descent_count: 8
-    latest_baseline: v008
+    baselined_at: '2026-11-13T17:21:38.321156+00:00'
+    descent_count: 9
+    latest_baseline: v009
     status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-13T17:05:12.569079+00:00'
-    descent_count: 8
-    latest_baseline: v008
+    baselined_at: '2026-11-13T17:22:12.874883+00:00'
+    descent_count: 9
+    latest_baseline: v009
     status: baselined
   L7-终验:
-    descent_count: 8
+    descent_count: 9
     latest_baseline: null
     status: completed
 name: vinw-self-design
@@ -176,6 +190,8 @@ pending_confirmations:
   description: L3 v0.8 设计确认（注册表改 SQLite）：控制面/数据面分层；projects + project_events 两表、WAL、user_version=2；state(intent)
     与 missing_since(observation) 分离，默认只探测 active；touch 改单行 UPDATE 消除写放大；JSON 迁移保留原文件；新增
     set_state/history/export_json 与对应 CLI 命令。工程内 Markdown 完全不变。
+  feedback: 用户批准 L3 v0.8（注册表改 SQLite）设计。附带两点后续意见：1) 阻塞/非阻塞区分保留，但非阻塞遗留项呈现不直观，需改进；2)
+    一致性门控应做，并要求支持「未修改内容避免重复检查」。
   id: cfm-20261113-170107-005
   item_type: interface-design
   layer: L3-方案细化
@@ -184,8 +200,8 @@ pending_confirmations:
   - reject
   - modify
   proposed_at: '2026-11-13T17:01:07.252809+00:00'
-  resolution: null
-  resolved_at: null
+  resolution: approve
+  resolved_at: '2026-11-13T17:16:38.427440+00:00'
 se_version: '2.0'
 status: completed
 ---

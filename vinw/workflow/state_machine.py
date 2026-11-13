@@ -12,6 +12,10 @@ from ..store.project import (
     has_placeholder_todo,
 )
 from ..store.changelog import append_changelog_entry
+from .consistency_gate import ConsistencyGate
+
+L4_LAYER = 'L4-编码实现'
+L5_LAYER = 'L5-测试验证'
 
 
 class WorkflowEngine:
@@ -59,6 +63,16 @@ class WorkflowEngine:
     # ── Baseline ──────────────────────────────────────────────
 
     def baseline(self, layer: str, reason: str = "", force: bool = False) -> dict[str, Any]:
+        if layer == L4_LAYER and not force:
+            gate = ConsistencyGate(self.project)
+            status = gate.ensure()
+            if status.get("overall") != "passed":
+                raise ValueError(
+                    f"L4 一致性校验未通过（overall={status.get('overall')}，"
+                    f"{status.get('inconsistencies', 0)} 项不一致）；"
+                    f"请修复后重试，或以 force=true 跳过"
+                )
+
         if not force:
             readme = self.project.read_layer_readme(layer)
             content = readme.get("content", "")
@@ -192,6 +206,17 @@ class WorkflowEngine:
             raise ValueError(
                 f"Descend only to lower layers; {to_layer} is not below {current_layer}"
             )
+
+        # Consistency must be verified before leaving L4 (gate covers both
+        # the "never ran" and "code changed after the check" cases).
+        if current_layer == L4_LAYER and to_idx > from_idx:
+            gate = ConsistencyGate(self.project)
+            status = gate.ensure()
+            if status.get("overall") != "passed":
+                raise ValueError(
+                    f"L4 一致性校验未通过（overall={status.get('overall')}），"
+                    f"不可下降到 {to_layer}"
+                )
 
         # Verify intermediate layers are baselined or in_progress
         for i in range(from_idx + 1, to_idx):

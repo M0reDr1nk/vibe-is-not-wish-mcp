@@ -4,17 +4,17 @@ doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
 status: in_progress
-todo_descent: 8
+todo_descent: 9
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
-- [x] descent-1~7 测试体系（101 例）
-- [x] descent-8：SQLite 控制面 8 例（并发写/intent 分离/事件历史/touch）
-- [x] descent-8：迁移与容错 3 例（JSON 迁移保留、损坏隔离、WAL）
-- [x] 全量 112/112 通过，结果与迭代记录已更新
+- [x] descent-1~8 测试体系（112 例）
+- [x] descent-9：一致性门控 14 例（新鲜度四态/三处守卫/复用/分组呈现）
+- [x] descent-9：必然性验证（绕过基线、忘调用、检查后再改码）
+- [x] 全量 126/126 通过，结果与迭代记录已更新
 - [x] L5 基线化 → 下降 L6
 
 ## 阶段小结

@@ -93,3 +93,14 @@ updated_at: '2026-11-13T10:22:00.320267'
 | api-design.md v0.8 | 导出 | vinw/store/registry.py | export_json | ✅ 已实现 |
 | api-design.md v0.8 | MCP | vinw/server.py | se_set_project_state / se_project_history / se_export_projects | ✅ 已实现 |
 | api-design.md v0.8 | CLI | vinw/__main__.py | activate/deactivate/history/export 子命令 | ✅ 已实现 |
+
+## descent-9 新增（一致性门控，对应 asc-008 / L3 v0.11）
+
+| 设计文档 | 段落 | 代码文件 | 函数/类 | 状态 |
+|---------|------|---------|--------|------|
+| api-design.md v0.9 | 指纹契约 | vinw/workflow/consistency_llm.py | file_hashes / layer_design_hash / aggregate_fingerprint | ✅ 已实现 |
+| api-design.md v0.9 | 新鲜度判定 | vinw/workflow/consistency_gate.py | ConsistencyGate.freshness / ensure | ✅ 已实现 |
+| api-design.md v0.9 | 三处门控 | vinw/workflow/state_machine.py | baseline(L4) / descend(L4→L5) | ✅ 已实现 |
+| api-design.md v0.9 | 完成守卫 | vinw/server.py | se_complete_project 一致性校验 | ✅ 已实现 |
+| api-design.md v0.9 | 复用 | vinw/server.py | se_check_consistency 返回 reused | ✅ 已实现 |
+| api-design.md v0.9 | 待审呈现 | vinw/server.py + tui/app.py | _split_pending / 分组面板 / 设计门控默认阻塞 | ✅ 已实现 |

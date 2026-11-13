@@ -1,13 +1,13 @@
 ---
-baseline_reason: descent-5 L3：TUI 布局契约 v0.5（VerticalScroll + auto 内层 + 表格列宽 + 滚动验证契约）定稿。此前遗漏基线，由
-  se_complete_project 前置校验发现
-baseline_version: v006
-baselined_at: '2026-11-13T16:32:53.506069+00:00'
+baseline_reason: descent-8 L3 v0.8：SQLite 注册表 schema/迁移/状态语义/API 增量设计定稿（门控 cfm-...-005
+  非阻塞供审阅）
+baseline_version: v010
+baselined_at: '2026-11-13T17:01:09.397664+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-13T16:37:44.151635+00:00'
-rolled_back_from: v006
+rolled_back_at: '2026-11-13T17:16:46.739191+00:00'
+rolled_back_from: v010
 se_version: '2.0'
 status: in_progress
 todo_descent: 8
@@ -22,7 +22,6 @@ todo_descent: 8
 - [x] v0.8：state(intent)/missing_since(observation) 分离与探测策略
 - [x] v0.8：JSON→SQLite 迁移、export_json、history、set_state
 - [x] L3 基线化 → 下降 L4
-
 ## 阶段小结
 
 （阶段完成时填写）

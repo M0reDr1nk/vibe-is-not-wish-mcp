@@ -1,21 +1,21 @@
 ---
-completed_at: '2026-11-13T17:05:28.195060+00:00'
+completed_at: '2026-11-13T17:22:28.120542+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
 status: completed
-todo_descent: 8
+todo_descent: 9
 ---
 
 # L7-终验
 
 ## 当前待办
 
-- [x] 终验报告更新至 descent-8（含选型更正与分层说明）
-- [x] 汇总 8 次下降与 7 次上升历史
-- [x] 确认测试覆盖（112/112，registry 37 例）
-- [x] 记录已知限制（注册表不进 git、需工具查看）
+- [x] 终验报告更新至 descent-9（一致性门控版）
+- [x] 汇总 9 次下降与 8 次上升历史
+- [x] 确认测试覆盖（126/126，含一致性门控 14 例）
+- [x] 记录已知限制（历史报告无指纹、code_root 依赖）
 - [x] 项目完成标记（se_complete_project）
 
 ## 阶段小结

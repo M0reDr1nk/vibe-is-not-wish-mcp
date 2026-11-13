@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import frontmatter
 
 from ..store.project import Project
 
@@ -47,6 +50,49 @@ def _collect_code_files(code_root: Path, code_scope: list[str] | None) -> list[P
         if ".baseline" not in str(f)
         and not any(part in _EXCLUDED_DIR_PARTS for part in f.parts)
     ]
+
+
+def file_hashes(code_root: Path, code_scope: list[str] | None = None) -> dict[str, str]:
+    """sha256 per scanned code file, keyed by path relative to code_root."""
+    result: dict[str, str] = {}
+    for f in _collect_code_files(code_root, code_scope):
+        try:
+            digest = hashlib.sha256(f.read_bytes()).hexdigest()
+        except OSError:
+            continue
+        result[_display_path(code_root, f)] = digest
+    return result
+
+
+def design_hash(design_path: Path) -> str:
+    """Digest of a single design document."""
+    try:
+        return hashlib.sha256(design_path.read_bytes()).hexdigest()
+    except OSError:
+        return ""
+
+
+def layer_design_hash(layer_dir: Path) -> str:
+    """Digest over every design document in a layer.
+
+    Hashing one file is not enough: the text/LLM checks read api-design.md
+    separately, so a change there must also invalidate a cached verdict.
+    """
+    if not layer_dir.exists():
+        return ""
+    digest = hashlib.sha256()
+    for path in sorted(layer_dir.glob("*.md")):
+        digest.update(path.name.encode())
+        try:
+            digest.update(path.read_bytes())
+        except OSError:
+            continue
+    return digest.hexdigest()
+
+
+def aggregate_fingerprint(hashes: dict[str, str], design_digest: str) -> str:
+    payload = "|".join(f"{k}:{v}" for k, v in sorted(hashes.items()))
+    return hashlib.sha256(f"{payload}||{design_digest}".encode()).hexdigest()
 
 
 def _display_path(code_root: Path, code_file: Path) -> str:
@@ -171,6 +217,11 @@ class LLMConsistencyAuditor:
         self,
         report_data: dict[str, Any],
         report_id: str | None = None,
+        *,
+        descent: int | None = None,
+        scope: list[str] | None = None,
+        design_digest: str = "",
+        hashes: dict[str, str] | None = None,
     ) -> Path:
         """Store a parsed LLM consistency report into the project."""
         if report_id is None:
@@ -213,15 +264,9 @@ class LLMConsistencyAuditor:
         if not matched:
             matched_table += "| — | — | — | — |\n"
 
-        content = f"""---
-se_version: "2.0"
-layer: "L4-编码实现"
-doc_type: "consistency-report"
-report_id: "{report_id}"
-checked_at: "{datetime.now(timezone.utc).isoformat()}"
-overall_status: "{overall}"
----
+        fingerprint = aggregate_fingerprint(hashes or {}, design_digest)
 
+        body = f"""
 # 一致性检查报告 ({report_id})
 
 ## 执行摘要
@@ -246,6 +291,27 @@ overall_status: "{overall}"
 - [x] INC-001: 修复说明 (chg-xxx)
 -->
 """
+
+        # Metadata goes through yaml.dump so nested structures stay valid YAML
+        metadata: dict[str, Any] = {
+            "se_version": "2.0",
+            "layer": "L4-编码实现",
+            "doc_type": "consistency-report",
+            "report_id": report_id,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "overall_status": overall,
+            "code_fingerprint": fingerprint,
+        }
+        if descent is not None:
+            metadata["descent"] = descent
+        if scope:
+            metadata["scope"] = list(scope)
+        if design_digest:
+            metadata["design_hash"] = design_digest
+        if hashes:
+            metadata["file_hashes"] = dict(hashes)
+
+        content = frontmatter.dumps(frontmatter.Post(body.strip() + "\n", **metadata))
         report_path.write_text(content, encoding="utf-8")
         return report_path
 

@@ -121,3 +121,12 @@ status: "completed"
 | 遗留数据 | `~/.vinw/registry.json` → `.migrated-*` 保留 | 迁移后原文件不删除，符合"不静默删数据"约束 |
 | 文档同步 | api-design v0.8 / code-map / implementation / test-results / iterations / synthesis 更正声明 | 全链路已更新 |
 | 测试复验 | 112/112 通过 ✅ | 清理后重跑全绿 |
+
+## descent-9 清理（asc-008 一致性门控，2026-11-14）
+
+| 类别 | 操作 | 说明 |
+|------|------|------|
+| 死代码删除 | 删除 `vinw/workflow/gate.py`（GateManager 80 行） | 全仓无引用：早期"把确认块嵌入文档"的方案已被 manifest 驱动的门控取代；保留会误导后续维护 |
+| 未使用导入 | consistency_gate.py 移除 re/datetime/timezone/Path/_display_path；consistency_llm.py 移除 json | AST 扫描发现（json 用于构建指纹 metadata 后被 frontmatter.dumps 取代） |
+| 一致性报告 | 本轮新增 report-f6edf36a（含 descent=9 + 指纹） | 历史报告无指纹，`latest_passing(descent)` 按轮次筛选后不受影响 |
+| 测试复验 | 126/126 通过 ✅ | 清理后重跑全绿 |

@@ -5,15 +5,15 @@ doc_type: "final-report"
 status: "in_progress"
 ---
 
-# 终验报告 — VINW（descent-8，控制面/数据面分层版）
+# 终验报告 — VINW（descent-9，一致性门控版）
 
 ## 项目信息
 
 | 字段 | 值 |
 |------|-----|
 | 项目名称 | vinw-self-design |
-| 下降轮次 | descent-1 ~ descent-8 |
-| 上升次数 | 7（asc-001 ~ asc-007） |
+| 下降轮次 | descent-1 ~ descent-9 |
+| 上升次数 | 8（asc-001 ~ asc-008） |
 | 终验时间 | 2026-11-13 |
 | 版本 | 0.2.0 |
 
@@ -23,11 +23,11 @@ status: "in_progress"
 |---|------|------|---------|
 | L1-需求拆解 | ✅ baselined | v001, **v002** | 2 |
 | L2-参考文献与方案搜证汇总 | ✅ baselined | v001, v002, **v003** | 3 |
-| L3-方案细化 | ✅ baselined | v001–v009, **v010** | 8 |
-| L4-编码实现 | ✅ baselined | v001–v007, **v008** | 8 |
-| L5-测试验证 | ✅ baselined | v001–v007, **v008** | 8 |
-| L6-检视清理 | ✅ baselined | v001–v007, **v008** | 8 |
-| L7-终验 | ✅ completed | — | 8 |
+| L3-方案细化 | ✅ baselined | v001–v010, **v011** | 9 |
+| L4-编码实现 | ✅ baselined | v001–v008, **v009** | 9 |
+| L5-测试验证 | ✅ baselined | v001–v008, **v009** | 9 |
+| L6-检视清理 | ✅ baselined | v001–v008, **v009** | 9 |
+| L7-终验 | ✅ completed | — | 9 |
 
 ## 上升记录（ascensions.md）
 
@@ -40,6 +40,7 @@ status: "in_progress"
 | asc-005 | L7 → L3(v007) | 三项结构性缺陷：回滚倒带待办、占位符可入基线、过期门控悬挂 |
 | asc-006 | L7 → L1(v001) | 多项目跟踪管理：需求级扩展，回到 L1 重新拆解 |
 | asc-007 | L7 → L2(v002) | 注册表存储选型复核：descent-7 的 L2 矩阵权重错配，控制面应改 SQLite |
+| asc-008 | L7 → L3(v010) | 一致性检查纯自觉无门控、报告无指纹与轮次、非阻塞门控呈现不直观 |
 
 ## descent-4 交付内容（asc-003）
 
@@ -116,6 +117,37 @@ CSV 再评估：结构性够用且最紧凑（1944 B），但 null/空串不可�
 - 损坏库隔离为 `registry.db.corrupt-<ts>` 后重建，绝不静默删除
 - 新增 `vinw project activate|deactivate|history|export` 与 `se_set_project_state` / `se_project_history` / `se_export_projects`
 
+## descent-9 交付内容（asc-008：一致性门控）
+
+### 问题
+`se_check_consistency` 此前**纯自觉**：`baseline()` / `descend()` / `se_complete_project()` 均不校验，漏做无任何提示；报告不含 `descent` 与代码指纹，无法判断"本轮是否检查过"「检查后代码是否又改」。
+
+### 解法：指纹 + 转换点门控 + 自动兜底
+代码由 agent 直接写盘、不经 MCP，无法拦截每次写入 → 改为在**所有推进路径**上校验指纹：
+
+| 触发点 | 行为 |
+|--------|------|
+| `se_baseline("L4-编码实现")` | 自动 ensure；未通过则拒绝（`force` 可跳过） |
+| `se_descend(L4→L5)` | 同上，防绕过基线守卫 |
+| `se_complete_project` | 校验本轮存在 passed 报告 |
+
+**必然性**：新增 `test_descend_from_l4_regates`（改代码后再下降被拒绝）等用例，覆盖"绕过基线""忘了调用""检查后又改码"三条漏检路径。
+
+### 增量复用（用户要求：未修改内容避免重复检查）
+`ConsistencyGate.freshness()` 四态：`fresh` / `stale_files` / `stale_design` / `missing`。
+
+- fresh → 零成本放行；`se_check_consistency(method="llm")` 返回 `{reused: true, report_id, overall}`，**不构造 prompt、不消耗审计**
+- stale → 自动跑 text 检查落盘后再判定
+- text 检查始终全量扫描：符号存在性跨文件（符号可能移文件），按文件增量会误报缺失，而其成本仅毫秒级；**昂贵的 LLM 语义审计才做增量**
+
+实测：真实工程首次 `missing` 执行检查，二次 `fresh` 直接复用。
+
+### 非阻塞门控呈现改进
+- `se_get_project` → `blocking_pending` / `pending_review`（含 `age_days`）+ `consistency`
+- `se_get_next_steps` → `awaiting_review`（无待办时也列出）
+- TUI → 分两组 `🔒 阻塞（会卡流程）` / `🔓 待你审阅（不卡流程）`，双计数标题，有阻塞时边框转红
+- 设计评审类门控（requirement-decomposition / interface-design）**默认阻塞**
+
 ## 流程违规与补救披露（延续）
 
 descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并立规 DESC-001（基线后缺陷必须 ascend）。descent-4 本身即是按 DESC-001 执行的第四次下降：发现完成态缺口后先上升、改设计（L3 v0.4/v005）、再下降实现，未走热修。
@@ -154,10 +186,11 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 | test_consistency_llm.py | 10 | 10/10 ✅ |
 | test_search.py | 7 | 7/7 ✅ |
 | test_registry.py（含 SQLite 控制面） | 37 | 37/37 ✅ |
+| test_consistency_gate.py（descent-9 新增） | 14 | 14/14 ✅ |
 | test_bootstrap.py（含完成态 3 例） | 10 | 10/10 ✅ |
 | test_tui.py（滚动断言 + 多项目 4 例） | 9 | 9/9 ✅ |
 | test_todo_lifecycle.py（新增） | 15 | 15/15 ✅ |
-| **合计** | **112** | **112/112 ✅** |
+| **合计** | **126** | **126/126 ✅** |
 
 端到端实测：MCP 自举加载 ✅；一致性检查 20/20 ✅；se_complete_project 前置校验与成功路径 ✅；TUI 渲染/滚动/容错/completed ✅。
 
@@ -171,4 +204,4 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 
 ## 结论
 
-**八次下降、七次上升全部闭环，112 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**
+**九次下降、八次上升全部闭环，126 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**

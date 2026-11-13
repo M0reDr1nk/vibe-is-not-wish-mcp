@@ -251,3 +251,38 @@ updated_at: "2026-11-13T12:00:00Z"
 
 ### 开发期自查发现并修复
 `list()` 探测分支漏 `entries.append()` 导致 probe 路径返回空表——已修复并有测试覆盖。
+
+## descent-9 round 1（asc-008 一致性门控，2026-11-14）
+
+| 指标 | 值 |
+|------|------|
+| 测试轮次 | descent-9 round 1 |
+| 总用例数 | 126（新增 tests/test_consistency_gate.py 14 例） |
+| 通过 | 126 |
+| 失败 | 0 |
+
+### 新增覆盖（test_consistency_gate.py）
+
+| 用例组 | 结果 | 说明 |
+|--------|------|------|
+| TestFreshness (5) | PASS | 无报告=missing；ensure 后=fresh；改代码=stale_files 并列出变更文件；改设计=stale_design；新增文件可检出 |
+| TestEnforcement (4) | PASS | L4 基线自动校验并记录 consistency 状态；校验失败拒绝基线；force 可跳过；L4→L5 下降在代码漂移后重新校验并拒绝 |
+| TestReuse (2) | PASS | fresh 时 llm 检查返回 reused=true 不构造 prompt；代码改动后转为实际审计并回报 freshness |
+| TestPendingPresentation (3) | PASS | 阻塞/待审分组；设计类门控默认阻塞；next_steps 列出 awaiting_review |
+
+### 新增的必然性验证
+
+| 路径 | 验证方式 |
+|------|---------|
+| 绕过基线直接下降 | `test_descend_from_l4_regates`：改设计后再下降 → 拒绝 |
+| 忘了调用检查工具 | `TestEnforcement`：基线/下降自动触发 ensure，无需 agent 主动调用 |
+| 检查后代码又改 | `test_stale_files_when_code_changes` + 下降守卫组合验证 |
+
+### 实测（真实工程）
+- `ensure` 首次 `missing` 执行检查 → 二次 `fresh` 复用（零成本）
+- MCP `se_check_consistency(method="llm")` 返回 `{reused: true, report_id: f6edf36a, overall: passed}`
+- `se_get_project` 新增 `blocking_pending` / `pending_review` / `consistency` 三组字段
+
+### 开发期自查发现并修复
+1. 报告 frontmatter 手拼 YAML 解析失败 → 改由 `frontmatter.dumps` 序列化
+2. 设计指纹仅覆盖 `design-doc.md`（漏检 `api-design.md` 变更）→ 改为整层 `*.md` 聚合哈希

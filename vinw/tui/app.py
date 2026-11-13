@@ -235,16 +235,27 @@ class SEApp(App):
         table.add_column("状态", width=6, justify="center")
         table.add_column("内容", overflow="fold", ratio=1)
 
-        # Pending confirmations on top
-        for p in pending:
-            if not p.get("resolved_at"):
-                lock = "🔒" if p.get("blocking", True) else "🔓"
+        # Pending gates first, blocking group then review group
+        open_gates = [p for p in pending if not p.get("resolved_at")]
+        blocking_gates = [p for p in open_gates if p.get("blocking", True)]
+        review_gates = [p for p in open_gates if not p.get("blocking", True)]
+
+        for label, group, style in (
+            ("🔒 阻塞（会卡流程）", blocking_gates, "bold red"),
+            ("🔓 待你审阅（不卡流程）", review_gates, "yellow"),
+        ):
+            if not group:
+                continue
+            table.add_row(
+                label, "", "—", f"共 {len(group)} 项", style=style
+            )
+            for p in group:
                 table.add_row(
                     p.get("layer", "?"),
                     str(p.get("descent", "?")),
-                    lock,
-                    f"[待确认] {p.get('item_type', '')}: {p['description']} (id: {p['id']})",
-                    style="yellow",
+                    "🔒" if p.get("blocking", True) else "🔓",
+                    f"{p.get('item_type', '')}: {p['description']} (id: {p['id']})",
+                    style=style if p.get("blocking", True) else "yellow",
                 )
 
         for t in todos:
@@ -253,14 +264,13 @@ class SEApp(App):
             table.add_row(t["layer"], str(t["descent"]), status, t["text"], style=style)
 
         done_count = sum(1 for t in todos if t["done"])
-        unresolved = [p for p in pending if not p.get("resolved_at")]
         mid_content = Panel(
-            table if (todos or pending) else Text("暂无待办", style="dim"),
+            table if (todos or open_gates) else Text("暂无待办", style="dim"),
             title=(
-                f"📋 待办 / 待确认 "
-                f"({done_count}/{len(todos)} 已完成, {len(unresolved)} 待确认)"
+                f"📋 待办 {done_count}/{len(todos)} 已完成 · "
+                f"🔒 阻塞 {len(blocking_gates)} · 🔓 待审阅 {len(review_gates)}"
             ),
-            border_style="blue",
+            border_style="red" if blocking_gates else "blue",
         )
         self.query_one("#mid-content", Static).update(mid_content)
 
