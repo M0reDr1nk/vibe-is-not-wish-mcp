@@ -72,3 +72,20 @@ def test_tui_refresh_after_workflow_changes(proj):
         assert top.content is not None
 
     _run(app, scenario)
+
+
+def test_tui_survives_transient_file_error(proj):
+    """A mid-rewrite/corrupt manifest must not kill the refresh loop."""
+    app = SEApp(str(proj.root))
+
+    async def scenario(pilot):
+        await pilot.pause()
+        # Remove the manifest to simulate a transient read during rewrite
+        (proj.root / ".vinw" / "manifest.md").unlink()
+        app.refresh_ui()  # must not raise
+        await pilot.pause()
+        bottom = app.query_one("#bottom-panel")
+        panel = bottom.content
+        assert "刷新出错" in str(getattr(panel, "renderable", panel))
+
+    _run(app, scenario)

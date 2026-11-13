@@ -25,9 +25,9 @@ class SEApp(App):
 
     CSS = """
     Screen { align: center middle; }
-    #top-panel { height: 40%; border: solid green; }
-    #mid-panel { height: 35%; border: solid blue; }
-    #bottom-panel { height: 25%; border: solid yellow; }
+    #top-panel { height: 40%; border: solid green; overflow-y: auto; }
+    #mid-panel { height: 35%; border: solid blue; overflow-y: auto; }
+    #bottom-panel { height: 25%; border: solid yellow; overflow-y: auto; }
     """
 
     project_path: reactive[str | None] = reactive(None)
@@ -51,6 +51,26 @@ class SEApp(App):
         self.refresh_ui()
 
     def refresh_ui(self):
+        """Timer-driven refresh; never let a transient error kill the TUI.
+
+        Files may be mid-rewrite when the MCP server updates them, so keep
+        the last good render and surface the error instead of crashing.
+        """
+        try:
+            self._refresh_ui()
+        except Exception as e:
+            try:
+                self.query_one("#bottom-panel", Static).update(
+                    Panel(
+                        Text(f"刷新出错（保留上次渲染）: {e}", style="red"),
+                        title="📝 状态与最近变更",
+                        border_style="red",
+                    )
+                )
+            except Exception:
+                pass
+
+    def _refresh_ui(self):
         if not self.project:
             self.query_one("#top-panel", Static).update("⚠️ No active project loaded")
             return

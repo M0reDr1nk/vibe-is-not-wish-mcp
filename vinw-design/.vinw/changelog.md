@@ -664,3 +664,23 @@ get_todos 对所有待办打当前轮次，descent-1 遗留待办显示为 desce
 ```text
 se_update_todo 写入 todo_descent frontmatter；get_todos 优先读取写入轮次；L1/L2/L3 待办已按真实完成状态修正
 ```
+
+## chg-20261113-161228-034 [2026-11-13T16:12:28.520290+00:00]
+
+| 字段 | 内容 |
+|------|------|
+| **变更类型** | `bugfix` |
+| **下降轮次** | descent-2 |
+| **层** | L7-终验 |
+| **范围** | `vinw/tui/app.py: CSS, refresh_ui; tests/test_tui.py` |
+| **原因** | 用户反馈修复待办时 TUI 看不到状态更新：面板溢出无滚动 + MCP 重写文件瞬间的读取异常无兜底 |
+
+### Before
+```text
+面板不可滚动，超出部分不可见；refresh_ui 抛异常会杀死 TUI
+```
+
+### After
+```text
+三面板 overflow-y:auto 可滚动；refresh_ui 异常兜底（保留上次渲染并显示错误）；新增韧性测试
+```
