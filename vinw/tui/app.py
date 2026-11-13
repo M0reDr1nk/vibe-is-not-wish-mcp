@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import Footer, Header, Static
 
@@ -23,13 +23,15 @@ from ..workflow.state_machine import WorkflowEngine
 class SEApp(App):
     """Main TUI application for SE-MCP."""
 
-    # `scroll` (not `auto`): always show the scrollbar so overflow is
-    # discoverable; `auto` hides it and content appears silently cropped.
+    # Scroll containers must wrap an auto-height Static: a fixed-height Static
+    # turns rich renderables into a Visual cropped to the container, so
+    # virtual_size never exceeds the viewport and nothing can scroll.
     CSS = """
     Screen { align: center middle; }
-    #top-panel { height: 40%; border: solid green; overflow-y: scroll; }
-    #mid-panel { height: 35%; border: solid blue; overflow-y: scroll; }
-    #bottom-panel { height: 25%; border: solid yellow; overflow-y: scroll; }
+    #top-panel { height: 40%; border: solid green; }
+    #mid-panel { height: 35%; border: solid blue; }
+    #bottom-panel { height: 25%; border: solid yellow; }
+    #top-content, #mid-content, #bottom-content { height: auto; }
     """
 
     project_path: reactive[str | None] = reactive(None)
@@ -43,9 +45,12 @@ class SEApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        yield Static(id="top-panel")
-        yield Static(id="mid-panel")
-        yield Static(id="bottom-panel")
+        with VerticalScroll(id="top-panel"):
+            yield Static(id="top-content")
+        with VerticalScroll(id="mid-panel"):
+            yield Static(id="mid-content")
+        with VerticalScroll(id="bottom-panel"):
+            yield Static(id="bottom-content")
         yield Footer()
 
     def on_mount(self):
@@ -62,7 +67,7 @@ class SEApp(App):
             self._refresh_ui()
         except Exception as e:
             try:
-                self.query_one("#bottom-panel", Static).update(
+                self.query_one("#bottom-content", Static).update(
                     Panel(
                         Text(f"刷新出错（保留上次渲染）: {e}", style="red"),
                         title="📝 状态与最近变更",
@@ -74,7 +79,7 @@ class SEApp(App):
 
     def _refresh_ui(self):
         if not self.project:
-            self.query_one("#top-panel", Static).update("⚠️ No active project loaded")
+            self.query_one("#top-content", Static).update("⚠️ No active project loaded")
             return
 
         manifest = self.project.read_manifest()
@@ -92,7 +97,10 @@ class SEApp(App):
             superseded_by = state.get("superseded_by", "")
             active_ascent = state.get("active_ascent", "")
 
-            if status == "baselined":
+            if status == "completed":
+                icon, color = "🏁", "bold green"
+                extra = ""
+            elif status == "baselined":
                 icon, color = "✅", "green"
                 extra = f" [{baseline}]" if baseline else ""
             elif status == "in_progress":
@@ -133,26 +141,27 @@ class SEApp(App):
             title=f"🌀 层状态图 | 当前: descent-{descent} @ {current}",
             border_style="green",
         )
-        self.query_one("#top-panel", Static).update(top_content)
+        self.query_one("#top-content", Static).update(top_content)
 
         # ── Mid: Todo + Pending confirmations ───────────────────
         todos = self.project.get_todos()
         pending = manifest.get("pending_confirmations", [])
 
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Layer", width=16)
-        table.add_column("Descent", width=7)
-        table.add_column("Type", width=6)
-        table.add_column("Item", style="white", overflow="fold")
+        table = Table(show_header=True, header_style="bold magenta", expand=True)
+        table.add_column("Layer", min_width=16, max_width=26, overflow="fold")
+        table.add_column("Descent", width=7, justify="center")
+        table.add_column("状态", width=6, justify="center")
+        table.add_column("内容", overflow="fold", ratio=1)
 
         # Pending confirmations on top
         for p in pending:
             if not p.get("resolved_at"):
+                lock = "🔒" if p.get("blocking", True) else "🔓"
                 table.add_row(
                     p.get("layer", "?"),
                     str(p.get("descent", "?")),
-                    "🔒",
-                    f"[待确认] {p['description'][:60]} (id: {p['id']})",
+                    lock,
+                    f"[待确认] {p.get('item_type', '')}: {p['description']} (id: {p['id']})",
                     style="yellow",
                 )
 
@@ -161,12 +170,17 @@ class SEApp(App):
             style = "green" if t["done"] else "white"
             table.add_row(t["layer"], str(t["descent"]), status, t["text"], style=style)
 
+        done_count = sum(1 for t in todos if t["done"])
+        unresolved = [p for p in pending if not p.get("resolved_at")]
         mid_content = Panel(
             table if (todos or pending) else Text("暂无待办", style="dim"),
-            title=f"📋 待办 / 待确认 ({len(todos)} todo, {len([p for p in pending if not p.get('resolved_at')])} pending)",
+            title=(
+                f"📋 待办 / 待确认 "
+                f"({done_count}/{len(todos)} 已完成, {len(unresolved)} 待确认)"
+            ),
             border_style="blue",
         )
-        self.query_one("#mid-panel", Static).update(mid_content)
+        self.query_one("#mid-content", Static).update(mid_content)
 
         # ── Bottom: Recent changelog + Action hints ─────────────
         changelog_path = self.project.vinw_dir / "changelog.md"
@@ -220,7 +234,7 @@ class SEApp(App):
             title="📝 状态与最近变更",
             border_style="yellow",
         )
-        self.query_one("#bottom-panel", Static).update(bottom_content)
+        self.query_one("#bottom-content", Static).update(bottom_content)
 
     def action_refresh(self):
         self.refresh_ui()

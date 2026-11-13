@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -406,6 +407,79 @@ def se_update_todo(layer: str, todos_json: str) -> str:
     post.metadata["todo_descent"] = proj.read_manifest().get("current_descent", 1)
     readme_path.write_text(frontmatter.dumps(post), encoding="utf-8")
     return json.dumps({"layer": layer, "todo_count": len(todos)}, ensure_ascii=False)
+
+
+# ── Project completion ──────────────────────────────────────
+
+
+@mcp.tool()
+def se_complete_project() -> str:
+    """
+    Mark the project as completed (L7 final acceptance closure).
+
+    Prerequisites: current layer is L7-终验, L1-L6 all baselined, and no
+    unresolved blocking confirmations. On success, L7 README is marked
+    completed and the manifest records completed_at.
+    """
+    proj = _ensure_project()
+    manifest = proj.read_manifest()
+
+    errors: list[str] = []
+    current = manifest.get("current_layer")
+    if current != "L7-终验":
+        errors.append(f"当前层为 {current}，必须为 L7-终验")
+
+    layer_states = manifest.get("layer_states", {})
+    for layer in LAYERS[:-1]:
+        state = layer_states.get(layer, {})
+        if state.get("status") != "baselined":
+            errors.append(
+                f"{layer} 未基线化（status={state.get('status', 'pending')}）"
+            )
+
+    pending = manifest.get("pending_confirmations", [])
+    unresolved = [
+        p for p in pending if p.get("blocking", True) and not p.get("resolved_at")
+    ]
+    if unresolved:
+        errors.append(
+            f"{len(unresolved)} 个未解决的 blocking 门控: "
+            f"{[p['id'] for p in unresolved]}"
+        )
+
+    if errors:
+        return json.dumps(
+            {"error": "完成前置条件未满足", "details": errors},
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    engine = WorkflowEngine(proj)
+    engine.mark_layer_completed("L7-终验")
+
+    layer_states = manifest.get("layer_states", {})
+    layer_states.setdefault("L7-终验", {})["status"] = "completed"
+    completed_at = datetime.now(timezone.utc).isoformat()
+    manifest["layer_states"] = layer_states
+    manifest["completed_at"] = completed_at
+    proj.write_manifest(manifest)
+
+    from .store.changelog import append_changelog_entry
+
+    append_changelog_entry(
+        proj.vinw_dir / "changelog.md",
+        change_type="complete",
+        layer="L7-终验",
+        descent=manifest.get("current_descent", 1),
+        scope="project",
+        reason="项目终验完成",
+    )
+
+    return json.dumps(
+        {"status": "completed", "completed_at": completed_at},
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 # ── Guidance ────────────────────────────────────────────────

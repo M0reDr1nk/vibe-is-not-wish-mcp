@@ -79,3 +79,60 @@ class TestInitProjectAdopt:
         assert result["adopted"] is True
         assert result["current_layer"] == "L4-编码实现"
         assert result["current_descent"] == 3
+
+
+class TestCompleteProject:
+    def _project_at_l7(self, tmp_path, blocking_pending=False):
+        """Craft a project whose manifest sits at L7 with L1-L6 baselined."""
+        from vinw.store.project import LAYERS
+
+        root = tmp_path / "done-proj"
+        proj = Project.init(root, "done-proj", "completion test")
+        manifest = proj.read_manifest()
+        manifest["current_layer"] = "L7-终验"
+        manifest["layer_states"] = {
+            layer: {"status": "baselined", "latest_baseline": "v001"}
+            for layer in LAYERS[:-1]
+        }
+        manifest["layer_states"]["L7-终验"] = {"status": "in_progress"}
+        if blocking_pending:
+            manifest["pending_confirmations"] = [
+                {"id": "cfm-x", "blocking": True, "resolved_at": None}
+            ]
+        proj.write_manifest(manifest)
+        return proj
+
+    def test_complete_success(self, tmp_path, clean_active_project):
+        import json as _json
+
+        proj = self._project_at_l7(tmp_path)
+        server._active_project = proj
+        result = _json.loads(server.se_complete_project())
+        assert result["status"] == "completed"
+        assert result["completed_at"]
+        manifest = proj.read_manifest()
+        assert manifest["layer_states"]["L7-终验"]["status"] == "completed"
+        assert manifest["completed_at"] == result["completed_at"]
+        readme = proj.read_layer_readme("L7-终验")
+        assert readme["status"] == "completed"
+
+    def test_complete_rejected_when_not_l7(self, tmp_path, clean_active_project):
+        import json as _json
+
+        root = tmp_path / "early"
+        proj = Project.init(root, "early", "")
+        server._active_project = proj
+        result = _json.loads(server.se_complete_project())
+        assert "error" in result
+        assert "L7-终验" in result["details"][0]
+
+    def test_complete_rejected_with_blocking_gate(self, tmp_path, clean_active_project):
+        import json as _json
+
+        proj = self._project_at_l7(tmp_path, blocking_pending=True)
+        server._active_project = proj
+        result = _json.loads(server.se_complete_project())
+        assert "error" in result
+        assert any("blocking" in d for d in result["details"])
+        # State must be untouched
+        assert proj.read_manifest()["layer_states"]["L7-终验"]["status"] == "in_progress"

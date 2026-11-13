@@ -1,13 +1,12 @@
 ---
-baseline_reason: descent-2 L3 接口设计 v0.3 定稿（自举加载 + 一致性代码定位规则 + .vinw 更名），门控 modify
-  通过
-baseline_version: v003
-baselined_at: '2026-11-13T15:43:39.449815+00:00'
+baseline_reason: descent-4 L3：v0.4 完成态迁移设计（se_complete_project 前置校验与动作）
+baseline_version: v005
+baselined_at: '2026-11-13T16:26:30.229108+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-13T16:19:04.593021+00:00'
-rolled_back_from: v003
+rolled_back_at: '2026-11-13T16:31:32.500265+00:00'
+rolled_back_from: v005
 se_version: '2.0'
 status: in_progress
 ---

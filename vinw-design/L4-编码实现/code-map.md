@@ -44,3 +44,17 @@ updated_at: '2026-11-13T10:22:00.320267'
 | 设计文档 | 段落 | 代码文件 | 函数/类 | 状态 |
 |---------|------|---------|--------|------|
 | server.py | 导入 | vinw/server.py | imports | ✅ 已更新 |
+## descent-4 新增（完成态迁移，对应 asc-003 / L3 v005）
+
+| 设计文档 | 段落 | 代码文件 | 函数/类 | 状态 |
+|---------|------|---------|--------|------|
+| api-design.md v0.4 | 完成态迁移 | vinw/server.py | se_complete_project() | ✅ 已实现（前置校验+结构化 error） |
+| api-design.md v0.4 | TUI completed | vinw/tui/app.py | refresh_ui 层状态图 completed 分支 | ✅ 已实现（🏁） |
+
+## descent-5 新增（TUI 布局契约，对应 asc-004 / L3 v006）
+
+| 设计文档 | 段落 | 代码文件 | 函数/类 | 状态 |
+|---------|------|---------|--------|------|
+| api-design.md v0.5 | TUI 布局契约 | vinw/tui/app.py | compose() VerticalScroll + auto Static | ✅ 已实现 |
+| api-design.md v0.5 | 表格列宽约束 | vinw/tui/app.py | refresh_ui() 待办表格 | ✅ 已实现 |
+| api-design.md v0.5 | 滚动验证契约 | tests/test_tui.py | test_todo_panel_is_actually_scrollable | ✅ 已实现（断言 max_scroll_y > 0） |

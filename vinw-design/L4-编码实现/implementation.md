@@ -40,3 +40,19 @@ updated_at: "2026-11-13T10:02:19.675591"
 3. **TUI 可滚动 + 刷新容错**（tui/app.py）：面板 overflow-y: scroll 常驻滚动条；refresh_ui 异常兜底保留上次渲染（chg-034）
 
 验证：52/52 测试通过（新增 test_tui.py 4 例 + todo 追踪 3 例）
+
+## descent-4 实现记录（asc-003，2026-11-13）
+
+1. **se_complete_project**（server.py）：终验完成态迁移。前置校验（当前层=L7、L1-L6 全 baselined、无未解决 blocking 门控）→ L7 README completed + manifest layer_states/completed_at + changelog；前置不满足返回结构化 error
+2. **TUI completed 渲染**（tui/app.py）：层状态图新增 🏁 bold green 分支；滚动条修复（overflow-y: scroll）随本次重装正式生效
+3. 测试 +3（完成成功/非 L7 拒绝/阻塞门控拒绝且状态不变），55/55 通过
+
+## descent-5 实现记录（asc-004，2026-11-13）
+
+**TUI 面板结构性重做**（chg-20261113-163132-055）：
+1. compose 改为 `VerticalScroll` 容器（top/mid/bottom 40/35/25%）包裹内层 `Static#*-content`，内层 `height: auto`
+2. 根因：固定高度 `Static` 渲染 rich renderable 时转成按视口裁剪的 `Visual`，`virtual_size` 恒等于容器高，`overflow-y` 永远无滚动内容
+3. 待办表格重做：`expand=True`、Layer 列 min/max 宽度 + fold、状态独立列（✅/⏳/🔒/🔓）、内容列 ratio=1；标题改为「N/M 已完成, K 待确认」
+4. 移除原有 `Horizontal`/`Vertical` 未使用导入
+
+验证：`#mid-panel max_scroll_y: 39`（实测 33 todo + 1 pending），三个面板滚动条常驻；56/56 测试通过。

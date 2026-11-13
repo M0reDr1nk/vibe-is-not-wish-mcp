@@ -140,3 +140,25 @@ updated_at: "2026-11-13T12:00:00Z"
 | 失败 | 0 |
 
 覆盖增量：TUI 渲染冒烟（含崩溃回归路径）、TUI 无工程分支、manifest 变更重渲染、TUI 瞬时错误韧性、todo_descent 写入/读取/回退。
+
+## descent-4 round 1（asc-003 完成态迁移，2026-11-13）
+
+| 指标 | 值 |
+|------|-----|
+| 测试轮次 | descent-4 round 1 |
+| 总用例数 | 55（新增 3：se_complete_project 成功/非 L7 拒绝/阻塞门控拒绝） |
+| 通过 | 55 |
+| 失败 | 0 |
+
+## descent-5 round 1（asc-004 TUI 布局契约，2026-11-13）
+
+| 指标 | 值 |
+|------|-----|
+| 测试轮次 | descent-5 round 1 |
+| 总用例数 | 56（test_tui.py 增至 5 例，新增真实滚动断言） |
+| 通过 | 56 |
+| 失败 | 0 |
+
+关键新增：`test_todo_panel_is_actually_scrollable` —— 断言溢出时 `max_scroll_y > 0` 且 `scroll_end` 后 `scroll_y > 0`，直接锁死「固定高度 Static 无滚动内容」的回归路径。
+
+实测（design 工程 110x32）：top/mid/bottom `max_scroll_y` = 18/39/49，滚动条常驻。

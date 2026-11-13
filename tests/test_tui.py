@@ -19,24 +19,21 @@ def proj(tmp_path):
 
 def _run(app, coro_fn):
     async def runner():
-        async with app.run_test() as pilot:
+        async with app.run_test(size=(110, 30)) as pilot:
             await coro_fn(pilot)
 
     asyncio.run(runner())
 
 
 def test_tui_renders_with_project(proj):
-    """Full refresh_ui render path must not raise (regression: Columns + Text TypeError)."""
+    """Full render path must not raise and must fill all three panels."""
     app = SEApp(str(proj.root))
 
     async def scenario(pilot):
         await pilot.pause()
-        top = app.query_one("#top-panel")
-        mid = app.query_one("#mid-panel")
-        bottom = app.query_one("#bottom-panel")
-        assert top.content is not None
-        assert mid.content is not None
-        assert bottom.content is not None
+        for pid in ("#top-content", "#mid-content", "#bottom-content"):
+            widget = app.query_one(pid)
+            assert widget.content
 
     _run(app, scenario)
 
@@ -47,8 +44,7 @@ def test_tui_renders_without_project():
 
     async def scenario(pilot):
         await pilot.pause()
-        top = app.query_one("#top-panel")
-        assert "No active project" in str(top.content)
+        assert "No active project" in str(app.query_one("#top-content").content)
 
     _run(app, scenario)
 
@@ -68,8 +64,7 @@ def test_tui_refresh_after_workflow_changes(proj):
         proj.write_manifest(manifest)
         app.refresh_ui()
         await pilot.pause()
-        top = app.query_one("#top-panel")
-        assert top.content is not None
+        assert app.query_one("#top-content").content
 
     _run(app, scenario)
 
@@ -80,12 +75,36 @@ def test_tui_survives_transient_file_error(proj):
 
     async def scenario(pilot):
         await pilot.pause()
-        # Remove the manifest to simulate a transient read during rewrite
         (proj.root / ".vinw" / "manifest.md").unlink()
         app.refresh_ui()  # must not raise
         await pilot.pause()
-        bottom = app.query_one("#bottom-panel")
-        panel = bottom.content
+        panel = app.query_one("#bottom-content").content
         assert "刷新出错" in str(getattr(panel, "renderable", panel))
+
+    _run(app, scenario)
+
+
+def test_todo_panel_is_actually_scrollable(proj):
+    """Overflowing todo content must produce a real scroll range.
+
+    Regression: a fixed-height Static wrapping a rich renderable is cropped
+    to the viewport, so max_scroll_y stays 0 and the scrollbar never appears.
+    """
+    app = SEApp(str(proj.root))
+
+    async def scenario(pilot):
+        await pilot.pause()
+        readme = proj.read_layer_readme("L1-需求拆解")
+        todos = "\n".join(f"- [ ] 滚动测试待办 {i}" for i in range(40))
+        content = readme["content"].split("## 当前待办")[0] + "## 当前待办\n\n" + todos + "\n"
+        proj.write_layer_readme("L1-需求拆解", readme, content)
+        app.refresh_ui()
+        await pilot.pause()
+        panel = app.query_one("#mid-panel")
+        assert panel.max_scroll_y > 0, "todo panel has no scrollable overflow"
+        # And it must really scroll
+        panel.scroll_end(animate=False)
+        await pilot.pause()
+        assert panel.scroll_y > 0
 
     _run(app, scenario)

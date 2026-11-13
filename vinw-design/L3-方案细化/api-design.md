@@ -96,6 +96,25 @@ updated_at: '2026-11-13T10:02:22.615842'
 | 接口名 | 输入 | 输出 |
 |--------|------|------|
 | `se_get_next_steps` | — | current_layer, suggested_work, gate, can_descend, special_instruction |
+| `se_complete_project` | — | status, completed_at；**完成态迁移（v0.4 新增）** |
+
+## TUI 布局契约（v0.5 新增）
+
+面板必须使用 Textual 的真实滚动容器，禁止用固定高度 `Static` 直接渲染 rich `Panel`：
+
+- 结构：`VerticalScroll`（占比 40/35/25%，带边框）包裹内层 `Static`，内层 `height: auto`
+- 理由：`Static` 把 rich renderable 转成 `Visual` 时按容器高度裁剪，`virtual_size` 恒等于容器高度，`overflow-y` 因此永远不会产生可滚动内容（表现为"有数字、无滚动条、内容不全"）
+- 验证契约：`vertical_scroll` 面板的 `virtual_size.height > container_size.height` 当内容溢出时；无头测试断言 `max_scroll_y > 0`
+- 表格列宽：`Layer` 列需容纳最长层名（`L2-参考文献与方案搜证汇总`），超出部分 `overflow="fold"`
+
+## 完成态迁移（v0.4 新增）
+
+`se_complete_project` 将项目从 L7-终验 in_progress 迁移到 completed：
+
+- 前置校验：当前层必须为 L7-终验；L1–L6 全部 baselined；无未解决的 blocking 门控（不满足返回结构化 error，不抛异常）
+- 动作：L7 README frontmatter `status=completed`；manifest `layer_states[L7].status="completed"`、`completed_at=now(UTC)`
+- 前置校验失败时返回 `{"error": ...}` 及未满足项清单，由 agent 修正后重试
+- 动机：descent-3 终验后状态停留在 in_progress，完成语义此前无 MCP 出口
 
 ## 自举加载（Bootstrap，v0.3 新增）
 
@@ -115,3 +134,5 @@ Server 启动时自动探测并加载活动工程，实现 VINW 自举（在自�
 | v0.1 | 2026-11-13 | 初始设计 | agent |
 | v0.2 | 2026-11-13 | 增加 L2 层 + 螺旋上升 | agent |
 | v0.3 | 2026-11-13 | 自举加载：启动自动探测工程 + se_init_project 接管已有工程；一致性检查代码定位规则（manifest.code_root + code_scope 混合文件/目录）；**状态目录统一更名 `.se/` → `.vinw/`**（经门控 modify 反馈批准） | agent |
+| v0.4 | 2026-11-13 | 新增 se_complete_project 完成态迁移（终验闭环出口）；TUI 增加 completed 状态渲染 | agent |
+| v0.5 | 2026-11-13 | TUI 布局契约：VerticalScroll + auto 高度内层 Static（修复固定高度 Static 无真实滚动内容）；表格列宽约束 | agent |
