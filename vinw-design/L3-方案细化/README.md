@@ -10,17 +10,17 @@ rolled_back_at: '2026-11-13T16:37:44.151635+00:00'
 rolled_back_from: v006
 se_version: '2.0'
 status: in_progress
-todo_descent: 7
+todo_descent: 8
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [x] 接口设计 v0.1~v0.6（自举/一致性/完成态/TUI 布局/待办契约）
-- [x] v0.7：注册表契约与 ProjectRegistry API
-- [x] v0.7：MCP 每工具 project 参数 + 5 个注册表工具契约
-- [x] v0.7：TUI 选择器/切换/工作目录显示 + CLI project 子命令
+- [x] 接口设计 v0.1~v0.7（自举/一致性/完成态/TUI/待办契约/多项目）
+- [x] v0.8：SQLite schema（projects + project_events、WAL、user_version=2）
+- [x] v0.8：state(intent)/missing_since(observation) 分离与探测策略
+- [x] v0.8：JSON→SQLite 迁移、export_json、history、set_state
 - [x] L3 基线化 → 下降 L4
 
 ## 阶段小结

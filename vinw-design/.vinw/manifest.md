@@ -51,12 +51,21 @@ ascent_history:
   reason: 多项目跟踪管理属需求级扩展，需回到 L1 重新拆解需求、L2 搜证（注册表存储/失效清理策略）、L3 设计后实现
   to_baseline: v001
   to_layer: L1-需求拆解
+- created_at: '2026-11-13T17:00:41.341646+00:00'
+  descent_after: 8
+  descent_before: 7
+  from_layer: L7-终验
+  id: asc-007
+  reason: 注册表存储选型需复核：L2 v002 以「人类可读/git diff」为高权重准则选定 JSON，但该准则对「不进 git 的机器状态表」不适用；用户指出控制面(注册表)与数据面(工程文档)应分层，注册表宜用
+    SQLite（并发写、写放大、崩溃一致性）
+  to_baseline: v002
+  to_layer: L2-参考文献与方案搜证汇总
 code_root: ..
-completed_at: '2026-11-13T16:54:18.126340+00:00'
+completed_at: '2026-11-13T17:05:28.196751+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 7
+current_descent: 8
 current_layer: L7-终验
-descent_started_at: '2026-11-13T16:48:14.518500+00:00'
+descent_started_at: '2026-11-13T17:00:41.344218+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
@@ -66,33 +75,34 @@ layer_states:
     latest_baseline: v002
     status: baselined
   L2-参考文献与方案搜证汇总:
-    baselined_at: '2026-11-13T16:48:48.728857+00:00'
-    descent_count: 2
-    latest_baseline: v002
+    active_ascent: asc-007
+    baselined_at: '2026-11-13T17:00:53.003651+00:00'
+    descent_count: 3
+    latest_baseline: v003
     status: baselined
   L3-方案细化:
     active_ascent: asc-005
-    baselined_at: '2026-11-13T16:49:05.626418+00:00'
-    descent_count: 7
-    latest_baseline: v009
+    baselined_at: '2026-11-13T17:01:09.399204+00:00'
+    descent_count: 8
+    latest_baseline: v010
     status: baselined
   L4-编码实现:
-    baselined_at: '2026-11-13T16:52:40.519020+00:00'
-    descent_count: 6
-    latest_baseline: v007
+    baselined_at: '2026-11-13T17:04:12.767456+00:00'
+    descent_count: 7
+    latest_baseline: v008
     status: baselined
   L5-测试验证:
-    baselined_at: '2026-11-13T16:53:12.073701+00:00'
-    descent_count: 7
-    latest_baseline: v007
+    baselined_at: '2026-11-13T17:04:46.480525+00:00'
+    descent_count: 8
+    latest_baseline: v008
     status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-13T16:54:03.718228+00:00'
-    descent_count: 7
-    latest_baseline: v007
+    baselined_at: '2026-11-13T17:05:12.569079+00:00'
+    descent_count: 8
+    latest_baseline: v008
     status: baselined
   L7-终验:
-    descent_count: 7
+    descent_count: 8
     latest_baseline: null
     status: completed
 name: vinw-self-design
@@ -134,6 +144,7 @@ pending_confirmations:
   descent: 7
   description: L1 descent-7 需求拆解确认：多项目跟踪管理拆为 R1-R9 九项子需求（注册表/失效处理/每工具 project 参数/TUI
     选择器与切换），另列 Q8-Q12 五个问题域。请审阅拆解是否完整、优先级是否合理。
+  feedback: 自动结转：属于 descent-7 的过期门控，当前已进入 descent-8
   id: cfm-20261113-164826-003
   item_type: requirement-decomposition
   layer: L1-需求拆解
@@ -142,13 +153,14 @@ pending_confirmations:
   - reject
   - modify
   proposed_at: '2026-11-13T16:48:26.952132+00:00'
-  resolution: null
-  resolved_at: null
+  resolution: superseded
+  resolved_at: '2026-11-13T17:05:28.189064+00:00'
 - blocking: false
   descent: 7
   description: L3 v0.7 设计确认（多项目跟踪管理）：注册表 JSON 契约与 ProjectRegistry API、MCP 所有 se_*
     增加可选 project 参数 + 5 个注册表工具、TUI header 显示工作目录/当前工程 + 选择器与 p 键切换、CLI project 子命令。重点：project=None
     时行为完全不变（兼容红线）。
+  feedback: 自动结转：属于 descent-7 的过期门控，当前已进入 descent-8
   id: cfm-20261113-164903-004
   item_type: interface-design
   layer: L3-方案细化
@@ -157,6 +169,21 @@ pending_confirmations:
   - reject
   - modify
   proposed_at: '2026-11-13T16:49:03.503641+00:00'
+  resolution: superseded
+  resolved_at: '2026-11-13T17:05:28.189064+00:00'
+- blocking: false
+  descent: 8
+  description: L3 v0.8 设计确认（注册表改 SQLite）：控制面/数据面分层；projects + project_events 两表、WAL、user_version=2；state(intent)
+    与 missing_since(observation) 分离，默认只探测 active；touch 改单行 UPDATE 消除写放大；JSON 迁移保留原文件；新增
+    set_state/history/export_json 与对应 CLI 命令。工程内 Markdown 完全不变。
+  id: cfm-20261113-170107-005
+  item_type: interface-design
+  layer: L3-方案细化
+  options:
+  - approve
+  - reject
+  - modify
+  proposed_at: '2026-11-13T17:01:07.252809+00:00'
   resolution: null
   resolved_at: null
 se_version: '2.0'

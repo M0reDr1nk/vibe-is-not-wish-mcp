@@ -4,18 +4,18 @@ doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
 status: in_progress
-todo_descent: 7
+todo_descent: 8
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
-- [x] descent-1~6 测试体系演进（71 例）
-- [x] descent-7：新增 test_registry.py 26 例（注册表/失效/解析/每工具 project/工具集）
-- [x] descent-7：TUI 多项目 4 例（工作目录栏/选择器/切换/按名启动）
-- [x] 全量 101/101 通过，结果与迭代记录已更新
-- [x] L5 基线化 → 下降到 L6
+- [x] descent-1~7 测试体系（101 例）
+- [x] descent-8：SQLite 控制面 8 例（并发写/intent 分离/事件历史/touch）
+- [x] descent-8：迁移与容错 3 例（JSON 迁移保留、损坏隔离、WAL）
+- [x] 全量 112/112 通过，结果与迭代记录已更新
+- [x] L5 基线化 → 下降 L6
 
 ## 阶段小结
 

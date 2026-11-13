@@ -81,3 +81,15 @@ updated_at: '2026-11-13T10:22:00.320267'
 | api-design.md v0.7 | TUI | vinw/tui/app.py | 工作目录栏 / action_select_project / _on_project_selected | ✅ 已实现 |
 | api-design.md v0.7 | TUI | vinw/tui/selector.py | ProjectSelector | ✅ 已实现 |
 | api-design.md v0.7 | CLI | vinw/__main__.py | _run_project_command / _resolve_tui_target | ✅ 已实现 |
+
+## descent-8 变更（注册表 SQLite，对应 asc-007 / L3 v0.10）
+
+| 设计文档 | 段落 | 代码文件 | 函数/类 | 状态 |
+|---------|------|---------|--------|------|
+| api-design.md v0.8 | SQLite schema | vinw/store/registry.py | _ensure_schema / _connect（WAL/busy_timeout） | ✅ 已实现 |
+| api-design.md v0.8 | 迁移 | vinw/store/registry.py | _migrate_legacy_json / _quarantine_if_corrupt | ✅ 已实现 |
+| api-design.md v0.8 | intent/observation | vinw/store/registry.py | state 列 + list(probe) 策略 + _record_probe | ✅ 已实现 |
+| api-design.md v0.8 | 状态历史 | vinw/store/registry.py | _log_event / history | ✅ 已实现 |
+| api-design.md v0.8 | 导出 | vinw/store/registry.py | export_json | ✅ 已实现 |
+| api-design.md v0.8 | MCP | vinw/server.py | se_set_project_state / se_project_history / se_export_projects | ✅ 已实现 |
+| api-design.md v0.8 | CLI | vinw/__main__.py | activate/deactivate/history/export 子命令 | ✅ 已实现 |

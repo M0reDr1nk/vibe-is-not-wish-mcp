@@ -1,23 +1,26 @@
 ---
+baseline_reason: descent-7 L2：注册表选型（JSON vs SQLite vs 扫描）、失效清理策略、寻址方案三项决策已定论
+baseline_version: v002
+baselined_at: '2026-11-13T16:48:48.727576+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L2-参考文献与方案搜证汇总
+rolled_back_at: '2026-11-13T17:00:41.343599+00:00'
+rolled_back_from: v002
 se_version: '2.0'
-status: pending
-todo_descent: 7
+status: in_progress
+todo_descent: 8
 ---
 
 # L2-参考文献与方案搜证汇总
 
 ## 当前待办
 
-- [x] descent-1 搜证与基线 v001
-- [x] 同类工具注册表机制调研（git/docker/pipx/kubectl/VS Code）
-- [x] 决策 A 存储选型：JSON 13 分 vs SQLite 5 分 vs 目录扇扫 14 分
-- [x] 决策 B 失效处理：标记 stale + 显式 prune（否决自动删除）
-- [x] 决策 C 寻址：路径主键 + 名称别名
-- [x] L2 基线化 v002 → 下降 L3
-
+- [x] descent-7 搜证与基线 v002（JSON/失效/寻址三项）
+- [x] descent-8：复核存储选型并更正权重错配（控制面/数据面分层）
+- [x] 实测证据：写放大 9.5ms/次、无并发锁、三格式 diff 噪音相同
+- [x] CSV 方案再评估：结构性够用但无并发锁 + null/Excel 风险
+- [x] L2 基线化 v003 → 下降 L3 设计 SQLite schema
 ## 阶段小结
 
 （阶段完成时填写）

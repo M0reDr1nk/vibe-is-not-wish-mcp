@@ -5,15 +5,15 @@ doc_type: "final-report"
 status: "in_progress"
 ---
 
-# 终验报告 — VINW（descent-7，多项目版）
+# 终验报告 — VINW（descent-8，控制面/数据面分层版）
 
 ## 项目信息
 
 | 字段 | 值 |
 |------|-----|
 | 项目名称 | vinw-self-design |
-| 下降轮次 | descent-1 ~ descent-7 |
-| 上升次数 | 6（asc-001 ~ asc-006） |
+| 下降轮次 | descent-1 ~ descent-8 |
+| 上升次数 | 7（asc-001 ~ asc-007） |
 | 终验时间 | 2026-11-13 |
 | 版本 | 0.2.0 |
 
@@ -22,12 +22,12 @@ status: "in_progress"
 | 层 | 状态 | 基线 | 下降次数 |
 |---|------|------|---------|
 | L1-需求拆解 | ✅ baselined | v001, **v002** | 2 |
-| L2-参考文献与方案搜证汇总 | ✅ baselined | v001, **v002** | 2 |
-| L3-方案细化 | ✅ baselined | v001–v008, **v009** | 7 |
-| L4-编码实现 | ✅ baselined | v001–v006, **v007** | 7 |
-| L5-测试验证 | ✅ baselined | v001–v006, **v007** | 7 |
-| L6-检视清理 | ✅ baselined | v001–v006, **v007** | 7 |
-| L7-终验 | ✅ completed | — | 7 |
+| L2-参考文献与方案搜证汇总 | ✅ baselined | v001, v002, **v003** | 3 |
+| L3-方案细化 | ✅ baselined | v001–v009, **v010** | 8 |
+| L4-编码实现 | ✅ baselined | v001–v007, **v008** | 8 |
+| L5-测试验证 | ✅ baselined | v001–v007, **v008** | 8 |
+| L6-检视清理 | ✅ baselined | v001–v007, **v008** | 8 |
+| L7-终验 | ✅ completed | — | 8 |
 
 ## 上升记录（ascensions.md）
 
@@ -39,6 +39,7 @@ status: "in_progress"
 | asc-004 | L7 → L3(v006) | TUI 面板固定高度 Static 无法真实滚动（max_scroll_y 恒 0）+ 终验测试统计有误，上升修正 |
 | asc-005 | L7 → L3(v007) | 三项结构性缺陷：回滚倒带待办、占位符可入基线、过期门控悬挂 |
 | asc-006 | L7 → L1(v001) | 多项目跟踪管理：需求级扩展，回到 L1 重新拆解 |
+| asc-007 | L7 → L2(v002) | 注册表存储选型复核：descent-7 的 L2 矩阵权重错配，控制面应改 SQLite |
 
 ## descent-4 交付内容（asc-003）
 
@@ -86,6 +87,35 @@ R1 项目注册表 · R2 存储选型 · R3 失效处理 · R4 每工具 project
 ### 兼容红线（已验证）
 `project=None` 时行为与 descent-6 完全一致——71 个既有用例全绿。
 
+## descent-8 交付内容（asc-007：注册表改 SQLite）
+
+### 触发与更正
+用户质疑「txt 类总体记录不靠谱」，指出注册表只是状态表、无太多可读内容，工程内才需要 Markdown。复核确认 descent-7 的 L2 选型存在**权重错配**：
+
+| 原判断 | 更正 |
+|--------|------|
+| 「人类可读/git diff」权重 3，JSON 得 3 分、SQLite 0 分 | 该准则对**不进 git 的机器状态表**不适用，属对象错配 |
+| 「规模 5–500 不够大，不需要 SQLite」 | 看错轴：决定性因素是并发写、写放大、崩溃一致性 |
+| 「SQLite 实现复杂度高」 | 反面：JSON 方案要自己实现锁与合并，等于手搓数据库 |
+
+CSV 再评估：结构性够用且最紧凑（1944 B），但 null/空串不可区分、Excel 会篡改、**同样无并发锁** → 否决。
+
+### 分层落地
+| | 控制面 | 数据面 |
+|---|---|---|
+| 载体 | **SQLite**（`$VINW_HOME/registry.db`，WAL） | **Markdown + frontmatter**（工程内，未改动） |
+| 内容 | projects 表 + 状态切换事件表 | 需求/设计/基线/测试记录 |
+
+### 三项真实改进（均有测试）
+1. **消除写放大**：`touch()` 从整表重写（9.5 ms/300 条）改为单行 UPDATE
+2. **并发安全**：WAL + busy_timeout + 事务取代「写前重读+原子替换」；新增双连接并发写测试
+3. **intent/observation 分离**：`state`(active/dormant) 与 `missing_since` 独立；默认只探测 active，休眠工程跳过探测以适配慢速/网络盘
+
+### 迁移与容错（实测）
+- 真实 `~/.vinw/registry.json` 首次访问自动迁移，写入 `import` 事件，原文件保留为 `registry.json.migrated-<ts>`
+- 损坏库隔离为 `registry.db.corrupt-<ts>` 后重建，绝不静默删除
+- 新增 `vinw project activate|deactivate|history|export` 与 `se_set_project_state` / `se_project_history` / `se_export_projects`
+
 ## 流程违规与补救披露（延续）
 
 descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并立规 DESC-001（基线后缺陷必须 ascend）。descent-4 本身即是按 DESC-001 执行的第四次下降：发现完成态缺口后先上升、改设计（L3 v0.4/v005）、再下降实现，未走热修。
@@ -123,11 +153,11 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 | test_state_machine.py | 11 | 11/11 ✅ |
 | test_consistency_llm.py | 10 | 10/10 ✅ |
 | test_search.py | 7 | 7/7 ✅ |
-| test_registry.py（descent-7 新增） | 26 | 26/26 ✅ |
+| test_registry.py（含 SQLite 控制面） | 37 | 37/37 ✅ |
 | test_bootstrap.py（含完成态 3 例） | 10 | 10/10 ✅ |
 | test_tui.py（滚动断言 + 多项目 4 例） | 9 | 9/9 ✅ |
 | test_todo_lifecycle.py（新增） | 15 | 15/15 ✅ |
-| **合计** | **101** | **101/101 ✅** |
+| **合计** | **112** | **112/112 ✅** |
 
 端到端实测：MCP 自举加载 ✅；一致性检查 20/20 ✅；se_complete_project 前置校验与成功路径 ✅；TUI 渲染/滚动/容错/completed ✅。
 
@@ -141,4 +171,4 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 
 ## 结论
 
-**七次下降、六次上升全部闭环，101 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**
+**八次下降、七次上升全部闭环，112 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**

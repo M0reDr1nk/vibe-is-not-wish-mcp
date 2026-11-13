@@ -86,3 +86,29 @@ updated_at: "2026-11-13T10:02:19.675591"
 - 测试 101/101 通过（新增 test_registry.py 26 例、TUI 多项目 4 例）
 - 实测：`se_list_projects` 返回注册表；`se_get_project(project="vinw-self-design")` 正常解析；CLI `project add/list/prune` 正常
 - 兼容红线：`project=None` 时全部沿用原自举/单例逻辑（回归测试覆盖）
+
+## descent-8 实现记录（asc-007：注册表改 SQLite）
+
+### 控制面 / 数据面分层落地
+- **控制面**：`vinw/store/registry.py` 重写为 SQLite 实现（`$VINW_HOME/registry.db`）
+  - `projects` 表：path 主键、name 唯一、state(active/dormant)、added/last_accessed/last_seen_ok/missing_since
+  - `project_events` 表：register/remove/activate/deactivate/missing/recover/import 全量留痕（含索引 path,id DESC）
+  - 连接参数：`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；短连接 + 事务
+  - `PRAGMA user_version=2` 控制 schema 版本
+- **数据面**：`<工程>/.vinw/*.md` 完全未改动
+
+### 三项核心改进
+1. **消除写放大**：`touch()` 由「整表读+整表重写」改为单行 `UPDATE`
+2. **并发安全**：WAL + busy_timeout 替代原先「写前重读 + 原子替换」，并新增并发写测试（双连接并发 add 均存活）
+3. **intent/observation 分离**：`state`（用户声明）与 `missing_since`（系统观测）独立；默认只探测 active，dormant 用缓存并标 `probed: false`
+
+### 迁移与容错
+- 首次打开若发现遗留 `registry.json`：逐条导入 + 写 `import` 事件 + 原文件重命名为 `registry.json.migrated-<ts>`（实测真实注册表迁移成功）
+- 库文件损坏：`_quarantine_if_corrupt()` 将其重命名为 `registry.db.corrupt-<ts>` 后重建（保留文件，不静默删除）
+
+### 工具与 CLI 增量
+- MCP 新增：`se_set_project_state`、`se_project_history`、`se_export_projects`（共 30 个 se_* 工具）
+- CLI 新增：`vinw project activate|deactivate|history|export`
+
+### 修复的自身缺陷
+`list()` 探测分支漏 `entries.append(entry)`，导致 probe 路径返回空列表（开发期自查发现并修复，测试覆盖）

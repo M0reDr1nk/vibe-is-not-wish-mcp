@@ -643,6 +643,40 @@ def se_remove_project(project: str) -> str:
 
 
 @mcp.tool()
+def se_set_project_state(project: str, state: str) -> str:
+    """Declare a project active or dormant (intent; affects probing cost)."""
+    try:
+        result = _get_registry().set_state(project, state)
+    except (ProjectNotFound, ValueError) as e:
+        return json.dumps(
+            {"error": str(e), "available_projects": _get_registry().describe()},
+            ensure_ascii=False,
+            indent=2,
+        )
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def se_project_history(project: str, limit: int = 20) -> str:
+    """Show a project's state-transition log (register/activate/missing/...)."""
+    try:
+        entries = _get_registry().history(project, limit)
+    except ProjectNotFound as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {"project": project, "count": len(entries), "events": entries},
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+@mcp.tool()
+def se_export_projects() -> str:
+    """Export the registry as a JSON snapshot (readable/backup, not read back)."""
+    return json.dumps(_get_registry().export_json(), ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
 def se_prune_projects(force: bool = False) -> str:
     """Drop registrations whose path no longer holds a VINW project.
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -50,6 +51,18 @@ def main():
 
     pp = proj_sub.add_parser("prune", help="Drop registrations whose path is gone")
     pp.add_argument("--force", action="store_true", help="Actually delete (default: dry run)")
+
+    for cmd, help_text in (("activate", "Mark a project active"),
+                           ("deactivate", "Mark a project dormant (skips probing)")):
+        sp = proj_sub.add_parser(cmd, help=help_text)
+        sp.add_argument("target")
+
+    ph = proj_sub.add_parser("history", help="Show state-transition log for a project")
+    ph.add_argument("target")
+    ph.add_argument("--limit", type=int, default=20)
+
+    pe = proj_sub.add_parser("export", help="Export registry snapshot as JSON")
+    pe.add_argument("--out", default="", help="Write to file instead of stdout")
 
     # status (quick CLI view)
     p_status = sub.add_parser("status", help="Show project status")
@@ -121,6 +134,39 @@ def _run_project_command(args) -> None:
             print(f"❌ {e}")
             sys.exit(1)
         print(f"✅ 已移除登记 {result['name']}（磁盘文件未改动）")
+        return
+
+    if args.project_command in ("activate", "deactivate"):
+        state = "active" if args.project_command == "activate" else "dormant"
+        try:
+            result = registry.set_state(args.target, state)
+        except (ProjectNotFound, ValueError) as e:
+            print(f"❌ {e}")
+            sys.exit(1)
+        print(f"✅ {result['name']} → {state}")
+        return
+
+    if args.project_command == "history":
+        try:
+            events = registry.history(args.target, args.limit)
+        except ProjectNotFound as e:
+            print(f"❌ {e}")
+            sys.exit(1)
+        if not events:
+            print("（无记录）")
+            return
+        for event in events:
+            detail = f"  {event['detail']}" if event.get("detail") else ""
+            print(f"{event['at']}  {event['event']:<10}{detail}")
+        return
+
+    if args.project_command == "export":
+        payload = json.dumps(registry.export_json(), ensure_ascii=False, indent=2)
+        if args.out:
+            Path(args.out).write_text(payload + "\n", encoding="utf-8")
+            print(f"✅ 已导出到 {args.out}")
+        else:
+            print(payload)
         return
 
     if args.project_command == "prune":

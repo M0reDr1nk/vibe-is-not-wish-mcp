@@ -4,18 +4,18 @@ doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
 status: pending
-todo_descent: 7
+todo_descent: 8
 ---
 
 # L6-检视清理
 
 ## 当前待办
 
-- [x] 代码风格与未使用导入检查（移除 10 处历史遗留）
-- [x] 构建产物与临时目录清理（build/、__pycache__、临时 VINW_HOME）
-- [x] 文档同步（api-design/code-map/implementation/test-results/iterations）
-- [x] 注册表实登 vinw-self-design 供多项目实测
-- [x] 最终一致性检查（101 测试通过，一致性 28/28 匹配）
+- [x] 未使用导入 AST 扫描（0 处）
+- [x] gitignore 追加 SQLite 产物（*.db/-wal/-shm/corrupt）
+- [x] 遗留 registry.json 保留为 .migrated-*（不静默删数据）
+- [x] 文档全链路同步（L2 更正声明/L3 v0.8/L4/L5）
+- [x] 最终一致性检查（112 测试通过，一致性 30/30 匹配）
 - [x] L6 基线化 → 下降到 L7
 
 ## 阶段小结

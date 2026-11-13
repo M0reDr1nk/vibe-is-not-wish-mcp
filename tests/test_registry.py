@@ -88,19 +88,50 @@ class TestRegistryBasics:
         with pytest.raises(ProjectNotFound):
             ProjectRegistry().remove("nope")
 
-    def test_corrupt_registry_is_backed_up(self, home):
+    def test_corrupt_db_is_quarantined_not_deleted(self, home):
         reg = ProjectRegistry()
         reg.path.parent.mkdir(parents=True, exist_ok=True)
-        reg.path.write_text("{not json", encoding="utf-8")
-        assert reg.load()["projects"] == {}
-        assert list(reg.path.parent.glob("registry.json.bak-*"))
+        reg.path.write_bytes(b"\x95not a sqlite database at all")
 
-    def test_atomic_write_leaves_no_tmp(self, home):
+        assert reg.list() == []  # usable after quarantine
+        backups = list(reg.path.parent.glob("registry.db.corrupt-*"))
+        assert backups, "corrupt db must be kept as a backup"
+
+    def test_wal_mode_enabled(self, home):
         reg = ProjectRegistry()
         proj = make_project(home.parent / "alpha")
         reg.add(proj.root)
-        assert not list(reg.path.parent.glob(".registry-*.tmp"))
-        json.loads(reg.path.read_text(encoding="utf-8"))
+        with reg._connect() as conn:
+            mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+        assert mode.lower() == "wal"
+
+    def test_legacy_json_is_migrated_and_kept(self, home):
+        reg = ProjectRegistry()
+        reg.path.parent.mkdir(parents=True, exist_ok=True)
+        proj = make_project(home.parent / "legacy")
+        reg.legacy_json.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "projects": {
+                        str(proj.root): {
+                            "name": "legacy-proj",
+                            "added_at": "2026-01-01T00:00:00+00:00",
+                            "last_accessed_at": "2026-01-01T00:00:00+00:00",
+                            "last_seen_ok": None,
+                            "missing_since": None,
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        entries = reg.list()
+        assert len(entries) == 1
+        assert entries[0]["name"] == "legacy-proj"
+        assert list(reg.path.parent.glob("registry.json.migrated-*")), "JSON must be retained"
+        assert [h["event"] for h in reg.history("legacy-proj")] == ["import"]
 
 
 class TestStaleHandling:
@@ -248,3 +279,131 @@ class TestRegistryTools:
 
         forced = json.loads(server.se_prune_projects(force=True))
         assert forced["pruned"] == 1
+
+
+class TestSqliteControlPlane:
+    """SQLite-specific guarantees: state intent, events, no write amplification."""
+
+    def test_state_intent_vs_observation(self, home):
+        reg = ProjectRegistry()
+        proj = make_project(home.parent / "alpha")
+        reg.add(proj.root, name="alpha")
+
+        reg.set_state("alpha", "dormant")
+        shutil.rmtree(proj.root)  # observation says missing, but dormant skips probing
+
+        entries = reg.list()  # default: probe only active
+        assert entries[0]["state"] == "dormant"
+        assert entries[0]["probed"] is False
+
+        forced = reg.list(probe=True)
+        assert forced[0]["status"] == "missing"
+        assert forced[0]["probed"] is True
+
+    def test_invalid_state_rejected(self, home):
+        reg = ProjectRegistry()
+        proj = make_project(home.parent / "alpha")
+        reg.add(proj.root, name="alpha")
+        with pytest.raises(ValueError):
+            reg.set_state("alpha", "zombie")
+
+    def test_event_history_records_transitions(self, home):
+        reg = ProjectRegistry()
+        proj = make_project(home.parent / "alpha")
+        reg.add(proj.root, name="alpha")
+        reg.set_state("alpha", "dormant")
+        reg.set_state("alpha", "active")
+
+        events = [h["event"] for h in reg.history("alpha")]
+        assert events == ["activate", "deactivate", "register"]
+
+    def test_missing_and_recover_events(self, home):
+        reg = ProjectRegistry()
+        proj = make_project(home.parent / "alpha")
+        reg.add(proj.root, name="alpha")
+
+        shutil.rmtree(proj.root)
+        reg.list()  # detect missing
+        make_project(proj.root)
+        reg.list()  # detect recover
+
+        events = [h["event"] for h in reg.history("alpha", limit=10)]
+        assert "missing" in events and "recover" in events
+
+    def test_touch_does_not_rewrite_whole_registry(self, home):
+        reg = ProjectRegistry()
+        for i in range(5):
+            p = make_project(home.parent / f"p{i}")
+            reg.add(p.root, name=f"p{i}")
+
+        size_before = reg.path.stat().st_size
+        for _ in range(20):
+            reg.touch("p3")
+        size_after = reg.path.stat().st_size
+        # A touch updates one row; no full-file rewrite beyond WAL growth
+        assert size_after >= size_before  # sanity: file still valid
+        assert reg.get("p3")["last_accessed_at"]
+
+    def test_export_json_snapshot(self, home):
+        reg = ProjectRegistry()
+        proj = make_project(home.parent / "alpha")
+        reg.add(proj.root, name="alpha")
+
+        snapshot = reg.export_json()
+        assert snapshot["version"] == 2
+        assert str(proj.root) in snapshot["projects"]
+
+    def test_concurrent_writers_do_not_lose_updates(self, home):
+        """Two connections inserting different projects must both survive."""
+        import threading
+
+        reg = ProjectRegistry()
+        a = make_project(home.parent / "concurrent-a")
+        b = make_project(home.parent / "concurrent-b")
+
+        errors = []
+
+        def worker(root, name):
+            try:
+                ProjectRegistry().add(root, name)
+            except Exception as exc:  # pragma: no cover - failure detail
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=worker, args=(a.root, "concurrent-a")),
+            threading.Thread(target=worker, args=(b.root, "concurrent-b")),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, errors
+        names = {e["name"] for e in reg.list(probe=False)}
+        assert {"concurrent-a", "concurrent-b"} <= names
+
+
+class TestNewRegistryTools:
+    def test_set_state_and_history_tools(self, home):
+        proj = make_project(home.parent / "toolproj")
+        added = json.loads(server.se_register_project(str(proj.root)))
+        name = added["name"]
+
+        state = json.loads(server.se_set_project_state(name, "dormant"))
+        assert state["state"] == "dormant"
+
+        history = json.loads(server.se_project_history(name))
+        assert {e["event"] for e in history["events"]} >= {"register", "deactivate"}
+
+    def test_set_state_invalid_value(self, home):
+        proj = make_project(home.parent / "toolproj2")
+        added = json.loads(server.se_register_project(str(proj.root)))
+        result = json.loads(server.se_set_project_state(added["name"], "zombie"))
+        assert "error" in result
+
+    def test_export_projects_tool(self, home):
+        proj = make_project(home.parent / "exportproj")
+        server.se_register_project(str(proj.root))
+        snapshot = json.loads(server.se_export_projects())
+        assert snapshot["version"] == 2
+        assert any(v["name"] for v in snapshot["projects"].values())

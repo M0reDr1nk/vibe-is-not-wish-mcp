@@ -246,3 +246,91 @@ vinw tui [<path|name>]     # 无参 → 选择器
 ## 版本历史补充
 
 | v0.7 | 2026-11-13 | 多项目跟踪管理：注册表模块、MCP 每工具 project 参数 + 5 个注册表工具、TUI 选择器与切换、CLI project 子命令 |
+| v0.8 | 2026-11-14 | 注册表存储改为 SQLite（控制面/数据面分层、projects + project_events、WAL、JSON 迁移与导出、state 意图与观测分离） |
+
+---
+
+# v0.8 注册表改用 SQLite（descent-8 / asc-007）
+
+## 分层原则
+
+- **控制面**：`$VINW_HOME/registry.db`（SQLite，WAL）——工程清单、状态、状态切换事件
+- **数据面**：`<工程>/.vinw/*.md`（Markdown + frontmatter）——完全不变
+
+## Schema（`PRAGMA user_version = 2`）
+
+```sql
+CREATE TABLE IF NOT EXISTS projects (
+  path             TEXT PRIMARY KEY,              -- 规范化绝对路径
+  name             TEXT NOT NULL UNIQUE,          -- 唯一别名
+  state            TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','dormant')),
+  added_at         TEXT NOT NULL,
+  last_accessed_at TEXT,
+  last_seen_ok     TEXT,
+  missing_since    TEXT                           -- NULL = 正常；非空 = 观测失效
+);
+
+CREATE TABLE IF NOT EXISTS project_events (
+  id     INTEGER PRIMARY KEY AUTOINCREMENT,
+  path   TEXT NOT NULL,
+  event  TEXT NOT NULL,   -- register|remove|activate|deactivate|missing|recover|import
+  at     TEXT NOT NULL,
+  detail TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_events_path ON project_events(path, id DESC);
+```
+
+连接参数：`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；每次操作用短连接（`with self._connect() as conn`）。
+
+## 状态语义（intent 与 observation 分离）
+
+| 字段 | 语义 | 写入者 |
+|------|------|--------|
+| `state` | **用户声明的意图**：`active`（在关注）/ `dormant`（休眠） | 用户（`vinw project activate/deactivate`） |
+| `missing_since` / `last_seen_ok` | **系统观测的现实** | 探测逻辑 |
+
+探测策略：
+- `list(probe=None)` 默认**只探测 `active`**；`dormant` 返回缓存状态并置 `probed: false`
+- `list(probe=True)` 强制全量探测；`list(probe=False)` 完全不探测
+- 探测引发 `ok→missing` 或 `missing→ok` 转变时写一条 `project_events`（`missing` / `recover`）
+
+## 写策略
+
+- `touch()` → 单行 `UPDATE projects SET last_accessed_at=?`（微秒级，无需去抖）
+- 不再有整表重写；并发安全由 WAL + busy_timeout 保证
+
+## 迁移（JSON → SQLite）
+
+首次打开时若 `registry.db` 不存在且 `registry.json` 存在：
+1. 逐条导入 `projects`（`state` 默认 `active`，`missing_since` 沿用）
+2. 每条写 `project_events(event='import')`
+3. 原文件重命名为 `registry.json.migrated-<ts>`（保留，不删除）
+4. 迁移失败整体回滚（事务），原 JSON 不动
+
+## API（`ProjectRegistry` 对外签名保持兼容）
+
+| 方法 | 变化 |
+|------|------|
+| `load/save` | 内部改为 SQL，对外不再暴露（保留 `export_json()` 供人读） |
+| `add/remove/get/list/resolve/describe` | 签名不变 |
+| `prune(missing_only, force)` | 语义不变（默认 dry-run） |
+| `touch(name_or_path)` | 单行 UPDATE |
+| **新增** `set_state(name_or_path, state)` | active/dormant 切换 + 事件 |
+| **新增** `history(name_or_path, limit=20)` | 状态切换记录 |
+| **新增** `export_json()` | 导出快照供人查看/备份 |
+
+## CLI / MCP 增量
+
+| 命令 | 说明 |
+|------|------|
+| `vinw project activate <target>` / `deactivate` | 状态切换 |
+| `vinw project history <target>` | 状态切换记录 |
+| `vinw project export [--out FILE]` | JSON 快照（默认 stdout） |
+| `se_set_project_state`（MCP） | 状态切换 |
+| `se_project_history`（MCP） | 记录查询 |
+
+## 兼容红线
+
+- `list()` 返回结构保持 `{name, path, status, ...}`，新增字段（`state`, `probed`）只增不改
+- `prune` 仍默认 dry-run、永不静默删除
+- 工程内 Markdown 与全部既有工具行为不变

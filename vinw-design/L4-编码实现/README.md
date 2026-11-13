@@ -5,18 +5,18 @@ layer: L4-编码实现
 se_version: '2.0'
 started_at: '2026-11-13T10:15:00Z'
 status: in_progress
-todo_descent: 7
+todo_descent: 8
 ---
 
 # L4-编码实现
 
 ## 当前待办
 
-- [x] descent-1~6 存储层/工作流/TUI/一致性/完成态/待办契约实现
-- [x] descent-7：registry.py 项目注册表（原子写/探测/prune/resolve）
-- [x] descent-7：21 个 se_* 工具支持可选 project + 5 个注册表工具
-- [x] descent-7：TUI 工作目录栏/选择器/快捷键切换 + CLI project 子命令
-- [x] 一致性检查 28/28 passed → L4 基线化 → 下降 L5
+- [x] descent-1~7 存储/工作流/TUI/多项目实现
+- [x] descent-8：registry.py 重写为 SQLite（projects+project_events、WAL、user_version=2）
+- [x] descent-8：消除写放大（touch 单行 UPDATE）、并发安全、intent/observation 分离
+- [x] descent-8：JSON 迁移 + 损坏隔离 + export/history/set_state 工具与 CLI
+- [x] 一致性 30/30 passed → L4 基线化 → 下降 L5
 
 ## 阶段小结
 

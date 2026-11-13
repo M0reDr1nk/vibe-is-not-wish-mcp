@@ -224,3 +224,30 @@ updated_at: "2026-11-13T12:00:00Z"
 - MCP：`se_list_projects` 返回注册表；`se_get_project(project="vinw-self-design")` 正常；`se_register_project` 登记成功
 - CLI：`vinw project add/list/prune` 全部正常
 - 兼容性：`project=None` 路径零改动（旧用例 71 例全绿）
+
+## descent-8 round 1（asc-007 注册表改 SQLite，2026-11-14）
+
+| 指标 | 值 |
+|------|-----|
+| 测试轮次 | descent-8 round 1 |
+| 总用例数 | 112（test_registry.py 由 26 → 37，+11） |
+| 通过 | 112 |
+| 失败 | 0 |
+
+### 新增覆盖（SQLite 控制面）
+
+| 用例组 | 结果 | 说明 |
+|--------|------|------|
+| TestSqliteControlPlane (8) | PASS | intent/observation 分离、非法 state 拒绝、事件历史、missing/recover 事件、touch 不重写全表、export 快照、**并发双写不丢更新** |
+| 迁移与容错 (3) | PASS | 遗留 JSON 迁移且原文件保留为 `.migrated-*`、损坏库隔离为 `.corrupt-*` 不删除、WAL 模式断言 |
+
+### 行为变更与测试适配
+原 JSON 专属用例（损坏备份、原子写无 tmp）替换为 SQLite 语义用例（隔离重建、WAL 断言），断言意图不变。
+
+### 端到端实测
+- 真实 `~/.vinw/registry.json` 自动迁移为 `registry.db`，原文件保留；事件表记录 `import`
+- CLI：`project add/list/deactivate/history/export` 全部正常
+- MCP：`se_list_projects` 返回 `state`/`probed` 新字段，`se_set_project_state`、`se_project_history`、`se_export_projects` 可用
+
+### 开发期自查发现并修复
+`list()` 探测分支漏 `entries.append()` 导致 probe 路径返回空表——已修复并有测试覆盖。

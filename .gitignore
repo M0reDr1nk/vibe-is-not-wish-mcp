@@ -3,3 +3,8 @@
 __pycache__/
 *.pyc
 build/
+# SQLite registry (lives in $VINW_HOME, kept out of git)
+*.db
+*.db-wal
+*.db-shm
+*.db.corrupt-*

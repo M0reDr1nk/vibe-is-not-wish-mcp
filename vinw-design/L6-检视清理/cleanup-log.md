@@ -111,3 +111,13 @@ status: "completed"
 | 文档同步 | api-design v0.7 / code-map / implementation / test-results / iterations | 多项目能力全覆盖 |
 | 注册表实登 | `se_register_project` 登记 vinw-self-design | 供 TUI 选择器与多项目工具实测 |
 | 测试复验 | 101/101 通过 ✅ | 清理后重跑全绿 |
+
+## descent-8 清理（asc-007 注册表改 SQLite，2026-11-14）
+
+| 类别 | 操作 | 说明 |
+|------|------|------|
+| 未使用导入 | AST 全量扫描 | 结果：0 处（descent-7 清理后保持干净） |
+| gitignore | 追加 `*.db` / `*.db-wal` / `*.db-shm` / `*.db.corrupt-*` | 注册表默认在 `$VINW_HOME`（仓外）；防止 VINW_HOME 指向仓内时误提交 SQLite 文件与 WAL 附属文件 |
+| 遗留数据 | `~/.vinw/registry.json` → `.migrated-*` 保留 | 迁移后原文件不删除，符合"不静默删数据"约束 |
+| 文档同步 | api-design v0.8 / code-map / implementation / test-results / iterations / synthesis 更正声明 | 全链路已更新 |
+| 测试复验 | 112/112 通过 ✅ | 清理后重跑全绿 |
