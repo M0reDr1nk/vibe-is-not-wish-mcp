@@ -129,3 +129,14 @@ updated_at: "2026-11-13T12:00:00Z"
 ### MCP 端到端实测
 - `se_check_consistency`(text, scope=vinw/)：20/20 匹配 → report-c88f12f4.md
 - 自举加载：MCP 重启后自动接管 vinw-self-design（.vinw 路径）
+
+## descent-3 round 1（asc-002 流程补救，2026-11-13）
+
+| 指标 | 值 |
+|------|-----|
+| 测试轮次 | descent-3 round 1 |
+| 总用例数 | 52（新增 7：test_tui.py 4 例 + todo 轮次追踪 3 例） |
+| 通过 | 52 |
+| 失败 | 0 |
+
+覆盖增量：TUI 渲染冒烟（含崩溃回归路径）、TUI 无工程分支、manifest 变更重渲染、TUI 瞬时错误韧性、todo_descent 写入/读取/回退。

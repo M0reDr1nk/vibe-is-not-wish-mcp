@@ -8,12 +8,21 @@ ascent_history:
   reason: 新增自举能力（se_init_project 接管已有工程 + 启动自动加载），需更新 L3 接口设计后重新下降实现
   to_baseline: v002
   to_layer: L3-方案细化
+- created_at: '2026-11-13T16:19:04.591122+00:00'
+  descent_after: 3
+  descent_before: 2
+  from_layer: L7-终验
+  id: asc-002
+  reason: descent-2 终验后发现三项热修未走流程（TUI 渲染崩溃 chg-032、待办轮次失真 chg-033、TUI 滚动容错 chg-034），且
+    TUI/待办缺陷属设计-实现偏差，上升回 L3 补齐流程后重新下降
+  to_baseline: v003
+  to_layer: L3-方案细化
 code_root: ..
 completed_at: '2026-11-13T12:00:00+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 2
+current_descent: 3
 current_layer: L7-终验
-descent_started_at: '2026-11-13T15:30:50.524766+00:00'
+descent_started_at: '2026-11-13T16:19:04.593456+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
@@ -27,28 +36,28 @@ layer_states:
     latest_baseline: v001
     status: baselined
   L3-方案细化:
-    active_ascent: asc-001
-    baselined_at: '2026-11-13T15:43:39.450871+00:00'
-    descent_count: 2
-    latest_baseline: v003
+    active_ascent: asc-002
+    baselined_at: '2026-11-13T16:19:25.263360+00:00'
+    descent_count: 3
+    latest_baseline: v004
     status: baselined
   L4-编码实现:
-    baselined_at: '2026-11-13T15:44:22.628542+00:00'
-    descent_count: 2
-    latest_baseline: v002
+    baselined_at: '2026-11-13T16:19:58.922049+00:00'
+    descent_count: 3
+    latest_baseline: v003
     status: baselined
   L5-测试验证:
-    baselined_at: '2026-11-13T15:44:59.650459+00:00'
-    descent_count: 2
-    latest_baseline: v002
+    baselined_at: '2026-11-13T16:20:34.671508+00:00'
+    descent_count: 3
+    latest_baseline: v003
     status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-13T15:45:37.635662+00:00'
-    descent_count: 2
-    latest_baseline: v002
+    baselined_at: '2026-11-13T16:20:52.854119+00:00'
+    descent_count: 3
+    latest_baseline: v003
     status: baselined
   L7-终验:
-    descent_count: 2
+    descent_count: 3
     latest_baseline: null
     status: in_progress
 name: vinw-self-design

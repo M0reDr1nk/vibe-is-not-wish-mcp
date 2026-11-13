@@ -1,24 +1,22 @@
 ---
-baseline_reason: 遗留项决策完毕，design-doc/api-design/checkpoints 已更新
-baseline_version: v002
-baselined_at: '2026-11-13T10:16:20.828789'
+baseline_reason: descent-2 L3 接口设计 v0.3 定稿（自举加载 + 一致性代码定位规则 + .vinw 更名），门控 modify
+  通过
+baseline_version: v003
+baselined_at: '2026-11-13T15:43:39.449815+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-13T15:30:50.523838+00:00'
-rolled_back_from: v002
+rolled_back_at: '2026-11-13T16:19:04.593021+00:00'
+rolled_back_from: v003
 se_version: '2.0'
 status: in_progress
-todo_descent: 2
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [x] 接口设计 api-design.md v0.3（自举加载 + 一致性代码定位 + .vinw 更名）
-- [x] 门控 cfm-20261113-153121-001 modify 通过
-- [x] L3 基线化 v003（descent-2）
+- [ ] 初始化本层工作
 
 ## 阶段小结
 

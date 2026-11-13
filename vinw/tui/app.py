@@ -23,11 +23,13 @@ from ..workflow.state_machine import WorkflowEngine
 class SEApp(App):
     """Main TUI application for SE-MCP."""
 
+    # `scroll` (not `auto`): always show the scrollbar so overflow is
+    # discoverable; `auto` hides it and content appears silently cropped.
     CSS = """
     Screen { align: center middle; }
-    #top-panel { height: 40%; border: solid green; overflow-y: auto; }
-    #mid-panel { height: 35%; border: solid blue; overflow-y: auto; }
-    #bottom-panel { height: 25%; border: solid yellow; overflow-y: auto; }
+    #top-panel { height: 40%; border: solid green; overflow-y: scroll; }
+    #mid-panel { height: 35%; border: solid blue; overflow-y: scroll; }
+    #bottom-panel { height: 25%; border: solid yellow; overflow-y: scroll; }
     """
 
     project_path: reactive[str | None] = reactive(None)
@@ -109,12 +111,12 @@ class SEApp(App):
             text = Text(f"{icon} {layer}{extra}{is_current}", style=color)
             layers_render.append(Panel(text, border_style=color))
 
-        # Ascent history arrows
+        # Ascent history arrows (full reason text; panel scrolls if long)
         arrow_texts = []
         for asc in ascents:
             arrow_texts.append(
                 f"{asc['id']}: {asc['from_layer']} → {asc['to_layer']}({asc['to_baseline']})"
-                f" | 原因: {asc['reason'][:40]}..."
+                f" | 原因: {asc['reason']}"
             )
         arrows = (
             Text("\n".join(arrow_texts), style="cyan")
