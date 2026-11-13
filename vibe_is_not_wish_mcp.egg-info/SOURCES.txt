@@ -1,5 +1,7 @@
+LICENSE
 README.md
 pyproject.toml
+tests/test_bootstrap.py
 tests/test_consistency_llm.py
 tests/test_project.py
 tests/test_search.py

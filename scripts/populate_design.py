@@ -209,7 +209,7 @@ proj.write_document("L3-方案细化", "design-doc.md", """# SE-MCP v2 设计方
 
 ```
 my-project/
-├── .se/
+├── .vinw/
 │   ├── manifest.md          # 全局状态机
 │   ├── changelog.md         # 追加式变更日志
 │   ├── ascensions.md        # 上升回溯记录

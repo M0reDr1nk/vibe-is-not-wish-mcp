@@ -21,10 +21,10 @@ class TestProjectInit:
     def test_directory_structure(self, temp_project):
         proj = temp_project
         assert proj.root.exists()
-        assert proj.se_dir.exists()
-        assert (proj.se_dir / "manifest.md").exists()
-        assert (proj.se_dir / "changelog.md").exists()
-        assert (proj.se_dir / "ascensions.md").exists()
+        assert proj.vinw_dir.exists()
+        assert (proj.vinw_dir / "manifest.md").exists()
+        assert (proj.vinw_dir / "changelog.md").exists()
+        assert (proj.vinw_dir / "ascensions.md").exists()
 
     def test_all_layers_created(self, temp_project):
         proj = temp_project
@@ -105,7 +105,7 @@ class TestChangelog:
         proj = temp_project
         from vinw.store.changelog import append_changelog_entry
         append_changelog_entry(
-            proj.se_dir / "changelog.md",
+            proj.vinw_dir / "changelog.md",
             change_type="test",
             layer="L1-需求拆解",
             descent=1,
@@ -114,6 +114,6 @@ class TestChangelog:
             before="before",
             after="after",
         )
-        changelog = (proj.se_dir / "changelog.md").read_text()
+        changelog = (proj.vinw_dir / "changelog.md").read_text()
         assert "chg-" in changelog
         assert "test entry" in changelog

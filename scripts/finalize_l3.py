@@ -38,7 +38,7 @@ print(f"[2/4] L3 re-baselined: {result}")
 
 # 3. Log changes
 append_changelog_entry(
-    proj.se_dir / "changelog.md",
+    proj.vinw_dir / "changelog.md",
     change_type="design",
     layer="L3-方案细化",
     descent=1,

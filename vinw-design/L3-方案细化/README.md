@@ -1,9 +1,14 @@
 ---
+baseline_reason: 遗留项决策完毕，design-doc/api-design/checkpoints 已更新
+baseline_version: v002
+baselined_at: '2026-11-13T10:16:20.828789'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
+rolled_back_at: '2026-11-13T15:30:50.523838+00:00'
+rolled_back_from: v002
 se_version: '2.0'
-status: pending
+status: in_progress
 ---
 
 # L3-方案细化

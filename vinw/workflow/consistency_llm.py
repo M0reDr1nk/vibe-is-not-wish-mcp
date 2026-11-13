@@ -10,6 +10,52 @@ from typing import Any
 
 from ..store.project import Project
 
+# Directories never scanned for code
+_EXCLUDED_DIR_PARTS = {".venv", "build", "node_modules", "__pycache__", ".git"}
+
+
+def _resolve_code_root(project: Project) -> Path:
+    """Resolve the code repository root.
+
+    manifest may declare `code_root` relative to the project root
+    (self-hosting: design project lives inside the code repo, e.g. "..").
+    Defaults to the project root itself.
+    """
+    manifest = project.read_manifest()
+    code_root_meta = manifest.get("code_root")
+    if code_root_meta:
+        return (project.root / str(code_root_meta)).resolve()
+    return project.root
+
+
+def _collect_code_files(code_root: Path, code_scope: list[str] | None) -> list[Path]:
+    """Collect .py files; code_scope entries may be files or directories."""
+    if code_scope:
+        candidates = [code_root / p for p in code_scope]
+    else:
+        candidates = [code_root / "src"] if (code_root / "src").exists() else [code_root]
+
+    files: list[Path] = []
+    for c in candidates:
+        if c.is_file() and c.suffix == ".py":
+            files.append(c)
+        elif c.is_dir():
+            files.extend(c.rglob("*.py"))
+
+    return [
+        f
+        for f in files
+        if ".baseline" not in str(f)
+        and not any(part in _EXCLUDED_DIR_PARTS for part in f.parts)
+    ]
+
+
+def _display_path(code_root: Path, code_file: Path) -> str:
+    try:
+        return str(code_file.relative_to(code_root))
+    except ValueError:
+        return str(code_file)
+
 
 PROMPT_TEMPLATE = """你是一名严格的软件工程审计员。你的任务是对比【设计文档】与【代码实现】，找出两者之间的所有不一致，包括：
 
@@ -85,22 +131,15 @@ class LLMConsistencyAuditor:
         design_content = design_path.read_text(encoding="utf-8")
 
         # Collect code files
-        code_root = self.project.root
-        search_paths = [code_root / "src"] if (code_root / "src").exists() else [code_root]
-        if code_scope:
-            search_paths = [code_root / p for p in code_scope]
+        code_root = _resolve_code_root(self.project)
+        code_files = _collect_code_files(code_root, code_scope)
 
         code_contents: list[str] = []
-        for spath in search_paths:
-            if not spath.exists():
-                continue
-            for code_file in spath.rglob("*.py"):
-                if ".baseline" in str(code_file):
-                    continue
-                code = code_file.read_text(encoding="utf-8")
-                code_contents.append(
-                    f"--- {code_file.relative_to(code_root)} ---\n{code}"
-                )
+        for code_file in code_files:
+            code = code_file.read_text(encoding="utf-8")
+            code_contents.append(
+                f"--- {_display_path(code_root, code_file)} ---\n{code}"
+            )
 
         if not code_contents:
             return {
@@ -234,35 +273,26 @@ class TextConsistencyChecker:
         design_symbols = self._extract_symbols(design_content)
 
         # Search in code
-        code_root = self.project.root
-        search_paths = [code_root / "src"] if (code_root / "src").exists() else [code_root]
-        if code_scope:
-            search_paths = [code_root / p for p in code_scope]
+        code_root = _resolve_code_root(self.project)
+        code_files = _collect_code_files(code_root, code_scope)
 
         inconsistencies: list[dict[str, Any]] = []
         matched: list[dict[str, Any]] = []
 
         for sym in design_symbols:
             found = False
-            for spath in search_paths:
-                if not spath.exists():
-                    continue
-                for code_file in spath.rglob("*.py"):
-                    if ".baseline" in str(code_file):
-                        continue
-                    code = code_file.read_text(encoding="utf-8")
-                    if sym["name"] in code:
-                        found = True
-                        matched.append(
-                            {
-                                "design_ref": f"{design_doc} (table/cell)",
-                                "code_ref": str(code_file.relative_to(code_root)),
-                                "symbol": sym["name"],
-                                "note": "Name exists in code",
-                            }
-                        )
-                        break
-                if found:
+            for code_file in code_files:
+                code = code_file.read_text(encoding="utf-8")
+                if sym["name"] in code:
+                    found = True
+                    matched.append(
+                        {
+                            "design_ref": f"{design_doc} (table/cell)",
+                            "code_ref": _display_path(code_root, code_file),
+                            "symbol": sym["name"],
+                            "note": "Name exists in code",
+                        }
+                    )
                     break
             if not found:
                 inconsistencies.append(

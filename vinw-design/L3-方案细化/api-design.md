@@ -13,7 +13,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 
 | 接口名 | 输入 | 输出 |
 |--------|------|------|
-| `se_init_project` | name, path, description | project_id, layers, current_layer, descent |
+| `se_init_project` | name, path, description | project_id, layers, current_layer, descent；**若目标已含 `.vinw/manifest.md` 则接管（adopted=true）** |
 | `se_get_project` | — | full state + layer_graph + ascent_history + pending |
 
 ### 基线管理
@@ -66,6 +66,10 @@ updated_at: '2026-11-13T10:02:22.615842'
 
 报告格式写入 `L4-编码实现/consistency-reports/report-{id}.md`。
 
+**代码定位规则（v0.3 修订）**：
+- manifest 支持可选字段 `code_root`：代码仓根目录，相对项目根解析（自举场景下设计工程位于代码仓子目录，如 `".."`）；缺省默认为项目根本身
+- `code_scope` 支持文件与目录混合：文件条目直接纳入扫描，目录条目递归 `rglob("*.py")`；`code_scope` 为空时扫描 `code_root`（若存在 `code_root/src` 则仅扫描 `src`）
+
 ### 方案检索（L2 层）
 
 | 接口名 | 输入 | 输出 |
@@ -93,9 +97,21 @@ updated_at: '2026-11-13T10:02:22.615842'
 |--------|------|------|
 | `se_get_next_steps` | — | current_layer, suggested_work, gate, can_descend, special_instruction |
 
+## 自举加载（Bootstrap，v0.3 新增）
+
+Server 启动时自动探测并加载活动工程，实现 VINW 自举（在自身代码仓中运行 `vinw server` 即可管理自身设计工程）：
+
+1. 探测顺序：`cwd/vinw-design/.vinw/manifest.md` → `cwd/.vinw/manifest.md`
+2. 命中即作为 `_active_project`，所有工具开箱可用，无需先调用 `se_init_project`
+3. 未命中则维持 `None`，工具返回 "No active project. Call se_init_project first."
+4. `se_init_project` 在目标目录已有 `.vinw/manifest.md` 时不再报错，而是接管该工程并返回 `adopted=true` 及其实际 current_layer/descent
+
+约束：`_active_project` 为进程内单例（简化设计），后续版本支持 project_id 多工程映射。
+
 ## 版本历史
 
 | 版本 | 日期 | 变更 | 作者 |
 |------|------|------|------|
 | v0.1 | 2026-11-13 | 初始设计 | agent |
 | v0.2 | 2026-11-13 | 增加 L2 层 + 螺旋上升 | agent |
+| v0.3 | 2026-11-13 | 自举加载：启动自动探测工程 + se_init_project 接管已有工程；一致性检查代码定位规则（manifest.code_root + code_scope 混合文件/目录）；**状态目录统一更名 `.se/` → `.vinw/`**（经门控 modify 反馈批准） | agent |

@@ -22,6 +22,26 @@ mcp = MCPServer("vinw")
 _active_project: Project | None = None
 
 
+def _try_load_bootstrap_project() -> Project | None:
+    """Bootstrap: auto-load a VINW project from the current working directory.
+
+    Supports two layouts:
+    - cwd itself is a project (cwd/.vinw/manifest.md)
+    - cwd is a code repo containing a design project (cwd/vinw-design/.vinw/manifest.md)
+
+    This lets VINW host itself: run `vinw server` inside the repo and the
+    design project under vinw-design/ becomes the active project.
+    """
+    for candidate in (Path.cwd() / "vinw-design", Path.cwd()):
+        if (candidate / ".vinw" / "manifest.md").exists():
+            return Project(candidate)
+    return None
+
+
+# Self-hosting bootstrap: pick up an existing project at server startup.
+_active_project = _try_load_bootstrap_project()
+
+
 def _ensure_project() -> Project:
     if _active_project is None:
         raise RuntimeError("No active project. Call se_init_project first.")
@@ -32,9 +52,27 @@ def _ensure_project() -> Project:
 
 @mcp.tool()
 def se_init_project(name: str, path: str, description: str = "") -> str:
-    """Initialize a new project with 7-layer spiral-ascend structure."""
+    """Initialize a new project with 7-layer spiral-ascend structure.
+
+    If the target already contains a VINW project (.vinw/manifest.md), adopt it
+    as the active project instead of re-initializing.
+    """
     global _active_project
     root = Path(path).expanduser().resolve() / name
+    if (root / ".vinw" / "manifest.md").exists():
+        _active_project = Project(root)
+        manifest = _active_project.read_manifest()
+        return json.dumps(
+            {
+                "project_id": str(root),
+                "adopted": True,
+                "layers": LAYERS,
+                "current_layer": manifest.get("current_layer", LAYERS[0]),
+                "current_descent": manifest.get("current_descent", 1),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     _active_project = Project.init(root, name, description)
     return json.dumps(
         {
@@ -221,7 +259,7 @@ def se_log_change(
     from .store.changelog import append_changelog_entry
 
     change_id = append_changelog_entry(
-        proj.se_dir / "changelog.md",
+        proj.vinw_dir / "changelog.md",
         change_type=change_type,
         layer=layer,
         descent=descent,
@@ -237,7 +275,7 @@ def se_log_change(
 def se_get_changelog(limit: int = 20) -> str:
     """Return recent changelog entries."""
     proj = _ensure_project()
-    path = proj.se_dir / "changelog.md"
+    path = proj.vinw_dir / "changelog.md"
     if not path.exists():
         return json.dumps({"entries": []}, ensure_ascii=False)
 

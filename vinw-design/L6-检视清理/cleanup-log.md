@@ -53,3 +53,15 @@ status: "completed"
 
 - 36/36 单元测试通过 ✅
 - 一致性检查：20 条 WARNING 全部为已知误报（设计项目与代码项目分离导致）
+## descent-2 清理（asc-001，2026-11-13）
+
+| 类别 | 操作 | 说明 |
+|------|------|------|
+| 废弃产物 | 删除 `build/` 并加入 .gitignore | pip 构建残留，setuptools 每次重装会再生成 |
+| 缓存清理 | 删除全部 `__pycache__/`（已在 .gitignore） | 5 个目录 |
+| 仓库卫生 | `git rm --cached .DS_Store` | 停止跟踪系统垃圾文件 |
+| 调试代码 | 全量扫描 pdb/breakpoint/TODO/FIXME | 零命中（validators.py 的 "vXXX" 为正常错误提示文案） |
+| 文档同步 | README / kimi.plugin.json / SKILL.md / design-doc / populate_design.py | `.se` → `.vinw` 引用统一（38 处） |
+| 状态目录 | `vinw-design/.se` → `vinw-design/.vinw` | 与 L3 v0.3 设计一致 |
+
+测试复验：45/45 通过 ✅

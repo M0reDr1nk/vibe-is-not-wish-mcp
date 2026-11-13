@@ -37,7 +37,7 @@ if report_path.exists():
 
 # 2. Log the fix
 append_changelog_entry(
-    proj.se_dir / "changelog.md",
+    proj.vinw_dir / "changelog.md",
     change_type="code",
     layer="L4-编码实现",
     descent=1,

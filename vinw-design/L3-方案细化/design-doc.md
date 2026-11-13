@@ -41,7 +41,7 @@ updated_at: '2026-11-13T10:02:22.471783'
 
 ```
 my-project/
-├── .se/
+├── .vinw/
 │   ├── manifest.md          # 全局状态机
 │   ├── changelog.md         # 追加式变更日志
 │   ├── ascensions.md        # 上升回溯记录

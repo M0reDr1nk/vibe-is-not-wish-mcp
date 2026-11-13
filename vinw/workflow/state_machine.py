@@ -41,7 +41,7 @@ class WorkflowEngine:
         descent = manifest.get("current_descent", 1)
         layer = manifest.get("current_layer", LAYERS[0])
         return append_changelog_entry(
-            self.project.se_dir / "changelog.md",
+            self.project.vinw_dir / "changelog.md",
             change_type=change_type,
             layer=layer,
             descent=descent,

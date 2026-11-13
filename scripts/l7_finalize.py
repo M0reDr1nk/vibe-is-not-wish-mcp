@@ -15,7 +15,7 @@ engine = WorkflowEngine(proj)
 
 # 1. Log final verification
 append_changelog_entry(
-    proj.se_dir / "changelog.md",
+    proj.vinw_dir / "changelog.md",
     change_type="final",
     layer="L7-终验",
     descent=1,

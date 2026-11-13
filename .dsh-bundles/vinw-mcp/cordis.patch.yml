@@ -1,0 +1,11 @@
+- insert:
+    - id: vinw-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: vinw
+        transport: stdio
+        command: /Users/yinghaoli/Workspace/vinw-archive/vibe-is-not-wish-mcp/.venv/bin/vinw
+        args:
+          - server
+        cwd: /Users/yinghaoli/Workspace/vinw-archive/vibe-is-not-wish-mcp
+        failOnStartupError: false

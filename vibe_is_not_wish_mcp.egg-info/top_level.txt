@@ -1,1 +1,3 @@
 vinw
+vinw-design
+vinw-plugin

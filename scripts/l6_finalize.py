@@ -15,7 +15,7 @@ engine = WorkflowEngine(proj)
 
 # 1. Log cleanup completion
 append_changelog_entry(
-    proj.se_dir / "changelog.md",
+    proj.vinw_dir / "changelog.md",
     change_type="cleanup",
     layer="L6-检视清理",
     descent=1,

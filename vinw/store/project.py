@@ -84,8 +84,8 @@ class Project:
 
     def __init__(self, root: Path):
         self.root = Path(root).resolve()
-        self.se_dir = self.root / ".se"
-        self.manifest_path = self.se_dir / "manifest.md"
+        self.vinw_dir = self.root / ".vinw"
+        self.manifest_path = self.vinw_dir / "manifest.md"
 
     @classmethod
     def init(cls, root: Path, name: str, description: str = "") -> "Project":
@@ -94,8 +94,8 @@ class Project:
             raise FileExistsError(f"Directory not empty: {root}")
         root.mkdir(parents=True, exist_ok=True)
 
-        se_dir = root / ".se"
-        se_dir.mkdir()
+        vinw_dir = root / ".vinw"
+        vinw_dir.mkdir()
 
         # manifest.md
         manifest_post = frontmatter.loads(
@@ -107,12 +107,12 @@ class Project:
         )
         manifest_meta = manifest_post.metadata
         manifest = frontmatter.Post(content="", **manifest_meta)
-        (se_dir / "manifest.md").write_text(
+        (vinw_dir / "manifest.md").write_text(
             frontmatter.dumps(manifest), encoding="utf-8"
         )
 
         # changelog.md
-        (se_dir / "changelog.md").write_text(
+        (vinw_dir / "changelog.md").write_text(
             f'---\nse_version: "2.0"\nproject: "{name}"\n---\n\n# 变更日志\n',
             encoding="utf-8",
         )
@@ -122,12 +122,12 @@ class Project:
             content="# 上升回溯记录\n\n<!-- 每次上升操作追加记录 -->\n",
             **{"se_version": "2.0", "project": name, "doc_type": "ascensions"},
         )
-        (se_dir / "ascensions.md").write_text(
+        (vinw_dir / "ascensions.md").write_text(
             frontmatter.dumps(ascensions), encoding="utf-8"
         )
 
         # decisions.md
-        (se_dir / "decisions.md").write_text(
+        (vinw_dir / "decisions.md").write_text(
             f'---\nse_version: "2.0"\nproject: "{name}"\ndoc_type: "decisions"\n---\n\n# 决策记录\n',
             encoding="utf-8",
         )
@@ -312,7 +312,7 @@ class Project:
     # ── Ascension history ─────────────────────────────────────
 
     def append_ascent_record(self, record: dict[str, Any]) -> None:
-        path = self.se_dir / "ascensions.md"
+        path = self.vinw_dir / "ascensions.md"
         existing = path.read_text(encoding="utf-8")
         entry = ASCENSION_ENTRY_TEMPLATE.format(
             ascent_id=record["id"],

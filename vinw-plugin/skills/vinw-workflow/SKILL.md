@@ -27,7 +27,7 @@ description: >
 
 ```
 <project-name>/
-├── .se/
+├── .vinw/
 │   ├── manifest.md          # 全局状态机
 │   ├── changelog.md         # 原子变更日志
 │   ├── ascensions.md        # 上升历史
@@ -122,7 +122,7 @@ ascent_history: []
 当发现当前层无法解决的问题（根因在上层）时：
 1. 向用户说明问题根因和建议上升到的目标层
 2. 获得用户确认后，执行上升：
-   - 记录上升记录到 `.se/ascensions.md`
+   - 记录上升记录到 `.vinw/ascensions.md`
    - 将当前层及下方所有层标记为 `superseded`
    - 回滚目标层到指定基线版本
    - 创建新的 descent 轮次 (descent_count + 1)
@@ -163,7 +163,7 @@ ascent_history: []
 
 ### 规则 5：变更原子记录
 
-每次修改文件前，必须在 `.se/changelog.md` 追加记录：
+每次修改文件前，必须在 `.vinw/changelog.md` 追加记录：
 
 ```markdown
 ## chg-{timestamp}-{seq}

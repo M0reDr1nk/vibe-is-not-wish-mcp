@@ -4,6 +4,7 @@ Version: 0.2.0
 Summary: VINW — Vibe Is Not Wish MCP Server. Markdown-first, spiral-ascend workflow engine for strict software engineering process control.
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: mcp>=1.0.0
 Requires-Dist: python-frontmatter>=1.0.0
 Requires-Dist: textual>=0.50.0
@@ -17,6 +18,7 @@ Requires-Dist: pytest; extra == "dev"
 Requires-Dist: black; extra == "dev"
 Requires-Dist: ruff; extra == "dev"
 Requires-Dist: scikit-learn; extra == "dev"
+Dynamic: license-file
 
 # VINW — Vibe Is Not Wish MCP
 
@@ -37,13 +39,19 @@ Requires-Dist: scikit-learn; extra == "dev"
 
 ```bash
 # Install
-pip install -e .
+pip install -e ".[dev]"
 
 # Initialize project
 vinw init ./projects/my-app --name my-app --desc "My application"
 
-# Start MCP Server (stdio mode for agent harness)
+# Start MCP Server — choose one:
+
+# Option A: stdio (Claude Code, Claude Desktop, Cursor subprocess mode)
 vinw server
+
+# Option B: Streamable HTTP (all harnesses, local network, easier config)
+vinw server --http --port 3000
+# → Connect at http://localhost:3000/mcp
 
 # Or start TUI to visualize workflow
 vinw tui ./projects/my-app
@@ -55,7 +63,7 @@ Each project is a self-contained directory tree:
 
 ```
 my-app/
-├── .se/
+├── .vinw/
 │   ├── manifest.md          # Global state machine
 │   ├── changelog.md         # Append-only change log
 │   ├── ascensions.md        # Ascent history
@@ -99,7 +107,7 @@ descent-2:           L3(rollback to v001) → L4 → L5
 descent-3:      L2 → L3 → L4 → L5 → L6 → L7
 ```
 
-Each ascent creates an immutable record in `.se/ascensions.md` and increments the descent counter.
+Each ascent creates an immutable record in `.vinw/ascensions.md` and increments the descent counter.
 
 ## MCP Tools
 
@@ -125,6 +133,50 @@ Each ascent creates an immutable record in `.se/ascensions.md` and increments th
 | `se_update_todo` | Update todo list in layer README |
 | `se_get_next_steps` | Get recommended actions for current layer |
 | `se_list_baselines` | List available baselines |
+
+## Cross-Harness Configuration
+
+### Streamable HTTP (Recommended)
+
+Start VINW as a local HTTP server:
+```bash
+vinw server --http --port 3000
+```
+
+Then configure your harness to connect to `http://localhost:3000/mcp`:
+
+| Harness | Config Location | Example |
+|---------|----------------|---------|
+| **Claude Desktop** | Settings → Connectors → Add custom connector | URL: `http://localhost:3000/mcp` |
+| **Claude Code** | `claude mcp add vinw http://localhost:3000/mcp` | One-line CLI |
+| **Cursor** | `~/.cursor/mcp.json` | `"url": "http://localhost:3000/mcp"` |
+| **Windsurf** | `~/.codeium/windsurf/mcp_config.json` | `"serverUrl": "http://localhost:3000/mcp"` |
+| **VS Code Copilot** | `.vscode/mcp.json` | `"url": "http://localhost:3000/mcp"` |
+
+### stdio (Subprocess mode)
+
+For harnesses that prefer launching a subprocess:
+```bash
+vinw server   # stdio transport (default)
+```
+
+Configure as a command:
+```json
+{
+  "mcpServers": {
+    "vinw": {
+      "command": "vinw",
+      "args": ["server"]
+    }
+  }
+}
+```
+
+### Kimi
+
+Kimi 目前没有原生 MCP 客户端。接入方式：
+1. **Kimi 自定义插件** — 将 VINW HTTP API 包装为 Kimi 插件（需要发布到 Kimi 插件市场）
+2. **本地代理桥接** — 用轻量代理把 VINW HTTP 转换为 Kimi 可消费的格式
 
 ## License
 

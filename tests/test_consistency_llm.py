@@ -80,6 +80,40 @@ def missing_func():
         names = [s["name"] for s in symbols]
         assert "layer" not in names
 
+    def test_code_root_from_manifest(self, proj):
+        """manifest code_root points to the code repo (self-hosting layout)."""
+        repo = proj.root.parent  # code_root ".." resolves here
+        pkg = repo / "vinw"
+        pkg.mkdir(exist_ok=True)
+        (pkg / "server.py").write_text("def se_hello_tool():\n    pass\n")
+        proj.write_document("L3-方案细化", "api-design.md", """
+| 接口名 |
+|--------|
+| `se_hello_tool` |
+""")
+        manifest = proj.read_manifest()
+        manifest["code_root"] = ".."
+        proj.write_manifest(manifest)
+
+        checker = TextConsistencyChecker(proj)
+        result = checker.check(code_scope=["vinw"])
+        assert result["overall"] == "passed"
+        assert any(m["symbol"] == "se_hello_tool" for m in result["matched"])
+
+    def test_code_scope_supports_file_entry(self, proj):
+        """code_scope entries may be files, not only directories."""
+        proj.write_document("L3-方案细化", "api-design.md", """
+| 接口名 |
+|--------|
+| `se_file_tool` |
+""")
+        (proj.root / "main.py").write_text("def se_file_tool():\n    pass\n")
+
+        checker = TextConsistencyChecker(proj)
+        result = checker.check(code_scope=["main.py"])
+        assert result["overall"] == "passed"
+        assert len(result["matched"]) == 1
+
 
 class TestLLMConsistencyAuditor:
     def test_audit_prepares_prompt(self, proj):

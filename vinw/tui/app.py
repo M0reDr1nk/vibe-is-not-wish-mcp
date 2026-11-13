@@ -144,7 +144,7 @@ class SEApp(App):
         self.query_one("#mid-panel", Static).update(mid_content)
 
         # ── Bottom: Recent changelog + Action hints ─────────────
-        changelog_path = self.project.se_dir / "changelog.md"
+        changelog_path = self.project.vinw_dir / "changelog.md"
         recent = ""
         if changelog_path.exists():
             content = changelog_path.read_text(encoding="utf-8")

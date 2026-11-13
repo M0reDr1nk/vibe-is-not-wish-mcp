@@ -41,7 +41,7 @@ Each project is a self-contained directory tree:
 
 ```
 my-app/
-├── .se/
+├── .vinw/
 │   ├── manifest.md          # Global state machine
 │   ├── changelog.md         # Append-only change log
 │   ├── ascensions.md        # Ascent history
@@ -85,7 +85,7 @@ descent-2:           L3(rollback to v001) → L4 → L5
 descent-3:      L2 → L3 → L4 → L5 → L6 → L7
 ```
 
-Each ascent creates an immutable record in `.se/ascensions.md` and increments the descent counter.
+Each ascent creates an immutable record in `.vinw/ascensions.md` and increments the descent counter.
 
 ## MCP Tools
 

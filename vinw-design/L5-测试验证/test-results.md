@@ -107,3 +107,25 @@ updated_at: "2026-11-13T12:00:00Z"
 ## 结论
 
 **descent-1 全部核心功能通过测试，无阻塞性问题。L5 可以基线化。**
+
+## descent-2 round 1（asc-001，2026-11-13）
+
+| 指标 | 值 |
+|------|-----|
+| 测试轮次 | descent-2 round 1 |
+| 总用例数 | 45（新增 9：test_bootstrap.py 8 例 + test_consistency_llm.py 新增 2 例，其中 1 例为既有用例修正） |
+| 通过 | 45 |
+| 失败 | 0 |
+| 命令 | `.venv/bin/python -m pytest tests/ -q` |
+
+### 新增覆盖
+
+| 用例组 | 结果 | 说明 |
+|--------|------|------|
+| test_bootstrap.py（8 例） | 8/8 PASS | 启动探测 3 路径（vinw-design 子目录/cwd/优先级）、无工程返回 None、adopt 模式（adopted=true/返回实际状态/空目录全新初始化） |
+| test_code_root_from_manifest | PASS | manifest.code_root=".." 时符号在代码仓内匹配 |
+| test_code_scope_supports_file_entry | PASS | code_scope 文件条目直扫 |
+
+### MCP 端到端实测
+- `se_check_consistency`(text, scope=vinw/)：20/20 匹配 → report-c88f12f4.md
+- 自举加载：MCP 重启后自动接管 vinw-self-design（.vinw 路径）

@@ -15,7 +15,7 @@ engine = WorkflowEngine(proj)
 
 # 1. Log test completion
 append_changelog_entry(
-    proj.se_dir / "changelog.md",
+    proj.vinw_dir / "changelog.md",
     change_type="test",
     layer="L5-测试验证",
     descent=1,
