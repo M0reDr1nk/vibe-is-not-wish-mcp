@@ -10,17 +10,18 @@ rolled_back_at: '2026-11-13T16:37:44.151635+00:00'
 rolled_back_from: v006
 se_version: '2.0'
 status: in_progress
-todo_descent: 6
+todo_descent: 7
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [x] 接口设计 v0.1~v0.5（自举/一致性定位/.vinw/完成态/TUI 布局契约）
-- [x] 接口设计 v0.6：待办生命周期契约、基线占位符守卫、门控清理
-- [x] 门控 cfm-20261113-153121-001 modify 通过
-- [x] L3 基线化 v003~v007（descent-2 至 descent-6）
+- [x] 接口设计 v0.1~v0.6（自举/一致性/完成态/TUI 布局/待办契约）
+- [x] v0.7：注册表契约与 ProjectRegistry API
+- [x] v0.7：MCP 每工具 project 参数 + 5 个注册表工具契约
+- [x] v0.7：TUI 选择器/切换/工作目录显示 + CLI project 子命令
+- [x] L3 基线化 → 下降 L4
 
 ## 阶段小结
 

@@ -39,3 +39,35 @@ updated_at: '2026-11-13T10:02:21.735110'
 - [ ] 基线粒度：单文件（README）vs 整层目录所有文档
 - [ ] 向量检索：是否需要 faiss 用于近似方案搜集
 - [ ] 部署形式：pip install 后 se-mcp server 启动 vs Kimi plugin 包
+---
+
+# descent-7 结论与推荐方向（供 L3 设计）
+
+## 结论 1：注册表 = `~/.vinw/registry.json`
+
+- 结构：`{"version": 1, "projects": {"<abs-path>": {"name": ..., "added_at": ..., "last_accessed_at": ..., "last_seen_ok": ..., "missing_since": ...}}}`
+- 写入：`tmp` + `os.replace` 原子替换；读多写少，无需锁文件（写入前重读合并）
+- 位置可用 `VINW_HOME` 环境变量覆盖（便于测试与多环境隔离）
+- **否决 SQLite 的理由已记录在证据矩阵**
+
+## 结论 2：失效工程 = 探测标记 + 显式 prune
+
+- `status: ok`（`.vinw/manifest.md` 存在）或 `status: missing`
+- `missing` 条目不自动删除；`prune` 默认 `--dry-run`，需 `--force` 才真删
+- `missing_since` 记录首次发现缺失时间，便于用户判断
+
+## 结论 3：寻址 = 路径主键 + 名称别名
+
+- MCP `project` 参数接受：绝对/相对路径、注册名、`null`
+- 解析顺序：路径存在→解析为路径；否则查注册表名；仍无→结构化错误
+
+## 结论 4：向后兼容红线
+
+- 所有 `se_*` 工具 `project` 参数**可选**，省略时走现有自举 + 单例逻辑
+- `vinw tui <path>` 现有用法不变；无参时进入选择器
+
+## 结论 5：TUI 交互
+
+- 顶部 header 常显：`工作目录: <cwd>` 与 `当前工程: <name> @ <path>`
+- 无参启动 → 选择器（注册工程 + cwd 探测工程，键盘上下 + Enter）
+- 快捷键 `p` 打开切换器（任意时刻），`r` 刷新，`q` 退出

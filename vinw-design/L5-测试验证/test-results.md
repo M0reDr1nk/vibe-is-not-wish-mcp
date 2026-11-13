@@ -185,3 +185,42 @@ updated_at: "2026-11-13T12:00:00Z"
 ### 行为变更适配
 
 基线守卫上线后，机制类旧用例（test_state_machine）改为显式 `force=True`，以保留对基线机制本身的覆盖。
+
+## descent-7 round 1（asc-006 多项目跟踪管理，2026-11-13）
+
+| 指标 | 值 |
+|------|-----|
+| 测试轮次 | descent-7 round 1 |
+| 总用例数 | 101（新增 test_registry.py 26 例 + TUI 多项目 4 例） |
+| 通过 | 101 |
+| 失败 | 0 |
+
+### 按文件分布
+
+| 文件 | 用例数 |
+|------|--------|
+| test_registry.py（新增） | 26 |
+| test_todo_lifecycle.py | 15 |
+| test_project.py | 13 |
+| test_state_machine.py | 11 |
+| test_bootstrap.py | 10 |
+| test_consistency_llm.py | 10 |
+| test_tui.py（含多项目 4 例） | 9 |
+| test_search.py | 7 |
+| **合计** | **101** |
+
+### 多项目覆盖要点
+
+| 用例组 | 结果 | 说明 |
+|--------|------|------|
+| TestRegistryBasics (8) | PASS | add/list/幂等/重名加后缀/remove 不动磁盘/损坏备份/原子写无残留 |
+| TestStaleHandling (4) | PASS | missing 标记不删除、missing_since 记录、prune 默认 dry-run、force 才删 |
+| TestResolution (5) | PASS | 路径/名称解析、未注册路径可用、失效与未知均抛 ProjectNotFound |
+| TestPerToolProjectParam (5) | PASS | project 参数生效、不改变 _active_project、非法值返回 available_projects、None 保持旧行为 |
+| TestRegistryTools (3) | PASS | register/list/remove、use_project 激活、prune 候选与执行 |
+| TUI 多项目 (4) | PASS | 工作目录栏、选择器列出注册工程、切换后视图更新、按注册名启动 |
+
+### 端到端实测
+- MCP：`se_list_projects` 返回注册表；`se_get_project(project="vinw-self-design")` 正常；`se_register_project` 登记成功
+- CLI：`vinw project add/list/prune` 全部正常
+- 兼容性：`project=None` 路径零改动（旧用例 71 例全绿）

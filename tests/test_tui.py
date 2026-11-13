@@ -7,6 +7,7 @@ import pytest
 
 from vinw.store.project import Project
 from vinw.tui.app import SEApp
+from vinw.tui.selector import ProjectSelector
 
 
 @pytest.fixture
@@ -39,12 +40,16 @@ def test_tui_renders_with_project(proj):
 
 
 def test_tui_renders_without_project():
-    """No-project path shows the warning panel instead of crashing."""
+    """No-project path shows guidance and opens the selector instead of crashing."""
     app = SEApp(None)
 
     async def scenario(pilot):
         await pilot.pause()
-        assert "No active project" in str(app.query_one("#top-content").content)
+        panel = app.query_one("#top-content").content
+        assert "没有活动的 VINW 工程" in str(getattr(panel, "title", panel))
+        # Selector is pushed automatically when no project was given
+        if isinstance(app.screen, ProjectSelector):
+            app.pop_screen()
 
     _run(app, scenario)
 
@@ -106,5 +111,81 @@ def test_todo_panel_is_actually_scrollable(proj):
         panel.scroll_end(animate=False)
         await pilot.pause()
         assert panel.scroll_y > 0
+
+    _run(app, scenario)
+
+
+# ── Multi-project TUI (L3 v0.7) ─────────────────────────────
+
+
+@pytest.fixture
+def registry_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("VINW_HOME", str(tmp_path / "home"))
+    from vinw.store.registry import ProjectRegistry
+
+    reg = ProjectRegistry()
+    roots = []
+    for i in range(2):
+        root = tmp_path / f"proj-{i}"
+        p = Project.init(root, f"proj-{i}", f"project {i}")
+        reg.add(root, name=f"proj-{i}")
+        roots.append(p)
+    return reg, roots
+
+
+def test_workdir_bar_shows_cwd_and_project(registry_home, monkeypatch):
+    reg, roots = registry_home
+    monkeypatch.chdir(roots[0].root)
+    app = SEApp(str(roots[0].root), registry=reg)
+
+    async def scenario(pilot):
+        await pilot.pause()
+        bar = str(app.query_one("#workdir-bar").content)
+        assert "工作目录" in bar
+        assert "proj-0" in bar
+
+    _run(app, scenario)
+
+
+def test_selector_lists_registered_projects(registry_home):
+    reg, roots = registry_home
+    app = SEApp(None, registry=reg)
+
+    async def scenario(pilot):
+        await pilot.pause()
+        from vinw.tui.selector import ProjectSelector
+
+        assert isinstance(app.screen, ProjectSelector)
+        options = app.screen.query_one("#selector-list")
+        labels = [str(options.get_option_at_index(i).prompt) for i in range(options.option_count)]
+        assert any("proj-0" in label for label in labels)
+        assert any("proj-1" in label for label in labels)
+
+    _run(app, scenario)
+
+
+def test_switching_project_updates_view(registry_home):
+    reg, roots = registry_home
+    app = SEApp(str(roots[0].root), registry=reg)
+
+    async def scenario(pilot):
+        await pilot.pause()
+        assert "proj-0" in str(app.query_one("#workdir-bar").content)
+        app._on_project_selected({"path": str(roots[1].root), "kind": "reg"})
+        await pilot.pause()
+        assert app.project.root == roots[1].root.resolve()
+        assert "proj-1" in str(app.query_one("#workdir-bar").content)
+
+    _run(app, scenario)
+
+
+def test_tui_accepts_registered_name(registry_home):
+    reg, roots = registry_home
+    app = SEApp("proj-1", registry=reg)
+
+    async def scenario(pilot):
+        await pilot.pause()
+        assert app.project is not None
+        assert app.project.root == roots[1].root.resolve()
 
     _run(app, scenario)

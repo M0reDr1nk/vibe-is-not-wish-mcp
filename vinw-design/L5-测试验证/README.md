@@ -4,18 +4,18 @@ doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
 status: in_progress
-todo_descent: 6
+todo_descent: 7
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
-- [x] 测试计划与用例演进（descent-1~6）
-- [x] 新增 test_todo_lifecycle.py 15 例（段落切分/回滚保留待办/占位符守卫/门控清理/完成态守卫）
-- [x] 旧用例适配守卫行为（机制类 baseline 显式 force=True）
-- [x] 全量 71/71 通过
-- [x] 测试结果与迭代记录已更新（descent-6 round 1）
+- [x] descent-1~6 测试体系演进（71 例）
+- [x] descent-7：新增 test_registry.py 26 例（注册表/失效/解析/每工具 project/工具集）
+- [x] descent-7：TUI 多项目 4 例（工作目录栏/选择器/切换/按名启动）
+- [x] 全量 101/101 通过，结果与迭代记录已更新
+- [x] L5 基线化 → 下降到 L6
 
 ## 阶段小结
 

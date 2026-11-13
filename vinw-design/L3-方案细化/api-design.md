@@ -159,3 +159,90 @@ Server 启动时自动探测并加载活动工程，实现 VINW 自举（在自�
 | v0.4 | 2026-11-13 | 新增 se_complete_project 完成态迁移（终验闭环出口）；TUI 增加 completed 状态渲染 | agent |
 | v0.5 | 2026-11-13 | TUI 布局契约：VerticalScroll + auto 高度内层 Static（修复固定高度 Static 无真实滚动内容）；表格列宽约束 | agent |
 | v0.6 | 2026-11-13 | 待办生命周期契约（回滚保留待办段）；基线占位符守卫（force 可跳过）；se_purge_confirmations 过期门控清理 | agent |
+---
+
+# v0.7 多项目跟踪管理（descent-7 / asc-006）
+
+## 模块划分
+
+| 模块 | 文件 | 职责 |
+|------|------|------|
+| 注册表 | `vinw/store/registry.py` | `~/.vinw/registry.json` 读写、探测、prune |
+| 工程解析 | `vinw/store/registry.py` → `resolve_project()` | 名称/路径 → `Project` |
+| MCP 工具 | `vinw/server.py` | 所有 `se_*` 增加可选 `project`；新增注册/列表/prune 工具 |
+| CLI | `vinw/__main__.py` | `vinw project add/remove/list/prune` |
+| TUI | `vinw/tui/app.py` + `vinw/tui/selector.py` | 工作目录显示、选择器、快捷键切换 |
+
+## 注册表契约
+
+```json
+{
+  "version": 1,
+  "projects": {
+    "/abs/path/to/proj": {
+      "name": "proj",
+      "added_at": "ISO8601",
+      "last_accessed_at": "ISO8601",
+      "last_seen_ok": "ISO8601",
+      "missing_since": null
+    }
+  }
+}
+```
+
+- 位置：`$VINW_HOME/registry.json`，`VINW_HOME` 缺省 `~/.vinw`
+- 写入：先写 `registry.json.tmp` 再 `os.replace` 原子替换；写前重读合并，避免覆盖他人新增
+- 损坏处理：JSON 解析失败 → 备份为 `registry.json.bak-<ts>` 并以空表继续，返回告警（不丢文件）
+
+### `ProjectRegistry` API
+
+| 方法 | 说明 |
+|------|------|
+| `load()` | 读注册表；损坏时备份并重建空表 |
+| `save()` | 原子写 |
+| `add(path, name=None)` | 探测 `.vinw/manifest.md` 后登记；重名追加 `-2` 并告警 |
+| `remove(name_or_path)` | 显式移除条目（只删登记，不动磁盘） |
+| `get(name_or_path)` | 返回条目或 None |
+| `list(status=None)` | 全量条目 + 实时探测 `status: ok/missing`；探测结果回写 `last_seen_ok`/`missing_since` |
+| `prune(missing_only=True, force=False)` | 删除 `missing` 条目；`force=False` 为 dry-run 返回将删列表 |
+| `resolve(name_or_path)` | 路径优先 → 名称 → 抛 `ProjectNotFound` |
+
+## MCP 工具契约（v0.7）
+
+### 兼容性红线
+
+所有既有 `se_*` 工具新增**可选**参数 `project: str | None = None`：
+- `None` → 现有行为（`_active_project` 自举结果）
+- 非空 → `registry.resolve(project)` 解析后使用，且**不改变** `_active_project`
+- 解析失败 → `{"error": "...", "available_projects": [...]}`，绝不抛异常
+
+### 新增工具
+
+| 工具 | 输入 | 输出 |
+|------|------|------|
+| `se_register_project` | path, name(可选) | registered, name, path, status |
+| `se_list_projects` | status(可选 ok/missing) | [{name, path, status, last_accessed_at}] |
+| `se_remove_project` | project | removed, name |
+| `se_prune_projects` | force=False | pruned, ids（dry-run 默认） |
+| `se_use_project` | project | active, name, path（便于不传参的连续调用） |
+
+## TUI 契约（v0.7）
+
+- 顶部 header 常显两行：`工作目录: <cwd>` / `当前工程: <name> @ <path>`
+- 无参启动 → `ProjectSelector` 模态：列出注册表条目（含 `missing` 灰显）+ 「当前目录工程」项；空表时显示引导文案与 `vinw project add .` 提示
+- 快捷键：`p` 切换工程（打开选择器）、`r` 强制刷新、`q` 退出
+- 切换后：所有面板立即重绘，header 同步更新；不重启进程
+
+## CLI 契约（v0.7）
+
+```
+vinw project add <path> [--name NAME]
+vinw project list [--missing]
+vinw project remove <name|path>
+vinw project prune [--force]
+vinw tui [<path|name>]     # 无参 → 选择器
+```
+
+## 版本历史补充
+
+| v0.7 | 2026-11-13 | 多项目跟踪管理：注册表模块、MCP 每工具 project 参数 + 5 个注册表工具、TUI 选择器与切换、CLI project 子命令 |

@@ -69,3 +69,15 @@ updated_at: '2026-11-13T10:22:00.320267'
 | api-design.md v0.6 | 基线占位符守卫 | vinw/server.py | se_baseline(force) / se_complete_project 前置检查 | ✅ 已实现 |
 | api-design.md v0.6 | 门控清理 | vinw/workflow/state_machine.py | WorkflowEngine.purge_confirmations | ✅ 已实现 |
 | api-design.md v0.6 | 门控清理 | vinw/server.py | se_purge_confirmations | ✅ 已实现 |
+
+## descent-7 新增（多项目跟踪管理，对应 asc-006 / L3 v0.9）
+
+| 设计文档 | 段落 | 代码文件 | 函数/类 | 状态 |
+|---------|------|---------|--------|------|
+| api-design.md v0.7 | 注册表契约 | vinw/store/registry.py | ProjectRegistry（load/save/add/remove/list/prune/resolve） | ✅ 已实现 |
+| api-design.md v0.7 | 注册表契约 | vinw/store/registry.py | vinw_home / is_vinw_project / normalize | ✅ 已实现 |
+| api-design.md v0.7 | MCP 兼容红线 | vinw/server.py | _project_or_error（21 个工具可选 project） | ✅ 已实现 |
+| api-design.md v0.7 | 新增工具 | vinw/server.py | se_register_project / se_list_projects / se_remove_project / se_prune_projects / se_use_project | ✅ 已实现 |
+| api-design.md v0.7 | TUI | vinw/tui/app.py | 工作目录栏 / action_select_project / _on_project_selected | ✅ 已实现 |
+| api-design.md v0.7 | TUI | vinw/tui/selector.py | ProjectSelector | ✅ 已实现 |
+| api-design.md v0.7 | CLI | vinw/__main__.py | _run_project_command / _resolve_tui_target | ✅ 已实现 |

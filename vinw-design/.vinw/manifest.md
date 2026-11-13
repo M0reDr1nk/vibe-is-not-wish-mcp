@@ -43,47 +43,56 @@ ascent_history:
   reason: 三个结构性问题需先改设计再实现：1) rollback 覆盖待办段导致待办丢失 2) 基线不校验模板占位符 3) 过期门控无清理机制
   to_baseline: v006
   to_layer: L3-方案细化
+- created_at: '2026-11-13T16:48:14.516278+00:00'
+  descent_after: 7
+  descent_before: 6
+  from_layer: L7-终验
+  id: asc-006
+  reason: 多项目跟踪管理属需求级扩展，需回到 L1 重新拆解需求、L2 搜证（注册表存储/失效清理策略）、L3 设计后实现
+  to_baseline: v001
+  to_layer: L1-需求拆解
 code_root: ..
-completed_at: '2026-11-13T16:40:43.379424+00:00'
+completed_at: '2026-11-13T16:54:18.126340+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 6
+current_descent: 7
 current_layer: L7-终验
-descent_started_at: '2026-11-13T16:37:44.152182+00:00'
+descent_started_at: '2026-11-13T16:48:14.518500+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
-    baselined_at: '2026-11-13T10:02:20.703101'
-    descent_count: 1
-    latest_baseline: v001
+    active_ascent: asc-006
+    baselined_at: '2026-11-13T16:48:28.833923+00:00'
+    descent_count: 2
+    latest_baseline: v002
     status: baselined
   L2-参考文献与方案搜证汇总:
-    baselined_at: '2026-11-13T10:02:21.935248'
-    descent_count: 1
-    latest_baseline: v001
+    baselined_at: '2026-11-13T16:48:48.728857+00:00'
+    descent_count: 2
+    latest_baseline: v002
     status: baselined
   L3-方案细化:
     active_ascent: asc-005
-    baselined_at: '2026-11-13T16:39:56.180751+00:00'
-    descent_count: 6
-    latest_baseline: v008
+    baselined_at: '2026-11-13T16:49:05.626418+00:00'
+    descent_count: 7
+    latest_baseline: v009
     status: baselined
   L4-编码实现:
-    baselined_at: '2026-11-13T16:40:13.055888+00:00'
-    descent_count: 5
-    latest_baseline: v006
+    baselined_at: '2026-11-13T16:52:40.519020+00:00'
+    descent_count: 6
+    latest_baseline: v007
     status: baselined
   L5-测试验证:
-    baselined_at: '2026-11-13T16:40:21.279655+00:00'
-    descent_count: 6
-    latest_baseline: v006
+    baselined_at: '2026-11-13T16:53:12.073701+00:00'
+    descent_count: 7
+    latest_baseline: v007
     status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-13T16:40:29.387864+00:00'
-    descent_count: 6
-    latest_baseline: v006
+    baselined_at: '2026-11-13T16:54:03.718228+00:00'
+    descent_count: 7
+    latest_baseline: v007
     status: baselined
   L7-终验:
-    descent_count: 6
+    descent_count: 7
     latest_baseline: null
     status: completed
 name: vinw-self-design
@@ -121,6 +130,35 @@ pending_confirmations:
   proposed_at: '2026-11-13T15:44:55.801450+00:00'
   resolution: approve
   resolved_at: '2026-11-13T16:35:59.864011+00:00'
+- blocking: false
+  descent: 7
+  description: L1 descent-7 需求拆解确认：多项目跟踪管理拆为 R1-R9 九项子需求（注册表/失效处理/每工具 project 参数/TUI
+    选择器与切换），另列 Q8-Q12 五个问题域。请审阅拆解是否完整、优先级是否合理。
+  id: cfm-20261113-164826-003
+  item_type: requirement-decomposition
+  layer: L1-需求拆解
+  options:
+  - approve
+  - reject
+  - modify
+  proposed_at: '2026-11-13T16:48:26.952132+00:00'
+  resolution: null
+  resolved_at: null
+- blocking: false
+  descent: 7
+  description: L3 v0.7 设计确认（多项目跟踪管理）：注册表 JSON 契约与 ProjectRegistry API、MCP 所有 se_*
+    增加可选 project 参数 + 5 个注册表工具、TUI header 显示工作目录/当前工程 + 选择器与 p 键切换、CLI project 子命令。重点：project=None
+    时行为完全不变（兼容红线）。
+  id: cfm-20261113-164903-004
+  item_type: interface-design
+  layer: L3-方案细化
+  options:
+  - approve
+  - reject
+  - modify
+  proposed_at: '2026-11-13T16:49:03.503641+00:00'
+  resolution: null
+  resolved_at: null
 se_version: '2.0'
 status: completed
 ---

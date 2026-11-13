@@ -66,3 +66,23 @@ updated_at: "2026-11-13T10:02:19.675591"
 3. **门控清理**（workflow/state_machine.py + server.py）：新增 `se_purge_confirmations(before_descent=0, resolution="superseded")`；`se_complete_project` 完成前自动结转较早轮次的**非阻塞**门控并回报 `purged_confirmations`，blocking 门控仍阻断
 
 测试：新增 tests/test_todo_lifecycle.py 15 例；全量 71/71 通过（含因守卫生效而适配的旧用例：机制类测试显式 force=True）
+
+## descent-7 实现记录（asc-006，多项目跟踪管理）
+
+### 新增模块
+- `vinw/store/registry.py`：`ProjectRegistry`（JSON 单文件 + 原子写 + 探测式状态）
+  - `load/save`（tmp + os.replace；损坏备份为 `.bak-<ts>` 后重建空表，不丢文件）
+  - `add/remove/get/list/touch/prune/resolve/describe`
+  - `resolve()` 顺序：存在的路径 → 注册名/路径 → `ProjectNotFound`
+  - 失效条目只标记 `status: missing` + `missing_since`，`prune` 默认 dry-run
+- `vinw/tui/selector.py`：`ProjectSelector` 模态（注册工程 + 当前目录工程，↑↓/Enter/Esc）
+
+### 改造
+- `vinw/server.py`：21 个 `se_*` 工具全部支持可选 `project` 参数（AST 精确改写签名）；`_project_or_error()` 统一解析，非法值返回结构化 error + `available_projects`；新增 5 个注册表工具 `se_register_project/se_list_projects/se_remove_project/se_prune_projects/se_use_project`
+- `vinw/tui/app.py`：header 增加工作目录栏（`工作目录: <cwd>` + `当前工程: <name> @ <path>`）；无参启动自动弹选择器；`p` 切换、`r` 刷新、`q` 退出；空工程时显示引导面板
+- `vinw/__main__.py`：`vinw project add/list/remove/prune`；`vinw tui <path|name>` 支持注册名
+
+### 验证
+- 测试 101/101 通过（新增 test_registry.py 26 例、TUI 多项目 4 例）
+- 实测：`se_list_projects` 返回注册表；`se_get_project(project="vinw-self-design")` 正常解析；CLI `project add/list/prune` 正常
+- 兼容红线：`project=None` 时全部沿用原自举/单例逻辑（回归测试覆盖）

@@ -12,6 +12,7 @@ from mcp.server.mcpserver import MCPServer
 import frontmatter
 
 from .store.project import Project, LAYERS, has_placeholder_todo
+from .store.registry import ProjectRegistry, ProjectNotFound
 from .store.document import DocumentStore
 from .workflow.state_machine import WorkflowEngine
 from .workflow.consistency_llm import LLMConsistencyAuditor, TextConsistencyChecker
@@ -47,6 +48,44 @@ def _ensure_project() -> Project:
     if _active_project is None:
         raise RuntimeError("No active project. Call se_init_project first.")
     return _active_project
+
+
+_registry: ProjectRegistry | None = None
+
+
+def _get_registry() -> ProjectRegistry:
+    global _registry
+    if _registry is None:
+        _registry = ProjectRegistry()
+    return _registry
+
+
+def _project_or_error(project: str | None) -> tuple[Project | None, str | None]:
+    """Resolve a tool's optional `project` argument.
+
+    None  -> the active project (bootstrap/adopt behaviour, unchanged)
+    value -> registry resolution by path or registered name; _active_project
+             is left untouched so per-call addressing never has side effects.
+    """
+    if project:
+        try:
+            resolved = _get_registry().resolve(project)
+        except ProjectNotFound as e:
+            return None, json.dumps(
+                {
+                    "error": str(e),
+                    "available_projects": _get_registry().describe(),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        _get_registry().touch(str(resolved.root))
+        return resolved, None
+
+    try:
+        return _ensure_project(), None
+    except RuntimeError as e:
+        return None, json.dumps({"error": str(e)}, ensure_ascii=False)
 
 
 # ── Project lifecycle ───────────────────────────────────────
@@ -88,9 +127,11 @@ def se_init_project(name: str, path: str, description: str = "") -> str:
 
 
 @mcp.tool()
-def se_get_project() -> str:
+def se_get_project(project: str | None = None) -> str:
     """Get full project state including layer graph and ascent history."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     manifest = proj.read_manifest()
 
     layer_states = manifest.get("layer_states", {})
@@ -125,13 +166,15 @@ def se_get_project() -> str:
 # ── Baseline ────────────────────────────────────────────────
 
 @mcp.tool()
-def se_baseline(layer: str, reason: str = "", force: bool = False) -> str:
+def se_baseline(layer: str, reason: str = "", force: bool = False, project: str | None = None) -> str:
     """Freeze specified layer as a baseline snapshot.
 
     Refuses when the layer's todo list is still the template placeholder,
     unless force=True.
     """
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     engine = WorkflowEngine(proj)
     try:
         result = engine.baseline(layer, reason, force=force)
@@ -148,9 +191,11 @@ def se_baseline(layer: str, reason: str = "", force: bool = False) -> str:
 
 
 @mcp.tool()
-def se_list_baselines(layer: str = "") -> str:
+def se_list_baselines(layer: str = "", project: str | None = None) -> str:
     """List baselines for a layer (or all layers if empty)."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     layers_to_check = [layer] if layer else LAYERS
     result = {}
     for l in layers_to_check:
@@ -161,12 +206,14 @@ def se_list_baselines(layer: str = "") -> str:
 # ── Ascend / Descend ────────────────────────────────────────
 
 @mcp.tool()
-def se_ascend(from_layer: str, to_layer: str, to_baseline: str, reason: str) -> str:
+def se_ascend(from_layer: str, to_layer: str, to_baseline: str, reason: str, project: str | None = None) -> str:
     """
     Ascend (rollback) from from_layer to to_layer's specified baseline.
     Triggers a new descent round; lower layers become superseded.
     """
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     engine = WorkflowEngine(proj)
     try:
         result = engine.ascend(from_layer, to_layer, to_baseline, reason)
@@ -176,9 +223,11 @@ def se_ascend(from_layer: str, to_layer: str, to_baseline: str, reason: str) -> 
 
 
 @mcp.tool()
-def se_descend(to_layer: str, reason: str = "") -> str:
+def se_descend(to_layer: str, reason: str = "", project: str | None = None) -> str:
     """Descend from current layer to a lower layer."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     engine = WorkflowEngine(proj)
     try:
         result = engine.descend(to_layer, reason)
@@ -188,9 +237,11 @@ def se_descend(to_layer: str, reason: str = "") -> str:
 
 
 @mcp.tool()
-def se_can_descend() -> str:
+def se_can_descend(project: str | None = None) -> str:
     """Check if current layer can safely descend to next layer."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     engine = WorkflowEngine(proj)
     ok, msg, next_layer = engine.can_descend_to_next()
     return json.dumps(
@@ -203,10 +254,13 @@ def se_can_descend() -> str:
 
 @mcp.tool()
 def se_require_confirmation(
-    item_type: str, description: str, options: str = '["approve","reject","modify"]', blocking: bool = True
+    item_type: str, description: str, options: str = '["approve","reject","modify"]', blocking: bool = True,
+    project: str | None = None,
 ) -> str:
     """Create a blocking confirmation gate item."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     engine = WorkflowEngine(proj)
     opts = json.loads(options)
     cfm_id = engine.require_confirmation(item_type, description, opts, blocking)
@@ -214,9 +268,11 @@ def se_require_confirmation(
 
 
 @mcp.tool()
-def se_resolve_confirmation(confirmation_id: str, resolution: str, feedback: str = "") -> str:
+def se_resolve_confirmation(confirmation_id: str, resolution: str, feedback: str = "", project: str | None = None) -> str:
     """Resolve a pending confirmation (approve/reject/modify)."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     engine = WorkflowEngine(proj)
     try:
         result = engine.resolve_confirmation(confirmation_id, resolution, feedback)
@@ -228,17 +284,21 @@ def se_resolve_confirmation(confirmation_id: str, resolution: str, feedback: str
 # ── Document CRUD ───────────────────────────────────────────
 
 @mcp.tool()
-def se_store_document(layer: str, filename: str, content: str, doc_type: str = "generic") -> str:
+def se_store_document(layer: str, filename: str, content: str, doc_type: str = "generic", project: str | None = None) -> str:
     """Store/update a document in a layer directory."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     path = proj.write_document(layer, filename, content, doc_type=doc_type)
     return json.dumps({"path": str(path), "status": "stored"}, ensure_ascii=False)
 
 
 @mcp.tool()
-def se_read_document(layer: str, filename: str) -> str:
+def se_read_document(layer: str, filename: str, project: str | None = None) -> str:
     """Read a layer document (returns frontmatter + content)."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     try:
         doc = proj.read_document(layer, filename)
         return json.dumps(doc, ensure_ascii=False, indent=2)
@@ -247,9 +307,11 @@ def se_read_document(layer: str, filename: str) -> str:
 
 
 @mcp.tool()
-def se_list_documents(layer: str = "") -> str:
+def se_list_documents(layer: str = "", project: str | None = None) -> str:
     """List documents in a layer (or all layers)."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     store = DocumentStore(proj)
     layers_to_check = [layer] if layer else LAYERS
     result = {}
@@ -263,10 +325,13 @@ def se_list_documents(layer: str = "") -> str:
 
 @mcp.tool()
 def se_log_change(
-    change_type: str, scope: str, reason: str, before: str = "", after: str = ""
+    change_type: str, scope: str, reason: str, before: str = "", after: str = "",
+    project: str | None = None,
 ) -> str:
     """Atomically log a change (must be called BEFORE actual modification)."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     manifest = proj.read_manifest()
     descent = manifest.get("current_descent", 1)
     layer = manifest.get("current_layer", LAYERS[0])
@@ -287,9 +352,11 @@ def se_log_change(
 
 
 @mcp.tool()
-def se_get_changelog(limit: int = 20) -> str:
+def se_get_changelog(limit: int = 20, project: str | None = None) -> str:
     """Return recent changelog entries."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     path = proj.vinw_dir / "changelog.md"
     if not path.exists():
         return json.dumps({"entries": []}, ensure_ascii=False)
@@ -315,6 +382,7 @@ def se_check_consistency(
     design_doc: str = "api-design.md",
     code_scope: str = "[]",
     method: str = "llm",
+    project: str | None = None,
 ) -> str:
     """
     Check document-code consistency.
@@ -323,7 +391,9 @@ def se_check_consistency(
     method="text": Local text-based existence check (no LLM required)
     method="ast": tree-sitter structured comparison (fallback to llm for now)
     """
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     scope = json.loads(code_scope)
 
     if method == "llm" or method == "ast":
@@ -340,9 +410,11 @@ def se_check_consistency(
 
 
 @mcp.tool()
-def se_store_consistency_report(report_json: str) -> str:
+def se_store_consistency_report(report_json: str, project: str | None = None) -> str:
     """Store a parsed LLM consistency report (call after getting LLM response)."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     auditor = LLMConsistencyAuditor(proj)
     report_data = json.loads(report_json)
     report_path = auditor.store_report(report_data)
@@ -361,6 +433,7 @@ def se_search_proposals(
     method: str = "rg",
     archive_dir: str = "",
     top_k: int = 10,
+    project: str | None = None,
 ) -> str:
     """
     Search for similar proposals across project documents.
@@ -370,7 +443,9 @@ def se_search_proposals(
     method="rg": ripgrep text search (default, zero cost)
     method="tfidf": TF-IDF cosine similarity (needs sklearn)
     """
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     searcher = ProposalSearcher(proj)
     result = searcher.search(
         query=query,
@@ -385,17 +460,21 @@ def se_search_proposals(
 # ── Todo management ─────────────────────────────────────────
 
 @mcp.tool()
-def se_get_todos() -> str:
+def se_get_todos(project: str | None = None) -> str:
     """Get all todos across layers (excluding superseded layers)."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     todos = proj.get_todos()
     return json.dumps(todos, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
-def se_update_todo(layer: str, todos_json: str) -> str:
+def se_update_todo(layer: str, todos_json: str, project: str | None = None) -> str:
     """Update todo list in a layer's README.md."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     readme_path = proj.get_layer_dir(layer) / "README.md"
     if not readme_path.exists():
         return json.dumps({"error": f"{layer}/README.md not found"}, ensure_ascii=False)
@@ -425,14 +504,17 @@ def se_update_todo(layer: str, todos_json: str) -> str:
 
 @mcp.tool()
 def se_purge_confirmations(
-    before_descent: int = 0, resolution: str = "superseded"
+    before_descent: int = 0, resolution: str = "superseded",
+    project: str | None = None,
 ) -> str:
     """
     Settle unresolved confirmations left over from earlier descent rounds.
 
     before_descent=0 settles anything older than the current descent.
     """
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     engine = WorkflowEngine(proj)
     result = engine.purge_confirmations(before_descent, resolution)
     return json.dumps(result, ensure_ascii=False, indent=2)
@@ -442,7 +524,7 @@ def se_purge_confirmations(
 
 
 @mcp.tool()
-def se_complete_project() -> str:
+def se_complete_project(project: str | None = None) -> str:
     """
     Mark the project as completed (L7 final acceptance closure).
 
@@ -450,7 +532,9 @@ def se_complete_project() -> str:
     unresolved blocking confirmations. On success, L7 README is marked
     completed and the manifest records completed_at.
     """
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     manifest = proj.read_manifest()
 
     errors: list[str] = []
@@ -526,12 +610,84 @@ def se_complete_project() -> str:
     )
 
 
+# ── Multi-project registry tools ────────────────────────────
+
+
+@mcp.tool()
+def se_register_project(path: str, name: str = "") -> str:
+    """Register an existing VINW project (must contain .vinw/manifest.md)."""
+    try:
+        result = _get_registry().add(path, name or None)
+    except ValueError as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False, indent=2)
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def se_list_projects(status: str = "") -> str:
+    """List registered projects with live status (ok/missing); never deletes."""
+    projects = _get_registry().list(status=status or None)
+    return json.dumps(
+        {"count": len(projects), "projects": projects}, ensure_ascii=False, indent=2
+    )
+
+
+@mcp.tool()
+def se_remove_project(project: str) -> str:
+    """Remove a project registration (disk content is never touched)."""
+    try:
+        result = _get_registry().remove(project)
+    except ProjectNotFound as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False, indent=2)
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def se_prune_projects(force: bool = False) -> str:
+    """Drop registrations whose path no longer holds a VINW project.
+
+    force=False (default) is a dry run that only reports candidates.
+    """
+    result = _get_registry().prune(missing_only=True, force=force)
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def se_use_project(project: str) -> str:
+    """Make a project active so subsequent tools can omit `project`."""
+    global _active_project
+    try:
+        resolved = _get_registry().resolve(project)
+    except ProjectNotFound as e:
+        return json.dumps(
+            {"error": str(e), "available_projects": _get_registry().describe()},
+            ensure_ascii=False,
+            indent=2,
+        )
+    _active_project = resolved
+    _get_registry().touch(str(resolved.root))
+    manifest = resolved.read_manifest()
+    return json.dumps(
+        {
+            "active": True,
+            "name": manifest.get("name"),
+            "path": str(resolved.root),
+            "current_layer": manifest.get("current_layer"),
+            "current_descent": manifest.get("current_descent"),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
 # ── Guidance ────────────────────────────────────────────────
 
 @mcp.tool()
-def se_get_next_steps() -> str:
+def se_get_next_steps(project: str | None = None) -> str:
     """Get recommended next actions based on current layer state."""
-    proj = _ensure_project()
+    proj, err = _project_or_error(project)
+    if err:
+        return err
     manifest = proj.read_manifest()
     current = manifest.get("current_layer")
     descent = manifest.get("current_descent")

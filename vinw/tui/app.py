@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
-
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import Footer, Header, Static
@@ -17,7 +16,9 @@ from rich.table import Table
 from rich.text import Text
 
 from ..store.project import Project, LAYERS
+from ..store.registry import ProjectNotFound, ProjectRegistry, is_vinw_project
 from ..workflow.state_machine import WorkflowEngine
+from .selector import ProjectSelector
 
 
 class SEApp(App):
@@ -26,8 +27,17 @@ class SEApp(App):
     # Scroll containers must wrap an auto-height Static: a fixed-height Static
     # turns rich renderables into a Visual cropped to the container, so
     # virtual_size never exceeds the viewport and nothing can scroll.
+    TITLE = "VINW — Vibe Is Not Wish"
+
+    BINDINGS = [
+        Binding("p", "select_project", "切换工程"),
+        Binding("r", "refresh", "刷新"),
+        Binding("q", "quit", "退出"),
+    ]
+
     CSS = """
     Screen { align: center middle; }
+    #workdir-bar { height: auto; padding: 0 1; background: $panel; color: $text-muted; }
     #top-panel { height: 40%; border: solid green; }
     #mid-panel { height: 35%; border: solid blue; }
     #bottom-panel { height: 25%; border: solid yellow; }
@@ -36,15 +46,25 @@ class SEApp(App):
 
     project_path: reactive[str | None] = reactive(None)
 
-    def __init__(self, project_path: str | None = None):
+    def __init__(self, project_path: str | None = None, registry: ProjectRegistry | None = None):
         super().__init__()
         self.project_path = project_path
+        self.registry = registry or ProjectRegistry()
+        self.workdir = Path.cwd()
         self.project: Project | None = None
         if project_path:
-            self.project = Project(Path(project_path))
+            self.project = self._load_project(project_path)
+
+    def _load_project(self, target: str) -> Project | None:
+        """Accept an absolute/relative path or a registered project name."""
+        try:
+            return self.registry.resolve(target)
+        except ProjectNotFound:
+            return None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
+        yield Static(id="workdir-bar")
         with VerticalScroll(id="top-panel"):
             yield Static(id="top-content")
         with VerticalScroll(id="mid-panel"):
@@ -54,8 +74,59 @@ class SEApp(App):
         yield Footer()
 
     def on_mount(self):
+        self._update_workdir_bar()
         self.set_interval(2, self.refresh_ui)
         self.refresh_ui()
+        if self.project is None:
+            self.call_after_refresh(self.action_select_project)
+
+    def _cwd_project(self) -> dict | None:
+        """The VINW project rooted at the working directory, if any."""
+        for candidate in (self.workdir / "vinw-design", self.workdir):
+            if is_vinw_project(candidate):
+                manifest = Project(candidate).read_manifest()
+                return {"name": manifest.get("name") or candidate.name, "path": str(candidate.resolve())}
+        return None
+
+    def _update_workdir_bar(self) -> None:
+        try:
+            bar = self.query_one("#workdir-bar", Static)
+        except Exception:
+            return
+        if self.project is not None:
+            name = self.project.read_manifest().get("name") or self.project.root.name
+            current = f"当前工程: [b]{name}[/b] @ {self.project.root}"
+        else:
+            current = "当前工程: [i]未选择[/i]（按 p 选择）"
+        bar.update(f"工作目录: {self.workdir}    {current}")
+
+    def action_select_project(self) -> None:
+        entries = self.registry.list()
+        cwd_entry = self._cwd_project()
+        self.push_screen(
+            ProjectSelector(entries, cwd_entry), callback=self._on_project_selected
+        )
+
+    def _on_project_selected(self, choice: dict | None) -> None:
+        if not choice:
+            return
+        try:
+            project = Project(Path(choice["path"]))
+        except Exception as e:
+            self._flash(f"打开工程失败: {e}")
+            return
+        self.project = project
+        self.registry.touch(str(project.root))
+        self._update_workdir_bar()
+        self.refresh_ui()
+
+    def _flash(self, message: str) -> None:
+        try:
+            self.query_one("#bottom-content", Static).update(
+                Panel(Text(message, style="red"), title="提示", border_style="red")
+            )
+        except Exception:
+            pass
 
     def refresh_ui(self):
         """Timer-driven refresh; never let a transient error kill the TUI.
@@ -79,7 +150,18 @@ class SEApp(App):
 
     def _refresh_ui(self):
         if not self.project:
-            self.query_one("#top-content", Static).update("⚠️ No active project loaded")
+            self.query_one("#top-content", Static).update(
+                Panel(
+                    Text(
+                        "未选择工程。\n\n按 [b]p[/b] 打开工程选择器，"
+                        "或用 [b]vinw tui <path|name>[/b] 指定；\n"
+                        "尚未登记任何工程时，先运行 [b]vinw project add .[/b]",
+                        style="yellow",
+                    ),
+                    title="⚠️ 没有活动的 VINW 工程",
+                    border_style="yellow",
+                )
+            )
             return
 
         manifest = self.project.read_manifest()

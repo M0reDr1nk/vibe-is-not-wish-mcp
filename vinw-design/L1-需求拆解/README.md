@@ -1,19 +1,25 @@
 ---
+baseline_reason: 需求拆解完成
+baseline_version: v001
+baselined_at: '2026-11-13T10:02:20.640119'
 descent_count: 0
 doc_type: layer-readme
 layer: L1-需求拆解
+rolled_back_at: '2026-11-13T16:48:14.517995+00:00'
+rolled_back_from: v001
 se_version: '2.0'
-status: pending
-todo_descent: 2
+status: in_progress
+todo_descent: 7
 ---
 
 # L1-需求拆解
 
 ## 当前待办
 
-- [x] 需求拆解 → proposals.md（descent-1）
-- [x] L1 基线化 v001（descent-1）
-
+- [x] descent-1~6 需求拆解与基线 v001
+- [x] descent-7：多项目跟踪管理需求拆解 R1-R9 + 问题域 Q8-Q12
+- [x] 关键设计岔路已由用户裁决（每工具 project 参数 / TUI 选择器+切换 / 注册表待分析）
+- [x] L1 基线化 v002 → 下降 L2 搜证
 ## 阶段小结
 
 （阶段完成时填写）

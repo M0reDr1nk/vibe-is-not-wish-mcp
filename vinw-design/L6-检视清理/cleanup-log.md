@@ -101,3 +101,13 @@ status: "completed"
 | 测试适配 | test_state_machine 机制类用例改 force=True | 基线守卫生效后的预期行为变更 |
 | 未使用导入 | 检查 vinw/ 全量 | 无残留（descent-5 已清理 Horizontal/Vertical） |
 | 测试复验 | 71/71 通过 ✅ | 含 15 例新增结构修复覆盖 |
+
+## descent-7 清理（asc-006 多项目跟踪管理，2026-11-13）
+
+| 类别 | 操作 | 说明 |
+|------|------|------|
+| 未使用导入 | 移除 10 处（__main__/tui.app/consistency_llm/search/document/project） | 静态 AST 扫描发现，含历史遗留 shutil/yaml/json/subprocess/Counter/frontmatter |
+| 构建产物 | 删除 build/、__pycache__/、临时 VINW_HOME | 保持工作区干净 |
+| 文档同步 | api-design v0.7 / code-map / implementation / test-results / iterations | 多项目能力全覆盖 |
+| 注册表实登 | `se_register_project` 登记 vinw-self-design | 供 TUI 选择器与多项目工具实测 |
+| 测试复验 | 101/101 通过 ✅ | 清理后重跑全绿 |

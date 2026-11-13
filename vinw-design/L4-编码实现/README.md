@@ -5,19 +5,18 @@ layer: L4-编码实现
 se_version: '2.0'
 started_at: '2026-11-13T10:15:00Z'
 status: in_progress
+todo_descent: 7
 ---
 
 # L4-编码实现
 
 ## 当前待办
 
-- [x] 初始化 L4 工作区
-- [x] 实现 se_check_consistency (LLM 文本审计 + text fallback)
-- [x] 实现 se_search_proposals (ripgrep + TF-IDF)
-- [x] 实现代码-设计映射表维护
-- [x] 编码过程中调用 se_log_change 记录每次变更
-- [x] 编码完成后调用 se_check_consistency (text 方法验证，已知限制已记录)
-- [x] L4 基线化 → 下降到 L5
+- [x] descent-1~6 存储层/工作流/TUI/一致性/完成态/待办契约实现
+- [x] descent-7：registry.py 项目注册表（原子写/探测/prune/resolve）
+- [x] descent-7：21 个 se_* 工具支持可选 project + 5 个注册表工具
+- [x] descent-7：TUI 工作目录栏/选择器/快捷键切换 + CLI project 子命令
+- [x] 一致性检查 28/28 passed → L4 基线化 → 下降 L5
 
 ## 阶段小结
 

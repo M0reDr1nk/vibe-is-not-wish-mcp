@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import re
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import frontmatter
-import yaml
 
 from ..utils.templates import (
     MANIFEST_TEMPLATE_V2,
@@ -22,7 +20,6 @@ from ..utils.templates import (
     IMPLEMENTATION_TEMPLATE,
     TEST_PLAN_TEMPLATE,
     TEST_RESULTS_TEMPLATE,
-    DEBUG_SESSION_TEMPLATE,
     CLEANUP_LOG_TEMPLATE,
     FINAL_REPORT_TEMPLATE,
     ASCENSION_ENTRY_TEMPLATE,

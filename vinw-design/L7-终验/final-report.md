@@ -5,15 +5,15 @@ doc_type: "final-report"
 status: "in_progress"
 ---
 
-# 终验报告 — VINW（descent-6，最终版）
+# 终验报告 — VINW（descent-7，多项目版）
 
 ## 项目信息
 
 | 字段 | 值 |
 |------|-----|
 | 项目名称 | vinw-self-design |
-| 下降轮次 | descent-1 ~ descent-6 |
-| 上升次数 | 5（asc-001 ~ asc-005） |
+| 下降轮次 | descent-1 ~ descent-7 |
+| 上升次数 | 6（asc-001 ~ asc-006） |
 | 终验时间 | 2026-11-13 |
 | 版本 | 0.2.0 |
 
@@ -21,13 +21,13 @@ status: "in_progress"
 
 | 层 | 状态 | 基线 | 下降次数 |
 |---|------|------|---------|
-| L1-需求拆解 | ✅ baselined | v001 | 1 |
-| L2-参考文献与方案搜证汇总 | ✅ baselined | v001 | 1 |
-| L3-方案细化 | ✅ baselined | v001–v007, **v008** | 6 |
-| L4-编码实现 | ✅ baselined | v001–v005, **v006** | 6 |
-| L5-测试验证 | ✅ baselined | v001–v005, **v006** | 6 |
-| L6-检视清理 | ✅ baselined | v001–v005, **v006** | 6 |
-| L7-终验 | ✅ completed | — | 6 |
+| L1-需求拆解 | ✅ baselined | v001, **v002** | 2 |
+| L2-参考文献与方案搜证汇总 | ✅ baselined | v001, **v002** | 2 |
+| L3-方案细化 | ✅ baselined | v001–v008, **v009** | 7 |
+| L4-编码实现 | ✅ baselined | v001–v006, **v007** | 7 |
+| L5-测试验证 | ✅ baselined | v001–v006, **v007** | 7 |
+| L6-检视清理 | ✅ baselined | v001–v006, **v007** | 7 |
+| L7-终验 | ✅ completed | — | 7 |
 
 ## 上升记录（ascensions.md）
 
@@ -38,6 +38,7 @@ status: "in_progress"
 | asc-003 | L7 → L3(v005) | 终验完成态无 MCP 出口 + TUI 缺 completed 渲染，上升补齐 |
 | asc-004 | L7 → L3(v006) | TUI 面板固定高度 Static 无法真实滚动（max_scroll_y 恒 0）+ 终验测试统计有误，上升修正 |
 | asc-005 | L7 → L3(v007) | 三项结构性缺陷：回滚倒带待办、占位符可入基线、过期门控悬挂 |
+| asc-006 | L7 → L1(v001) | 多项目跟踪管理：需求级扩展，回到 L1 重新拆解 |
 
 ## descent-4 交付内容（asc-003）
 
@@ -63,6 +64,27 @@ status: "in_progress"
 1. **待办生命周期契约**：`rollback_to_baseline` 恢复基线正文后回填**现场待办段**与 `todo_descent`——回滚是回退设计产物，不再倒带工作进度。此前 asc-002~004 每轮回滚都把 L3 待办覆盖回模板占位符，导致面板显示「L3 ⏳ 初始化本层工作」
 2. **基线占位符守卫**：`se_baseline(force=False)` 在待办仍为 `- [ ] 初始化本层工作` 时拒绝并给出 hint；`se_complete_project` 前置条件追加占位符检查。占位符不再可能被冻结进基线
 3. **门控清理**：新增 `se_purge_confirmations(before_descent=0, resolution="superseded")`；`se_complete_project` 完成前自动结转较早轮次的非阻塞门控并回报 `purged_confirmations`，blocking 门控仍阻断。此前 descent-2 的非阻塞门控在项目完成后仍永久悬挂
+
+## descent-7 交付内容（asc-006：多项目跟踪管理）
+
+### 需求（L1 v002）
+R1 项目注册表 · R2 存储选型 · R3 失效处理 · R4 每工具 project 参数 · R5 CLI/MCP 工程发现 · R6 TUI 工作目录显示 · R7 TUI 选择器 · R8 运行时切换 · R9 传参指定
+
+### 搜证定论（L2 v002）
+| 决策 | 结论 | 依据 |
+|------|------|------|
+| 存储介质 | **JSON 单文件**（评分 13/14） | SQLite 仅 5/14：本场景规模（5–500 项目）远低于其优势区间，且牺牲可读性与 diff 友好 |
+| 失效处理 | **探测标记 + 显式 prune**（默认 dry-run） | 主流工具（docker/kubectl/IDE）均不静默删除；违反「不得静默删数据」约束 |
+| 寻址 | **路径主键 + 名称别名** | 重名自动加后缀并告警；路径移动需重新登记 |
+
+### 实现（L4 v007）
+- `vinw/store/registry.py`：`ProjectRegistry`（原子写 tmp+os.replace、损坏备份、`status: ok/missing`、`prune(force=False)`）
+- `vinw/server.py`：21 个 `se_*` 工具新增可选 `project`；`_project_or_error()` 统一解析并返回 `available_projects`；新增 `se_register_project` / `se_list_projects` / `se_remove_project` / `se_prune_projects` / `se_use_project`
+- `vinw/tui/app.py` + `selector.py`：常显`工作目录`与`当前工程`；无参启动弹选择器；`p` 切换 / `r` 刷新 / `q` 退出
+- `vinw/__main__.py`：`vinw project add|list|remove|prune`；`vinw tui <path|name>`
+
+### 兼容红线（已验证）
+`project=None` 时行为与 descent-6 完全一致——71 个既有用例全绿。
 
 ## 流程违规与补救披露（延续）
 
@@ -101,10 +123,11 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 | test_state_machine.py | 11 | 11/11 ✅ |
 | test_consistency_llm.py | 10 | 10/10 ✅ |
 | test_search.py | 7 | 7/7 ✅ |
+| test_registry.py（descent-7 新增） | 26 | 26/26 ✅ |
 | test_bootstrap.py（含完成态 3 例） | 10 | 10/10 ✅ |
-| test_tui.py（含真实滚动断言） | 5 | 5/5 ✅ |
+| test_tui.py（滚动断言 + 多项目 4 例） | 9 | 9/9 ✅ |
 | test_todo_lifecycle.py（新增） | 15 | 15/15 ✅ |
-| **合计** | **71** | **71/71 ✅** |
+| **合计** | **101** | **101/101 ✅** |
 
 端到端实测：MCP 自举加载 ✅；一致性检查 20/20 ✅；se_complete_project 前置校验与成功路径 ✅；TUI 渲染/滚动/容错/completed ✅。
 
@@ -118,4 +141,4 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 
 ## 结论
 
-**六次下降、五次上升全部闭环，71 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**
+**七次下降、六次上升全部闭环，101 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**

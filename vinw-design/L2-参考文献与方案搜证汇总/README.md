@@ -4,15 +4,19 @@ doc_type: layer-readme
 layer: L2-参考文献与方案搜证汇总
 se_version: '2.0'
 status: pending
-todo_descent: 2
+todo_descent: 7
 ---
 
 # L2-参考文献与方案搜证汇总
 
 ## 当前待办
 
-- [x] 搜证汇总 → references/evidence-matrix/synthesis（descent-1）
-- [x] L2 基线化 v001（descent-1）
+- [x] descent-1 搜证与基线 v001
+- [x] 同类工具注册表机制调研（git/docker/pipx/kubectl/VS Code）
+- [x] 决策 A 存储选型：JSON 13 分 vs SQLite 5 分 vs 目录扇扫 14 分
+- [x] 决策 B 失效处理：标记 stale + 显式 prune（否决自动删除）
+- [x] 决策 C 寻址：路径主键 + 名称别名
+- [x] L2 基线化 v002 → 下降 L3
 
 ## 阶段小结
 
