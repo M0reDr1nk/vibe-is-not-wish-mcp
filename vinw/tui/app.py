@@ -11,6 +11,7 @@ from textual.reactive import reactive
 from textual.widgets import Footer, Header, Static
 
 from rich.columns import Columns
+from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -102,9 +103,11 @@ class SEApp(App):
         )
 
         top_content = Panel(
-            Columns(layers_render, equal=True)
-            + Text("\n")
-            + Panel(arrows, title="↩️ 上升回溯历史", border_style="cyan"),
+            Group(
+                Columns(layers_render, equal=True),
+                Text(""),
+                Panel(arrows, title="↩️ 上升回溯历史", border_style="cyan"),
+            ),
             title=f"🌀 层状态图 | 当前: descent-{descent} @ {current}",
             border_style="green",
         )

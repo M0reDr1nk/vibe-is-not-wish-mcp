@@ -624,3 +624,23 @@ manifest.code_root 支持（自举场景 ".."）；code_scope 支持文件/目�
 ```text
 
 ```
+
+## chg-20261113-160113-032 [2026-11-13T16:01:13.289420+00:00]
+
+| 字段 | 内容 |
+|------|------|
+| **变更类型** | `bugfix` |
+| **下降轮次** | descent-2 |
+| **层** | L7-终验 |
+| **范围** | `vinw/tui/app.py: refresh_ui 顶部面板` |
+| **原因** | 用户实际运行 TUI 报错：TypeError: unsupported operand type(s) for +: 'Columns' and 'Text'（app.py 层状态图面板渲染，descent-1 漏测：仅验证启动未验证渲染） |
+
+### Before
+```text
+Columns + Text 直接相加，rich Columns 不支持 __add__
+```
+
+### After
+```text
+使用 rich.console.Group 垂直组合 Columns/Text/Panel
+```
