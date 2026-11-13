@@ -162,3 +162,26 @@ updated_at: "2026-11-13T12:00:00Z"
 关键新增：`test_todo_panel_is_actually_scrollable` —— 断言溢出时 `max_scroll_y > 0` 且 `scroll_end` 后 `scroll_y > 0`，直接锁死「固定高度 Static 无滚动内容」的回归路径。
 
 实测（design 工程 110x32）：top/mid/bottom `max_scroll_y` = 18/39/49，滚动条常驻。
+
+## descent-6 round 1（asc-005 结构修复，2026-11-13）
+
+| 指标 | 值 |
+|------|-----|
+| 测试轮次 | descent-6 round 1 |
+| 总用例数 | 71（新增 tests/test_todo_lifecycle.py 15 例） |
+| 通过 | 71 |
+| 失败 | 0 |
+
+### 新增覆盖（test_todo_lifecycle.py）
+
+| 用例组 | 结果 | 说明 |
+|--------|------|------|
+| TestSectionHelpers (4) | PASS | 待办段提取/替换/缺失追加/占位符检测 |
+| TestRollbackKeepsTodos (2) | PASS | 回滚保留现场待办与 todo_descent；README 缺失时回滚仍可用 |
+| TestBaselinePlaceholderGuard (3) | PASS | 占位符拒绝基线；force 可跳过；真实待办后可基线 |
+| TestPurgeConfirmations (3) | PASS | 结转旧轮次非阻塞门控、respect cutoff、无过期时幂等 |
+| TestCompleteProjectGuards (3) | PASS | 占位符阻断完成；成功后回报 purged_confirmations；blocking 门控仍阻断 |
+
+### 行为变更适配
+
+基线守卫上线后，机制类旧用例（test_state_machine）改为显式 `force=True`，以保留对基线机制本身的覆盖。

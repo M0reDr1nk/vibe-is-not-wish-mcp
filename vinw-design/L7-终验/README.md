@@ -1,21 +1,22 @@
 ---
-completed_at: '2026-11-13T16:32:55.010234+00:00'
+completed_at: '2026-11-13T16:40:43.377926+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
 status: completed
+todo_descent: 6
 ---
 
 # L7-终验
 
 ## 当前待办
 
-- [x] 编写终验报告 (final-report.md)
-- [x] 汇总各层状态与基线记录
-- [x] 确认测试覆盖率
+- [x] 终验报告更新至 descent-6（含三项结构修复与遗留瑕疵披露）
+- [x] 汇总各层基线与 5 次上升历史
+- [x] 确认测试覆盖（71/71，6 个测试文件）
 - [x] 记录已知限制
-- [x] L7 完成标记
+- [x] 项目完成标记（se_complete_project）
 
 ## 阶段小结
 

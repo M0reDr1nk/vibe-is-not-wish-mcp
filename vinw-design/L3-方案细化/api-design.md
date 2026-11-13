@@ -20,7 +20,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 
 | 接口名 | 输入 | 输出 |
 |--------|------|------|
-| `se_baseline` | layer, reason | layer, version, status |
+| `se_baseline` | layer, reason, **force** | layer, version, status；占位符未清理时返回 error（v0.6） |
 | `se_list_baselines` | layer(可选) | {layer: [versions]} |
 
 ### 上升/下降
@@ -96,7 +96,8 @@ updated_at: '2026-11-13T10:02:22.615842'
 | 接口名 | 输入 | 输出 |
 |--------|------|------|
 | `se_get_next_steps` | — | current_layer, suggested_work, gate, can_descend, special_instruction |
-| `se_complete_project` | — | status, completed_at；**完成态迁移（v0.4 新增）** |
+| `se_complete_project` | — | status, completed_at, purged_confirmations；**完成态迁移（v0.4 新增，v0.6 增强）** |
+| `se_purge_confirmations` | before_descent, resolution | purged, ids；**过期门控清理（v0.6 新增）** |
 
 ## TUI 布局契约（v0.5 新增）
 
@@ -106,6 +107,27 @@ updated_at: '2026-11-13T10:02:22.615842'
 - 理由：`Static` 把 rich renderable 转成 `Visual` 时按容器高度裁剪，`virtual_size` 恒等于容器高度，`overflow-y` 因此永远不会产生可滚动内容（表现为"有数字、无滚动条、内容不全"）
 - 验证契约：`vertical_scroll` 面板的 `virtual_size.height > container_size.height` 当内容溢出时；无头测试断言 `max_scroll_y > 0`
 - 表格列宽：`Layer` 列需容纳最长层名（`L2-参考文献与方案搜证汇总`），超出部分 `overflow="fold"`
+
+## 待办生命周期契约（v0.6 新增）
+
+**核心区分**：层 README 中「## 当前待办」段属于**工作流状态**，不属于**层产物**。
+
+1. `freeze_baseline` 仍快照 README 全文（含当时待办，作为历史证据）
+2. `rollback_to_baseline` 恢复 README 时**必须保留当前现场待办段**及其 `todo_descent` 元数据——回滚是回退设计产物，不是回退工作进度
+3. 实现契约：`extract_todo_section()` / `replace_todo_section()` 提供段落级切分；回滚流程 = 基线正文 + 现场待办段
+4. 动机：descent-2 后 asc-002~004 每轮回滚都把 L3 待办覆盖回模板占位符
+
+## 基线占位符守卫（v0.6 新增）
+
+- `se_baseline(layer, reason, force=False)`：若该层 README 待办段仍含模板行 `- [ ] 初始化本层工作`，**拒绝基线**，返回 `{"error": ..., "details": [...]}`；`force=true` 显式跳过
+- `se_complete_project` 前置条件追加：L1–L7 任一 README 待办仍为占位符 → 拒绝完成并列出层
+- 动机：占位符可被反复冻结进基线，使「未初始化」假象成为历史证据
+
+## 门控清理（v0.6 新增）
+
+- 新增 `se_purge_confirmations(before_descent=0, resolution="superseded")`：把 **未解决** 且 `descent < 当前 descent` 的门控统一结转；当 `before_descent=N (N>0)` 时改为结转 `descent <= N` 的门控，返回 `{purged: n, ids: [...]}`
+- `se_complete_project` 完成前自动清理「较早轮次的**非阻塞**门控」并在结果中回报 `purged_confirmations`；**blocking 门控仍阻断完成**
+- 动机：descent-2 的非阻塞门控在项目完成后仍悬挂，文案过期且无法处置
 
 ## 完成态迁移（v0.4 新增）
 
@@ -136,3 +158,4 @@ Server 启动时自动探测并加载活动工程，实现 VINW 自举（在自�
 | v0.3 | 2026-11-13 | 自举加载：启动自动探测工程 + se_init_project 接管已有工程；一致性检查代码定位规则（manifest.code_root + code_scope 混合文件/目录）；**状态目录统一更名 `.se/` → `.vinw/`**（经门控 modify 反馈批准） | agent |
 | v0.4 | 2026-11-13 | 新增 se_complete_project 完成态迁移（终验闭环出口）；TUI 增加 completed 状态渲染 | agent |
 | v0.5 | 2026-11-13 | TUI 布局契约：VerticalScroll + auto 高度内层 Static（修复固定高度 Static 无真实滚动内容）；表格列宽约束 | agent |
+| v0.6 | 2026-11-13 | 待办生命周期契约（回滚保留待办段）；基线占位符守卫（force 可跳过）；se_purge_confirmations 过期门控清理 | agent |

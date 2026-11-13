@@ -19,7 +19,7 @@ def engine(tmp_path):
 
 class TestBaseline:
     def test_baseline_updates_state(self, engine):
-        result = engine.baseline("L1-需求拆解", "test")
+        result = engine.baseline("L1-需求拆解", "test", force=True)
         assert result["status"] == "baselined"
         assert result["version"] == "v001"
         manifest = engine.project.read_manifest()
@@ -28,7 +28,7 @@ class TestBaseline:
 
 class TestDescend:
     def test_descend_to_next_layer(self, engine):
-        engine.baseline("L1-需求拆解", "test")
+        engine.baseline("L1-需求拆解", "test", force=True)
         result = engine.descend("L2-参考文献与方案搜证汇总", "test")
         assert result["to_layer"] == "L2-参考文献与方案搜证汇总"
         manifest = engine.project.read_manifest()
@@ -40,7 +40,7 @@ class TestDescend:
             engine.descend("L3-方案细化")
 
     def test_descend_upward_fails(self, engine):
-        engine.baseline("L1-需求拆解", "test")
+        engine.baseline("L1-需求拆解", "test", force=True)
         engine.descend("L2-参考文献与方案搜证汇总")
         with pytest.raises(ValueError):
             engine.descend("L1-需求拆解")
@@ -48,18 +48,18 @@ class TestDescend:
 
 class TestAscend:
     def test_ascent_creates_new_descent(self, engine):
-        engine.baseline("L1-需求拆解", "test")
+        engine.baseline("L1-需求拆解", "test", force=True)
         engine.descend("L2-参考文献与方案搜证汇总")
-        engine.baseline("L2-参考文献与方案搜证汇总", "test")
+        engine.baseline("L2-参考文献与方案搜证汇总", "test", force=True)
         engine.descend("L3-方案细化")
         result = engine.ascend("L3-方案细化", "L1-需求拆解", "v001", "test ascent")
         assert result["new_descent"] == 2
         assert result["previous_descent"] == 1
 
     def test_ascent_marks_lower_superseded(self, engine):
-        engine.baseline("L1-需求拆解", "test")
+        engine.baseline("L1-需求拆解", "test", force=True)
         engine.descend("L2-参考文献与方案搜证汇总")
-        engine.baseline("L2-参考文献与方案搜证汇总", "test")
+        engine.baseline("L2-参考文献与方案搜证汇总", "test", force=True)
         engine.descend("L3-方案细化")
         engine.ascend("L3-方案细化", "L1-需求拆解", "v001", "test")
         manifest = engine.project.read_manifest()
@@ -69,7 +69,7 @@ class TestAscend:
         assert manifest["layer_states"]["L2-参考文献与方案搜证汇总"]["status"] == "baselined"
 
     def test_ascent_to_same_or_lower_fails(self, engine):
-        engine.baseline("L1-需求拆解", "test")
+        engine.baseline("L1-需求拆解", "test", force=True)
         engine.descend("L2-参考文献与方案搜证汇总")
         with pytest.raises(ValueError):
             engine.ascend("L2-参考文献与方案搜证汇总", "L3-方案细化", "v001", "invalid")
@@ -94,7 +94,7 @@ class TestConfirmations:
         assert manifest["pending_confirmations"][0]["resolution"] == "approve"
 
     def test_can_descend_with_pending_blocks(self, engine):
-        engine.baseline("L1-需求拆解", "test")
+        engine.baseline("L1-需求拆解", "test", force=True)
         engine.descend("L2-参考文献与方案搜证汇总")
         engine.require_confirmation("test", "block me")
         ok, msg, _ = engine.can_descend_to_next()

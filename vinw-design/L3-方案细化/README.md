@@ -1,26 +1,26 @@
 ---
-baseline_reason: descent-4 L3：v0.4 完成态迁移设计（se_complete_project 前置校验与动作）
-baseline_version: v005
-baselined_at: '2026-11-13T16:26:30.229108+00:00'
+baseline_reason: descent-5 L3：TUI 布局契约 v0.5（VerticalScroll + auto 内层 + 表格列宽 + 滚动验证契约）定稿。此前遗漏基线，由
+  se_complete_project 前置校验发现
+baseline_version: v006
+baselined_at: '2026-11-13T16:32:53.506069+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-13T16:31:32.500265+00:00'
-rolled_back_from: v005
+rolled_back_at: '2026-11-13T16:37:44.151635+00:00'
+rolled_back_from: v006
 se_version: '2.0'
 status: in_progress
-todo_descent: 5
+todo_descent: 6
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [x] 接口设计 api-design.md v0.3（自举加载 + 一致性代码定位 + .vinw 更名）
-- [x] 接口设计 v0.4（se_complete_project 完成态迁移）
-- [x] 接口设计 v0.5（TUI 布局契约：VerticalScroll + auto 内层 + 表格列宽）
+- [x] 接口设计 v0.1~v0.5（自举/一致性定位/.vinw/完成态/TUI 布局契约）
+- [x] 接口设计 v0.6：待办生命周期契约、基线占位符守卫、门控清理
 - [x] 门控 cfm-20261113-153121-001 modify 通过
-- [x] L3 基线化 v003 → v004 → v005 → v006（descent-2 至 descent-5）
+- [x] L3 基线化 v003~v007（descent-2 至 descent-6）
 
 ## 阶段小结
 

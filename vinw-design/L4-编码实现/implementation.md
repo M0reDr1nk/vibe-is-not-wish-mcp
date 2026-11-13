@@ -56,3 +56,13 @@ updated_at: "2026-11-13T10:02:19.675591"
 4. 移除原有 `Horizontal`/`Vertical` 未使用导入
 
 验证：`#mid-panel max_scroll_y: 39`（实测 33 todo + 1 pending），三个面板滚动条常驻；56/56 测试通过。
+
+## descent-6 实现记录（asc-005，2026-11-13）
+
+三项结构性修复（L3 v0.6 设计）：
+
+1. **待办生命周期**（store/project.py）：新增 `extract_todo_section()` / `replace_todo_section()` / `has_placeholder_todo()`；`rollback_to_baseline` 恢复基线正文后回填**现场待办段**与 `todo_descent`，回滚不再倒带工作进度
+2. **基线占位符守卫**（workflow/state_machine.py + server.py）：`se_baseline(force=False)` 在待办仍为 `- [ ] 初始化本层工作` 时拒绝并返回 error+hint；`force=True` 显式跳过；`se_complete_project` 前置条件追加占位符检查
+3. **门控清理**（workflow/state_machine.py + server.py）：新增 `se_purge_confirmations(before_descent=0, resolution="superseded")`；`se_complete_project` 完成前自动结转较早轮次的**非阻塞**门控并回报 `purged_confirmations`，blocking 门控仍阻断
+
+测试：新增 tests/test_todo_lifecycle.py 15 例；全量 71/71 通过（含因守卫生效而适配的旧用例：机制类测试显式 force=True）

@@ -4,21 +4,18 @@ doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
 status: in_progress
-todo_descent: 5
+todo_descent: 6
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
-- [x] 初始化本层工作
-- [x] 编写测试计划 (test-plan.md)
-- [x] 编写单元测试（project/state_machine/consistency_llm/search/bootstrap/tui）
-- [x] 执行单元测试并修复发现的问题（56/56 通过）
-- [x] 验证 MCP tools 注册完整性（18 个工具）
-- [x] 验证 TUI 无头渲染与真实滚动（max_scroll_y > 0）
-- [x] 编写测试结果文档 (test-results.md，含 descent-2~5 记录)
-- [x] L5 基线化 v002→v003→v004→v005 → 下降到 L6
+- [x] 测试计划与用例演进（descent-1~6）
+- [x] 新增 test_todo_lifecycle.py 15 例（段落切分/回滚保留待办/占位符守卫/门控清理/完成态守卫）
+- [x] 旧用例适配守卫行为（机制类 baseline 显式 force=True）
+- [x] 全量 71/71 通过
+- [x] 测试结果与迭代记录已更新（descent-6 round 1）
 
 ## 阶段小结
 

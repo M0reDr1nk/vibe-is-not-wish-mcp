@@ -12,3 +12,4 @@ doc_type: "iterations"
 | descent-3 r1 | 52/52 PASS | descent-2 终验后三项热修游离于流程外（无上升记录、终验失真） | asc-002 上升回 L3，descent-3 重新基线并补录测试证据 | 52/52 PASS |
 | descent-4 r1 | 55/55 PASS | 终验完成后 L7 永远 in_progress（mark_layer_completed 无 MCP 出口）；TUI 滚动条修复未安装 | 新增 se_complete_project（v0.4 设计）+ TUI completed 渲染；重装 .venv | 55/55 PASS |
 | descent-5 r1 | 56/56 PASS | TUI 面板无真实滚动内容（固定高度 Static 裁剪 rich Visual，max_scroll_y 恒 0）；待办表格列宽截断 | VerticalScroll + auto 高度内层 Static；表格 expand/fold 重做；新增滚动断言测试 | 56/56 PASS |
+| descent-6 r1 | 71/71 PASS | 三项结构性缺陷（回滚倒带待办/占位符可入基线/过期门控悬挂） | L3 v0.6 设计 → 实现守卫与清理工具；旧用例适配 | 71/71 PASS |

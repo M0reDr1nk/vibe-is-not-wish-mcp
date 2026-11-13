@@ -5,7 +5,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from ..store.project import Project, LAYERS
+from ..store.project import (
+    Project,
+    LAYERS,
+    TODO_PLACEHOLDER,
+    has_placeholder_todo,
+)
 from ..store.changelog import append_changelog_entry
 
 
@@ -53,7 +58,15 @@ class WorkflowEngine:
 
     # ── Baseline ──────────────────────────────────────────────
 
-    def baseline(self, layer: str, reason: str = "") -> dict[str, Any]:
+    def baseline(self, layer: str, reason: str = "", force: bool = False) -> dict[str, Any]:
+        if not force:
+            readme = self.project.read_layer_readme(layer)
+            content = readme.get("content", "")
+            if has_placeholder_todo(content):
+                raise ValueError(
+                    f"{layer} 待办仍为模板占位符 '{TODO_PLACEHOLDER}'；"
+                    f"请先用 se_update_todo 填写真实待办，或以 force=true 跳过"
+                )
         version = self._generate_baseline_version(layer)
         self.project.freeze_baseline(layer, version, reason)
 
@@ -295,6 +308,54 @@ class WorkflowEngine:
 
         self.project.write_manifest(manifest)
         return {"id": cfm_id, "resolution": resolution}
+
+    def purge_confirmations(
+        self,
+        before_descent: int = 0,
+        resolution: str = "superseded",
+        only_non_blocking: bool = False,
+    ) -> dict[str, Any]:
+        """Settle unresolved confirmations from earlier descent rounds.
+
+        before_descent=0 settles everything older than the current descent;
+        before_descent=N settles everything up to and including descent N.
+        """
+        manifest = self.project.read_manifest()
+        pending = manifest.get("pending_confirmations", [])
+        current = manifest.get("current_descent", 1)
+        cutoff = before_descent if before_descent > 0 else current
+
+        purged: list[str] = []
+        now = datetime.now(timezone.utc).isoformat()
+        for p in pending:
+            if p.get("resolved_at"):
+                continue
+            descent_of_gate = p.get("descent", 0)
+            if before_descent > 0:
+                if descent_of_gate > before_descent:
+                    continue
+            elif descent_of_gate >= cutoff:
+                continue
+            if only_non_blocking and p.get("blocking", True):
+                continue
+            p["resolved_at"] = now
+            p["resolution"] = resolution
+            p["feedback"] = (
+                f"自动结转：属于 descent-{p.get('descent')} 的过期门控，"
+                f"当前已进入 descent-{current}"
+            )
+            purged.append(p["id"])
+
+        if purged:
+            manifest["pending_confirmations"] = pending
+            self.project.write_manifest(manifest)
+            self._append_changelog(
+                change_type="purge-confirmations",
+                scope=", ".join(purged),
+                reason=f"结转 {len(purged)} 个过期门控为 {resolution}",
+            )
+
+        return {"purged": len(purged), "ids": purged, "resolution": resolution}
 
     # ── Layer completion ──────────────────────────────────────
 

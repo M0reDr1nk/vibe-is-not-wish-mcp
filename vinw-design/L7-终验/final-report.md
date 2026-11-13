@@ -5,15 +5,15 @@ doc_type: "final-report"
 status: "in_progress"
 ---
 
-# 终验报告 — VINW（descent-5，最终版）
+# 终验报告 — VINW（descent-6，最终版）
 
 ## 项目信息
 
 | 字段 | 值 |
 |------|-----|
 | 项目名称 | vinw-self-design |
-| 下降轮次 | descent-1 / descent-2 / descent-3 / descent-4 / descent-5 |
-| 上升次数 | 4（asc-001、asc-002、asc-003、asc-004） |
+| 下降轮次 | descent-1 ~ descent-6 |
+| 上升次数 | 5（asc-001 ~ asc-005） |
 | 终验时间 | 2026-11-13 |
 | 版本 | 0.2.0 |
 
@@ -23,11 +23,11 @@ status: "in_progress"
 |---|------|------|---------|
 | L1-需求拆解 | ✅ baselined | v001 | 1 |
 | L2-参考文献与方案搜证汇总 | ✅ baselined | v001 | 1 |
-| L3-方案细化 | ✅ baselined | v001–v005, **v006** | 5 |
-| L4-编码实现 | ✅ baselined | v001–v004, **v005** | 5 |
-| L5-测试验证 | ✅ baselined | v001–v004, **v005** | 5 |
-| L6-检视清理 | ✅ baselined | v001–v004, **v005** | 5 |
-| L7-终验 | ✅ completed | — | 5 |
+| L3-方案细化 | ✅ baselined | v001–v007, **v008** | 6 |
+| L4-编码实现 | ✅ baselined | v001–v005, **v006** | 6 |
+| L5-测试验证 | ✅ baselined | v001–v005, **v006** | 6 |
+| L6-检视清理 | ✅ baselined | v001–v005, **v006** | 6 |
+| L7-终验 | ✅ completed | — | 6 |
 
 ## 上升记录（ascensions.md）
 
@@ -37,6 +37,7 @@ status: "in_progress"
 | asc-002 | L7 → L3(v003) | descent-2 终验后三项热修未走流程，补救上升 |
 | asc-003 | L7 → L3(v005) | 终验完成态无 MCP 出口 + TUI 缺 completed 渲染，上升补齐 |
 | asc-004 | L7 → L3(v006) | TUI 面板固定高度 Static 无法真实滚动（max_scroll_y 恒 0）+ 终验测试统计有误，上升修正 |
+| asc-005 | L7 → L3(v007) | 三项结构性缺陷：回滚倒带待办、占位符可入基线、过期门控悬挂 |
 
 ## descent-4 交付内容（asc-003）
 
@@ -54,6 +55,14 @@ status: "in_progress"
 - 契约测试：`test_todo_panel_is_actually_scrollable` 断言 `max_scroll_y > 0` 且滚动后 `scroll_y > 0`
 
 实测（110x32）：top/mid/bottom `max_scroll_y` = 18/39/49，三个面板滚动条常驻。
+
+## descent-6 交付内容（asc-005）
+
+三项结构性修复（L3 v0.6 设计落实）：
+
+1. **待办生命周期契约**：`rollback_to_baseline` 恢复基线正文后回填**现场待办段**与 `todo_descent`——回滚是回退设计产物，不再倒带工作进度。此前 asc-002~004 每轮回滚都把 L3 待办覆盖回模板占位符，导致面板显示「L3 ⏳ 初始化本层工作」
+2. **基线占位符守卫**：`se_baseline(force=False)` 在待办仍为 `- [ ] 初始化本层工作` 时拒绝并给出 hint；`se_complete_project` 前置条件追加占位符检查。占位符不再可能被冻结进基线
+3. **门控清理**：新增 `se_purge_confirmations(before_descent=0, resolution="superseded")`；`se_complete_project` 完成前自动结转较早轮次的非阻塞门控并回报 `purged_confirmations`，blocking 门控仍阻断。此前 descent-2 的非阻塞门控在项目完成后仍永久悬挂
 
 ## 流程违规与补救披露（延续）
 
@@ -94,7 +103,8 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 | test_search.py | 7 | 7/7 ✅ |
 | test_bootstrap.py（含完成态 3 例） | 10 | 10/10 ✅ |
 | test_tui.py（含真实滚动断言） | 5 | 5/5 ✅ |
-| **合计** | **56** | **56/56 ✅** |
+| test_todo_lifecycle.py（新增） | 15 | 15/15 ✅ |
+| **合计** | **71** | **71/71 ✅** |
 
 端到端实测：MCP 自举加载 ✅；一致性检查 20/20 ✅；se_complete_project 前置校验与成功路径 ✅；TUI 渲染/滚动/容错/completed ✅。
 
@@ -108,4 +118,4 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 
 ## 结论
 
-**五次下降、四次上升全部闭环，56 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**
+**六次下降、五次上升全部闭环，71 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**

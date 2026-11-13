@@ -11,7 +11,7 @@ from mcp.server.mcpserver import MCPServer
 
 import frontmatter
 
-from .store.project import Project, LAYERS
+from .store.project import Project, LAYERS, has_placeholder_todo
 from .store.document import DocumentStore
 from .workflow.state_machine import WorkflowEngine
 from .workflow.consistency_llm import LLMConsistencyAuditor, TextConsistencyChecker
@@ -125,11 +125,25 @@ def se_get_project() -> str:
 # ── Baseline ────────────────────────────────────────────────
 
 @mcp.tool()
-def se_baseline(layer: str, reason: str = "") -> str:
-    """Freeze specified layer as a baseline snapshot."""
+def se_baseline(layer: str, reason: str = "", force: bool = False) -> str:
+    """Freeze specified layer as a baseline snapshot.
+
+    Refuses when the layer's todo list is still the template placeholder,
+    unless force=True.
+    """
     proj = _ensure_project()
     engine = WorkflowEngine(proj)
-    result = engine.baseline(layer, reason)
+    try:
+        result = engine.baseline(layer, reason, force=force)
+    except ValueError as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "hint": "调用 se_update_todo 填写真实待办，或传 force=true",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     return json.dumps(result, ensure_ascii=False)
 
 
@@ -409,6 +423,21 @@ def se_update_todo(layer: str, todos_json: str) -> str:
     return json.dumps({"layer": layer, "todo_count": len(todos)}, ensure_ascii=False)
 
 
+@mcp.tool()
+def se_purge_confirmations(
+    before_descent: int = 0, resolution: str = "superseded"
+) -> str:
+    """
+    Settle unresolved confirmations left over from earlier descent rounds.
+
+    before_descent=0 settles anything older than the current descent.
+    """
+    proj = _ensure_project()
+    engine = WorkflowEngine(proj)
+    result = engine.purge_confirmations(before_descent, resolution)
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
 # ── Project completion ──────────────────────────────────────
 
 
@@ -437,6 +466,14 @@ def se_complete_project() -> str:
                 f"{layer} 未基线化（status={state.get('status', 'pending')}）"
             )
 
+    # Placeholder todos mean the layer was never really worked on
+    for layer in LAYERS:
+        readme = proj.read_layer_readme(layer)
+        if has_placeholder_todo(readme.get("content", "")):
+            errors.append(
+                f"{layer} 待办仍为模板占位符，请用 se_update_todo 填写真实待办"
+            )
+
     pending = manifest.get("pending_confirmations", [])
     unresolved = [
         p for p in pending if p.get("blocking", True) and not p.get("resolved_at")
@@ -455,8 +492,11 @@ def se_complete_project() -> str:
         )
 
     engine = WorkflowEngine(proj)
+    # Stale non-blocking gates from earlier rounds are settled, not blocking
+    purged = engine.purge_confirmations(only_non_blocking=True)
     engine.mark_layer_completed("L7-终验")
 
+    manifest = proj.read_manifest()
     layer_states = manifest.get("layer_states", {})
     layer_states.setdefault("L7-终验", {})["status"] = "completed"
     completed_at = datetime.now(timezone.utc).isoformat()
@@ -476,7 +516,11 @@ def se_complete_project() -> str:
     )
 
     return json.dumps(
-        {"status": "completed", "completed_at": completed_at},
+        {
+            "status": "completed",
+            "completed_at": completed_at,
+            "purged_confirmations": purged.get("ids", []),
+        },
         ensure_ascii=False,
         indent=2,
     )

@@ -58,3 +58,14 @@ updated_at: '2026-11-13T10:22:00.320267'
 | api-design.md v0.5 | TUI 布局契约 | vinw/tui/app.py | compose() VerticalScroll + auto Static | ✅ 已实现 |
 | api-design.md v0.5 | 表格列宽约束 | vinw/tui/app.py | refresh_ui() 待办表格 | ✅ 已实现 |
 | api-design.md v0.5 | 滚动验证契约 | tests/test_tui.py | test_todo_panel_is_actually_scrollable | ✅ 已实现（断言 max_scroll_y > 0） |
+
+## descent-6 新增（待办生命周期/守卫/门控清理，对应 asc-005 / L3 v0.8）
+
+| 设计文档 | 段落 | 代码文件 | 函数/类 | 状态 |
+|---------|------|---------|--------|------|
+| api-design.md v0.6 | 待办生命周期契约 | vinw/store/project.py | extract_todo_section / replace_todo_section / has_placeholder_todo | ✅ 已实现 |
+| api-design.md v0.6 | 待办生命周期契约 | vinw/store/project.py | Project.rollback_to_baseline（回填现场待办） | ✅ 已实现 |
+| api-design.md v0.6 | 基线占位符守卫 | vinw/workflow/state_machine.py | WorkflowEngine.baseline(force) | ✅ 已实现 |
+| api-design.md v0.6 | 基线占位符守卫 | vinw/server.py | se_baseline(force) / se_complete_project 前置检查 | ✅ 已实现 |
+| api-design.md v0.6 | 门控清理 | vinw/workflow/state_machine.py | WorkflowEngine.purge_confirmations | ✅ 已实现 |
+| api-design.md v0.6 | 门控清理 | vinw/server.py | se_purge_confirmations | ✅ 已实现 |

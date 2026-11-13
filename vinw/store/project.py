@@ -38,6 +38,56 @@ LAYERS: list[str] = [
     "L7-终验",
 ]
 
+# ── Todo section helpers (workflow state, not layer artifact) ──
+
+TODO_SECTION_HEADING = "## 当前待办"
+TODO_PLACEHOLDER = "- [ ] 初始化本层工作"
+
+
+def extract_todo_section(content: str) -> str | None:
+    """Return the '## 当前待办' block (heading included), or None if absent."""
+    lines = content.split("\n")
+    start = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith(TODO_SECTION_HEADING):
+            start = i
+            break
+    if start is None:
+        return None
+
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        if lines[j].startswith("## "):
+            end = j
+            break
+    return "\n".join(lines[start:end]).rstrip()
+
+
+def replace_todo_section(content: str, section: str) -> str:
+    """Substitute the todo block in `content`, appending it if missing."""
+    lines = content.split("\n")
+    start = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith(TODO_SECTION_HEADING):
+            start = i
+            break
+
+    if start is None:
+        return content.rstrip() + "\n\n" + section + "\n"
+
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        if lines[j].startswith("## "):
+            end = j
+            break
+
+    return "\n".join(lines[:start] + section.split("\n") + lines[end:])
+
+
+def has_placeholder_todo(content: str) -> bool:
+    """True when the layer still carries the untouched template todo line."""
+    return TODO_PLACEHOLDER in content
+
 LAYER_TEMPLATES: dict[str, dict[str, str]] = {
     "L1-需求拆解": {
         "README.md": LAYER_README_TEMPLATE,
@@ -240,14 +290,32 @@ class Project:
         return dst
 
     def rollback_to_baseline(self, layer: str, version: str) -> Path:
-        """Restore layer workspace from a baseline."""
+        """Restore layer workspace from a baseline.
+
+        The todo block is workflow state, not a layer artifact: a rollback
+        restores the baseline body but keeps the live todo list (and its
+        todo_descent stamp) so progress is never rewound by an ascent.
+        """
         baseline = self.read_baseline(layer, version)
         dst = self.get_layer_dir(layer) / "README.md"
 
+        live_todo = None
+        live_todo_descent = None
+        if dst.exists():
+            current = frontmatter.load(dst)
+            live_todo = extract_todo_section(current.content)
+            live_todo_descent = current.metadata.get("todo_descent")
+
+        content = baseline.get("content", "")
+        if live_todo:
+            content = replace_todo_section(content, live_todo)
+
         post = frontmatter.Post(
-            content=baseline.get("content", ""),
+            content=content,
             **{k: v for k, v in baseline.items() if k != "content"},
         )
+        if live_todo_descent is not None:
+            post.metadata["todo_descent"] = live_todo_descent
         post.metadata["rolled_back_from"] = version
         post.metadata["rolled_back_at"] = datetime.now(timezone.utc).isoformat()
         post.metadata["status"] = "in_progress"

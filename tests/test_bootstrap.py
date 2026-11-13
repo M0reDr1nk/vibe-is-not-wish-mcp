@@ -100,6 +100,16 @@ class TestCompleteProject:
                 {"id": "cfm-x", "blocking": True, "resolved_at": None}
             ]
         proj.write_manifest(manifest)
+        # Completion now requires real todo lists (placeholder guard, L3 v0.6)
+        from vinw.store.project import replace_todo_section
+
+        for layer in LAYERS:
+            readme = proj.read_layer_readme(layer)
+            proj.write_layer_readme(
+                layer,
+                readme,
+                replace_todo_section(readme["content"], "## 当前待办\n\n- [x] done"),
+            )
         return proj
 
     def test_complete_success(self, tmp_path, clean_active_project):

@@ -4,19 +4,18 @@ doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
 status: pending
-todo_descent: 5
+todo_descent: 6
 ---
 
 # L6-检视清理
 
 ## 当前待办
 
-- [x] 代码风格统一检查（PEP8、类型注解）
-- [x] 删除调试代码与废弃注释（consistency.py 已移除）
-- [x] 文档完整性检查（README、docstring）
-- [x] 依赖清理（pyproject.toml 对齐）
-- [x] 最终一致性检查（56 测试通过，一致性 21/21 匹配）
-- [x] descent-2~5 清理：build/、__pycache__、.DS_Store、未使用导入
+- [x] 代码风格与未使用导入检查（PEP8、类型注解）
+- [x] 文档与代码同步（README/api-design/code-map/implementation）
+- [x] 依赖对齐（pyproject.toml 与 .venv 一致）
+- [x] 历史快照瑕瑕记录（L3 v007 含占位符，由 v008 重冻结修正）
+- [x] 最终一致性检查（71 测试通过，一致性 22/22 匹配）
 - [x] L6 基线化 → 下降到 L7
 
 ## 阶段小结
