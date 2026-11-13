@@ -101,6 +101,8 @@ pending_confirmations:
   descent: 2
   description: L5 测试结果确认（非阻塞）：descent-2 45/45 通过，新增自举/一致性定位覆盖 9 例；一致性缺陷已修复并再测试通过（详见
     test-results.md descent-2 round 1）。用户可随时 review，不阻塞下降。
+  feedback: 该门控已过期：L5 此后又完成 descent-3/4/5 三轮验证，最终 56/56 通过（含 TUI 无头渲染 5 例、真实滚动断言），测试证据见
+    test-results.md descent-3/4/5 round 1。批准关闭。
   id: cfm-20261113-154455-002
   item_type: test-results
   layer: L5-测试验证
@@ -109,8 +111,8 @@ pending_confirmations:
   - reject
   - modify
   proposed_at: '2026-11-13T15:44:55.801450+00:00'
-  resolution: null
-  resolved_at: null
+  resolution: approve
+  resolved_at: '2026-11-13T16:35:59.864011+00:00'
 se_version: '2.0'
 status: completed
 ---

@@ -1,9 +1,10 @@
 ---
-se_version: "2.0"
-layer: "L5-测试验证"
-doc_type: "layer-readme"
-status: "in_progress"
 descent_count: 1
+doc_type: layer-readme
+layer: L5-测试验证
+se_version: '2.0'
+status: in_progress
+todo_descent: 5
 ---
 
 # L5-测试验证
@@ -12,12 +13,12 @@ descent_count: 1
 
 - [x] 初始化本层工作
 - [x] 编写测试计划 (test-plan.md)
-- [x] 编写单元测试 (test_project, test_state_machine, test_consistency_llm, test_search)
-- [x] 执行单元测试并修复发现的问题
-- [x] 验证 MCP tools 注册完整性
-- [x] 验证 TUI 启动可用性
-- [x] 编写测试结果文档 (test-results.md)
-- [x] L5 基线化 → 下降到 L6
+- [x] 编写单元测试（project/state_machine/consistency_llm/search/bootstrap/tui）
+- [x] 执行单元测试并修复发现的问题（56/56 通过）
+- [x] 验证 MCP tools 注册完整性（18 个工具）
+- [x] 验证 TUI 无头渲染与真实滚动（max_scroll_y > 0）
+- [x] 编写测试结果文档 (test-results.md，含 descent-2~5 记录)
+- [x] L5 基线化 v002→v003→v004→v005 → 下降到 L6
 
 ## 阶段小结
 

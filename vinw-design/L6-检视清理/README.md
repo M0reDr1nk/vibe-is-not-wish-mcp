@@ -4,6 +4,7 @@ doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
 status: pending
+todo_descent: 5
 ---
 
 # L6-检视清理
@@ -14,7 +15,8 @@ status: pending
 - [x] 删除调试代码与废弃注释（consistency.py 已移除）
 - [x] 文档完整性检查（README、docstring）
 - [x] 依赖清理（pyproject.toml 对齐）
-- [x] 最终一致性检查（36 测试通过，一致性误报为已知限制）
+- [x] 最终一致性检查（56 测试通过，一致性 21/21 匹配）
+- [x] descent-2~5 清理：build/、__pycache__、.DS_Store、未使用导入
 - [x] L6 基线化 → 下降到 L7
 
 ## 阶段小结

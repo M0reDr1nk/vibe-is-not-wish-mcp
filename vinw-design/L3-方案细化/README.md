@@ -9,13 +9,18 @@ rolled_back_at: '2026-11-13T16:31:32.500265+00:00'
 rolled_back_from: v005
 se_version: '2.0'
 status: in_progress
+todo_descent: 5
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [ ] 初始化本层工作
+- [x] 接口设计 api-design.md v0.3（自举加载 + 一致性代码定位 + .vinw 更名）
+- [x] 接口设计 v0.4（se_complete_project 完成态迁移）
+- [x] 接口设计 v0.5（TUI 布局契约：VerticalScroll + auto 内层 + 表格列宽）
+- [x] 门控 cfm-20261113-153121-001 modify 通过
+- [x] L3 基线化 v003 → v004 → v005 → v006（descent-2 至 descent-5）
 
 ## 阶段小结
 
