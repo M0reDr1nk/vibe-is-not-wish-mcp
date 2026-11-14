@@ -11,10 +11,34 @@
 #include <time.h>
 #include <unistd.h>
 
+static char g_saved_threads[32];
+static int  g_had_threads = 0;
+
+static void save_threads(void) {
+    const char *v = getenv("GEMM_THREADS");
+    g_had_threads = (v != NULL);
+    if (v) snprintf(g_saved_threads, sizeof(g_saved_threads), "%s", v);
+}
+
+static void restore_threads(void) {
+    if (g_had_threads) setenv("GEMM_THREADS", g_saved_threads, 1);
+    else unsetenv("GEMM_THREADS");
+}
+
 static void set_threads(int n) {
     char buf[16];
     snprintf(buf, sizeof(buf), "%d", n);
     setenv("GEMM_THREADS", buf, 1);
+}
+
+static int effective_threads(void) {
+    const char *v = getenv("GEMM_THREADS");
+    if (v && *v) {
+        int n = atoi(v);
+        if (n > 0) return n;
+    }
+    long c = sysconf(_SC_NPROCESSORS_ONLN);
+    return (c > 0) ? (int)c : 1;
 }
 
 static double now_sec(void) {
@@ -115,13 +139,34 @@ static void bench_shape(int M, int N, int K, int threads) {
         printf("%-22s %10.3f %12.2f\n", "accelerate(cblas)", best * 1e3, gflops(M, N, K, best));
     }
 
-    if (base_ijk > 0 && blocked_g > 0) {
-        double ratio = blocked_g / base_ijk;
-        printf("gate  blocked/naive-ijk = %.2fx  (门槛 8x: %s)\n",
-               ratio, ratio >= 8.0 ? "PASS" : "FAIL");
-        printf("      %-16s %10.2fx\n", "相对朴素 ijk", ratio);
+    if (base_ijk > 0) {
+        /* R3：单线程门槛；R4：多线程扩展性门槛 */
+        save_threads();
+        set_threads(1);
+        run_once(M, N, K, A, B, C, vinw_gemm_bench);
+        double best1 = 1e9;
+        int reps = (M <= 256) ? 20 : 5;
+        for (int r = 0; r < reps; ++r) {
+            double tt = run_once(M, N, K, A, B, C, vinw_gemm_bench);
+            if (tt < best1) best1 = tt;
+        }
+        const double g1 = gflops(M, N, K, best1);
+        restore_threads();
+
+        const int mt = effective_threads();
+        const double g_mt = blocked_g;
+        const double r_st = g1 / base_ijk;          /* R3：blocked-1T / naive-ijk-1T */
+        const double r_mt = g_mt / base_ijk;        /* 参考：MT 相对单线程基线 */
+        const double r_ext = (g1 > 0) ? (g_mt / g1) : 0.0;  /* R4：扩展性 */
+
+        printf("gate-st  blocked-1T/naive-ijk-1T = %6.2fx  (门槛 8x: %s)\n",
+               r_st, r_st >= 8.0 ? "PASS" : "FAIL");
+        printf("gate-mt  blocked-%dT/naive-ijk-1T = %6.2fx  (参考)\n", mt, r_mt);
+        printf("gate-ext blocked-%dT/blocked-1T   = %6.2fx  (门槛 4x: %s)\n",
+               mt, r_ext, r_ext >= 4.0 ? "PASS" : "FAIL");
         if (amx_g > 0) {
-            printf("      %-16s %10.2fx\n", "AMX 相对朴素 ijk", amx_g / base_ijk);
+            printf("         AMX-1T/naive-ijk-1T      = %6.2fx  (参考)\n",
+                   amx_g / base_ijk);
         }
     }
 

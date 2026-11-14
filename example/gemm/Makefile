@@ -3,8 +3,14 @@ CFLAGS  ?= -O3 -march=native -ffast-math -Wall -Wextra -Iinclude -pthread
 LDFLAGS ?= -pthread
 AR      ?= ar
 
+# USE_AMX 开启时使用独立构建目录：彻底避免两种模式的 .o 互相复用
+# （曾用时间戳 stamp 隔离，但同秒切换/空标志会导致漏重编，实测两次假通过）
+ifeq ($(USE_AMX),1)
+BUILD   := build-amx
+else
 BUILD   := build
-LIB     := lib/libgemm.a
+endif
+LIB     := $(BUILD)/libgemm.a
 SRCS    := src/gemm_ref.c src/gemm_blocked.c src/gemm_amx.c
 OBJS    := $(SRCS:src/%.c=$(BUILD)/%.o)
 
@@ -28,11 +34,6 @@ $(BUILD) lib:
 $(BUILD)/%.o: src/%.c include/gemm.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# gemm_amx.c 必须用 -O2：-O3 下 clang 的优化会与 AMX 内联汇编的寄存器假设冲突，
-# 实测导致按空指针执行 ldx（SIGSEGV）。见 L4 implementation.md「AMX -O3 冲突」。
-$(BUILD)/gemm_amx.o: src/gemm_amx.c include/gemm.h src/amx_asm.h | $(BUILD)
-	$(CC) $(CFLAGS:-O3=-O2) -O2 -c $< -o $@
-
 $(LIB): $(OBJS) | lib
 	$(AR) rcs $@ $(OBJS)
 
@@ -49,4 +50,6 @@ bench: $(BENCH_BIN)
 	./$(BENCH_BIN)
 
 clean:
-	rm -rf $(BUILD) lib
+	rm -rf build build-amx lib
+
+# 构建产物（build/ build-amx/ lib/）由 .gitignore 排除
