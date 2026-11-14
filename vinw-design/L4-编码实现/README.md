@@ -1,4 +1,6 @@
 ---
+baseline_version: v011
+baselined_at: '2026-11-14T02:42:32.784118+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L4-编码实现

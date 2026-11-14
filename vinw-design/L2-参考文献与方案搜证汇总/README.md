@@ -1,7 +1,7 @@
 ---
 baseline_reason: descent-7 L2：注册表选型（JSON vs SQLite vs 扫描）、失效清理策略、寻址方案三项决策已定论
-baseline_version: v002
-baselined_at: '2026-11-13T16:48:48.727576+00:00'
+baseline_version: v006
+baselined_at: '2026-11-13T18:08:28.269585+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L2-参考文献与方案搜证汇总

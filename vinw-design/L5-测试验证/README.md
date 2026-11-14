@@ -1,4 +1,6 @@
 ---
+baseline_version: v010
+baselined_at: '2026-11-14T02:43:01.655609+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L5-测试验证

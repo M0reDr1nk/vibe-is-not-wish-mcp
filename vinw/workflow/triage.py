@@ -224,13 +224,31 @@ class AuditTriage:
         # status: every finding in the report must be adjudicated.
         report_meta = frontmatter.load(path).metadata
         expected = {f["id"] for f in _report_findings(report_meta)}
-        provided = {str(item.get("id")) for item in items if item.get("id")}
+        provided = {
+            str(item.get("id") or item.get("finding_id"))
+            for item in items
+            if item.get("id") or item.get("finding_id")
+        }
         missing = sorted(expected - provided)
         if missing:
             raise TriageError(
                 f"triage 未覆盖报告全部发现，缺少: {', '.join(missing)}"
                 f"（覆盖性约束：部分裁定会静默丢弃未处理项）"
             )
+
+        # Findings outside the report must carry a real verdict
+        for item in items:
+            ident = item.get("id") or item.get("finding_id")
+            if ident and str(ident) in expected:
+                continue
+            if item.get("classification") not in CLASSIFICATIONS:
+                raise TriageError(
+                    f"额外发现 {ident} 的 classification 非法或缺失：{item.get('classification')}"
+                )
+            if item.get("confidence") not in CONFIDENCES:
+                raise TriageError(
+                    f"额外发现 {ident} 的 confidence 非法或缺失：{item.get('confidence')}"
+                )
 
         findings = []
         for item in items:

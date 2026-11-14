@@ -84,8 +84,12 @@ class ConsistencyGate:
     def current_fingerprint(
         self, scope: list[str] | None = None, design_doc: str = "design-doc.md"
     ) -> dict[str, Any]:
+        from .consistency_llm import code_extensions
+
         code_root = _resolve_code_root(self.project)
-        hashes = file_hashes(code_root, scope)
+        # Same extension set as the text check, otherwise a file outside the
+        # audited scope would still create "code changed" drift.
+        hashes = file_hashes(code_root, scope, code_extensions(self.project))
         design_path = self.project.get_layer_dir("L3-方案细化") / design_doc
         # Cover the whole layer: the checks read api-design.md as well
         d_hash = layer_design_hash(self.project.get_layer_dir("L3-方案细化"))
@@ -314,6 +318,31 @@ class ConsistencyGate:
         manifest["layer_states"] = states
         self.project.write_manifest(manifest)
 
+    def sync_audited_state(self) -> bool:
+        """Re-anchor the audited fingerprint on the newest passing report.
+
+        ensure() short-circuits when a report already matches the current
+        fingerprints (fresh). In that path nothing updated the manifest, so
+        drift kept reporting a stale baseline forever.
+        """
+        manifest = self.project.read_manifest()
+        descent = manifest.get("current_descent", 1)
+        current = self.current_fingerprint()["code_fingerprint"]
+
+        if not self.latest_llm(descent) and not self.latest_passing(descent):
+            return False
+
+        report = None
+        for candidate in (self.latest_llm(descent), self.latest_passing(descent)):
+            if candidate and candidate.get("code_fingerprint") == current:
+                report = candidate
+                break
+        if report is None:
+            return False
+
+        self._record_state(report, report.get("overall_status", "unknown"))
+        return True
+
     def triage_decision(self) -> dict[str, Any]:
         """Routing decision for the latest audit findings (design v0.12)."""
         from .triage import AuditTriage  # local import avoids a cycle
@@ -347,7 +376,7 @@ class ConsistencyGate:
                 "llm_report_id": meta.get("report_id"),
                 "llm_verdict": meta.get("overall_status"),
                 "llm_auditor": meta.get("auditor"),
-                "descend": meta.get("descent"),
+                "descent": meta.get("descent"),
             }
         )
         entry["consistency"] = consistency

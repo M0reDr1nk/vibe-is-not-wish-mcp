@@ -1,4 +1,6 @@
 ---
+baseline_version: v010
+baselined_at: '2026-11-14T02:43:51.413339+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L6-检视清理

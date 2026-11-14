@@ -184,16 +184,17 @@ pending_confirmations: []
 
 | 状态 | 含义 | 可进入来源 | 可离开去向 |
 |------|------|-----------|-----------|
-| `pending` | 从未开工 | 初始化 | `in_progress`（descend/ascend 进入） |
+| `pending` | 从未开工 / 被放弃 | 初始化；**descend 放弃未基线层**（记 `abandoned_at`） | `in_progress`（descend/ascend 进入） |
 | `in_progress` | 当前正在做 | descend / ascend 进入；baseline 后重入 | `baselined`（冻结）、`superseded`（上升） |
 | `baselined` | 已冻结可回溯 | baseline | `in_progress`（重做）、`superseded`（上升） |
 | `superseded` | 本轮作废、需重做 | ascend 使然 | `in_progress`（descend 重入）、`baselined`（重做后冻结） |
 | `completed` | 项目终验完成（仅 L7） | complete_project | `in_progress`（ascend 回到 L7？实际 L7 被 superseded） |
 
-不变量（已加入测试）：
-1. 任意时刻**恰好一层**为 `in_progress`，且等于 `current_layer`
+不变量（修正后表述，均已在测试中断言）：
+1. **至多一层**为 `in_progress`；当 `current_layer` 尚未冻结且项目未完成时，恰为该层。
+   （冻结当前层后、以及项目完成后，`in_progress` 层数为 0 —— 原"恰好一层"表述为恒假命题）
 2. `completed` 只允许出现在 L7
-3. `superseded` 必带 `superseded_by`（上升 id）
+3. 由 `ascend` / `_invalidate_below` 产生的 `superseded` 必带 `superseded_by`
 4. 进入/重做某层时，`needs_redo` / `superseded_by` / `superseded_at` 必须清除
 
 ### 发现的缺陷（本轮已修）

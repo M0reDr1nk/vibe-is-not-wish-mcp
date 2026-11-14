@@ -860,7 +860,7 @@ def se_complete_project(project: str | None = None) -> str:
     engine = WorkflowEngine(proj)
     # All guards passed: heal drift now, and only then record the audit trail
     try:
-        healed = engine.heal_drift("complete_project", log=False)
+        healed = engine.heal_drift("complete_project", log=True)
     except (
         ConsistencyGateError,
         DesignLagError,
@@ -872,29 +872,20 @@ def se_complete_project(project: str | None = None) -> str:
         return json.dumps(
             {"error": str(e), "details": [str(e)]}, ensure_ascii=False, indent=2
         )
-    if healed and healed.get("healed"):
-        from .store.changelog import append_changelog_entry
-
-        append_changelog_entry(
-            proj.vinw_dir / "changelog.md",
-            change_type="auto-audit",
-            layer="L7-终验",
-            descent=descent_now,
-            scope="complete_project",
-            reason="完成前检测到工作区漂移，自动重跑一致性检查并通过",
-        )
-
     # Stale non-blocking gates from earlier rounds are settled, not blocking
     purged = engine.purge_confirmations(only_non_blocking=True)
-    engine.mark_layer_completed("L7-终验")
-
+    completed_at = datetime.now(timezone.utc).isoformat()
     manifest = proj.read_manifest()
     layer_states = manifest.get("layer_states", {})
     layer_states.setdefault("L7-终验", {})["status"] = "completed"
-    completed_at = datetime.now(timezone.utc).isoformat()
+    layer_states["L7-终验"]["completed_at"] = completed_at
     manifest["layer_states"] = layer_states
     manifest["completed_at"] = completed_at
     proj.write_manifest(manifest)
+    # mirror exactly once, from the manifest value
+    engine._sync_layer_status(
+        "L7-终验", "completed", extra={"completed_at": completed_at}
+    )
 
     from .store.changelog import append_changelog_entry
 
@@ -1112,6 +1103,34 @@ def se_record_triage_decision(
     except TriageError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False, indent=2)
     return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+# ── State repair / sync ─────────────────────────────────────
+
+
+@mcp.tool()
+def se_repair_state(ascent_id: str = "", project: str | None = None) -> str:
+    """Re-apply layer invalidation for an ascent (fixes legacy bad state)."""
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+    try:
+        result = WorkflowEngine(proj).repair_ascend_state(ascent_id or None)
+    except ValueError as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False, indent=2)
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def se_sync_layer_readmes(project: str | None = None) -> str:
+    """Mirror every layer status/baseline from the manifest into its README."""
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+    synced = WorkflowEngine(proj).sync_all_layer_readmes()
+    return json.dumps(
+        {"synced": synced, "count": len(synced)}, ensure_ascii=False, indent=2
+    )
 
 
 # ── Guidance ────────────────────────────────────────────────

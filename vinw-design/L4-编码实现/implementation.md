@@ -244,3 +244,15 @@ updated_at: "2026-11-13T10:02:19.675591"
 | `repair_ascend_state` 误把当前层标 superseded | 保留 current 为 in_progress |
 
 不变量测试：恰好一层 in_progress 且 == current_layer；completed 仅 L7；superseded 必带 superseded_by；重做清除残留标记。
+
+### descent-13 追加：reviewer4 修复
+
+| 缺陷 | 修复 |
+|------|------|
+| descend 离开未基线层留下两层 in_progress | 源层复位为 `pending` 并记 `abandoned_at`，README 同步 |
+| repair 只写 manifest、残留 supersede 标记、未知 ascent 静默回退 | 镜像 README + 清全部标记 + 未知 id 抛错 |
+| triage 覆盖集用 anon-N 与 findings 的 INC/GAP 不一致 | 统一 `finding_id()` 归一化函数 |
+| complete 的 heal 早于一致性/triage 校验 | 守卫全部前置，heal 最后执行且日志延后到全部通过 |
+| README 只镜像 status，基线版本不更新 | `_sync_layer_status(extra=...)` 同步 baseline_version/baselined_at；`sync_all_layer_readmes` 修历史 |
+| drift unknown 分支缺 needs_reaudit/audited_report | 统一 `_result()` 构造，所有路径键集一致 |
+| se_baseline 未处理 DesignLagError（裸异常） | 映射为结构化 error + hint + drift 快照 |

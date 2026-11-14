@@ -1,7 +1,7 @@
 ---
 baseline_reason: descent-12 L3 v0.14：分级裁定数据模型、triage 门控决策、4 个新工具
-baseline_version: v014
-baselined_at: '2026-11-13T18:08:39.479739+00:00'
+baseline_version: v015
+baselined_at: '2026-11-14T03:09:04.250863+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化

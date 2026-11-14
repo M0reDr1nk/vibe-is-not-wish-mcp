@@ -133,10 +133,20 @@ class WorkflowEngine:
         states = manifest.get("layer_states", {})
         synced: dict[str, str] = {}
         for layer in LAYERS:
-            status = states.get(layer, {}).get("status")
+            state = states.get(layer, {})
+            status = state.get("status")
             if not status:
                 continue
-            self._sync_layer_status(layer, status)
+            self._sync_layer_status(
+                layer,
+                status,
+                clear_supersede=status in ("in_progress", "baselined"),
+                clear_redo=status in ("in_progress", "baselined"),
+                extra={
+                    "baseline_version": state.get("latest_baseline"),
+                    "baselined_at": state.get("baselined_at"),
+                },
+            )
             synced[layer] = status
         return synced
 
@@ -260,6 +270,10 @@ class WorkflowEngine:
                 f"（overall={overall}，{status.get('inconsistencies', 0)} 项不一致）；"
                 f"请修复后重试"
             )
+
+        # Re-anchor the audited fingerprint even when ensure() reused a fresh
+        # report; otherwise drift never converges to clean.
+        gate.sync_audited_state()
 
         # Only a successful re-audit may leave an audit-trail entry
         if log:

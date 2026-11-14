@@ -74,10 +74,14 @@ def _collect_code_files(
     ]
 
 
-def file_hashes(code_root: Path, code_scope: list[str] | None = None) -> dict[str, str]:
+def file_hashes(
+    code_root: Path,
+    code_scope: list[str] | None = None,
+    extensions: list[str] | None = None,
+) -> dict[str, str]:
     """sha256 per scanned code file, keyed by path relative to code_root."""
     result: dict[str, str] = {}
-    for f in _collect_code_files(code_root, code_scope):
+    for f in _collect_code_files(code_root, code_scope, extensions):
         try:
             digest = hashlib.sha256(f.read_bytes()).hexdigest()
         except OSError:

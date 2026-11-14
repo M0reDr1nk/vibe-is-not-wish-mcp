@@ -425,3 +425,116 @@ class TestBaselineMetadataMirror:
         readme = frontmatter.load(proj.get_layer_dir("L1-需求拆解") / "README.md")
         assert readme.metadata["baseline_version"] == manifest_state["latest_baseline"]
         assert readme.metadata["baselined_at"] == manifest_state["baselined_at"]
+
+
+class TestReviewer5Regressions:
+    """Final-review findings: convergence, key names, extensions, aliases."""
+
+    def test_heal_converges_when_report_is_fresh(self, proj):
+        """INC-001: ensure() reusing a fresh report must still re-anchor state."""
+        from vinw.workflow.consistency_llm import LLMConsistencyAuditor
+
+        ConsistencyGate(proj).ensure()
+        (proj.root / "main.py").write_text("def main():\n    return 3\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n改\n")
+
+        gate = ConsistencyGate(proj)
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        assert gate.freshness()["state"] == "fresh"
+
+        WorkflowEngine(proj).heal_drift("test")
+
+        from vinw.workflow.drift import detect_drift
+
+        assert detect_drift(proj)["state"] == "clean"
+
+    def test_llm_state_uses_descent_key(self, proj):
+        """INC-004: record_llm_state wrote `descend`, nobody reads it."""
+        import frontmatter
+
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        fp = gate.current_fingerprint()
+        path = LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        gate.record_llm_state(frontmatter.load(path).metadata)
+
+        consistency = proj.read_manifest()["layer_states"]["L4-编码实现"]["consistency"]
+        assert consistency.get("descent") is not None
+        assert "descend" not in consistency
+
+    def test_triage_accepts_finding_id_alias(self, proj):
+        """INC-005: store() only honoured `id`, rejecting finding_id payloads."""
+        store_llm(proj, findings=[{"id": "GAP-9", "description": "x"}])
+        result = AuditTriage(proj).store(
+            {
+                "triage": [
+                    {"finding_id": "GAP-9", "classification": "impl_bug", "confidence": "high"}
+                ]
+            }
+        )
+        assert result["total"] == 1
+
+    def test_extra_finding_requires_valid_verdict(self, proj):
+        from vinw.workflow.triage import TriageError
+
+        store_llm(proj, findings=[{"id": "INC-1", "description": "x"}])
+        with pytest.raises(TriageError):
+            AuditTriage(proj).store(
+                {
+                    "triage": [
+                        {"id": "INC-1", "classification": "impl_bug", "confidence": "high"},
+                        {"id": "EXTRA-1", "classification": "nonsense"},
+                    ]
+                }
+            )
+
+    def test_fingerprint_honours_code_extensions(self, proj):
+        """INC-006: fingerprints ignored manifest.code_extensions."""
+        manifest = proj.read_manifest()
+        manifest["code_extensions"] = [".c"]  # main.py is out of scope now
+        proj.write_manifest(manifest)
+
+        gate = ConsistencyGate(proj)
+        before = gate.current_fingerprint()["code_fingerprint"]
+        (proj.root / "main.py").write_text("def main():\n    return 99\n")
+        assert gate.current_fingerprint()["code_fingerprint"] == before
+
+    def test_invariants_hold_across_transitions(self, proj):
+        from vinw.store.project import LAYERS, replace_todo_section
+
+        engine = WorkflowEngine(proj)
+
+        def in_progress():
+            states = proj.read_manifest()["layer_states"]
+            return [l for l, s in states.items() if s.get("status") == "in_progress"]
+
+        engine.baseline("L1-需求拆解", "t", force=True)
+        # after freezing the current layer there is no in_progress layer
+        assert in_progress() == []
+
+        engine.descend("L2-参考文献与方案搜证汇总")
+        assert in_progress() == ["L2-参考文献与方案搜证汇总"]
+
+        engine.baseline("L2-参考文献与方案搜证汇总", "t", force=True)
+        engine.ascend("L2-参考文献与方案搜证汇总", "L1-需求拆解", "v001", "t")
+        states = proj.read_manifest()["layer_states"]
+        assert in_progress() == ["L1-需求拆解"]
+        for layer in LAYERS[1:]:
+            state = states.get(layer, {})
+            if state.get("status") == "superseded":
+                assert state.get("superseded_by"), layer

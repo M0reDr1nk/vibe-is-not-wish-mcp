@@ -151,8 +151,6 @@ layer_states:
     descent_count: 12
     latest_baseline: v011
     status: in_progress
-    superseded_at: '2026-11-14T03:22:14.510177+00:00'
-    superseded_by: asc-012
   L5-测试验证:
     baselined_at: '2026-11-14T02:43:01.655609+00:00'
     descent_count: 10

@@ -7,7 +7,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 
 # 接口设计
 
-## MCP 工具清单（共 34 个，由 scripts/gen_tool_catalog.py 生成）
+## MCP 工具清单（共 36 个，由 scripts/gen_tool_catalog.py 生成）
 
 > 生成方式：解析 `vinw/server.py` 中所有 `se_*` 函数；`tests/test_contract_v014.py` 断言此处条目数 == 实际注册数。
 
@@ -37,6 +37,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 | `se_record_triage_decision` | — | — |
 | `se_register_project` | — | — |
 | `se_remove_project` | — | — |
+| `se_repair_state` | — | — |
 | `se_require_confirmation` | — | — |
 | `se_resolve_confirmation` | — | — |
 | `se_search_proposals` | — | — |
@@ -44,6 +45,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 | `se_store_consistency_report` | — | — |
 | `se_store_document` | — | — |
 | `se_store_triage` | — | — |
+| `se_sync_layer_readmes` | — | — |
 | `se_triage_prompt` | — | — |
 | `se_update_todo` | — | — |
 | `se_use_project` | — | — |
@@ -541,7 +543,7 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 ## 持久化
 
 - LLM 报告 frontmatter：`triage: [{id, classification, confidence, recommendation, status}]`
-- manifest：`layer_states[L4].audit = {report_id, decision, escalations: n, auto_fixable: [...]}`
+- manifest：`layer_states[L4].audit = {report_id, decision, escalations: [finding_id...], escalations_count, auto_fixable: [finding_id...], auto_fixable_count}`（v0.14 起统一为列表 + 计数，二者对称）
 
 ## 与既有契约的关系
 
@@ -655,6 +657,7 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 | 编号 | 限制 | 影响 | 后续 |
 |------|------|------|------|
 | L-01 | **设计正文不在基线快照内**：`freeze_baseline` 只快照 README，ascend 回滚也只恢复 README | 设计正文（api-design.md 等）在基线后仍可被原地改写而不留版本痕迹；「先改代码后补设计」的顺序不可从数据判定 | 待做：把层内全部文档纳入基线快照，或要求设计正文变更必须先 `se_log_change` |
+| L-03 | `heal_drift` 曾不刷新审计基线：`ensure()` 命中 fresh 复用时不写 state，导致漂移永不收敛 | TUI 常红、auto-audit 反复累积 | 已修：新增 `sync_audited_state()` 在 heal 成功后重新锚定指纹 |
 | L-02 | `design_synced` 只表示"两者都变了"，不表示先后顺序 | 无法区分"设计先行"与"代码先行后补设计" | 待做：manifest 记录 code_fp/design_fp 的变更时间，或结合 ascent 时间戳判定 |
 
 ## 版本历史补记
