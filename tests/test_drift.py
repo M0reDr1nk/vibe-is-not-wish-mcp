@@ -178,3 +178,42 @@ class TestDesignLag:
         assert result["design_changed"] is True
         assert result["reason"] == "code_and_design_changed_since_audit"
         assert not any("实现跑在设计前面" in line for line in drift_lines(proj))
+
+
+class TestAnchorRobustness:
+    """Residual bug: anchors written by older builds lost design_hash."""
+
+    def test_anchor_report_supplies_missing_design_hash(self, proj):
+        """A completed project must not report phantom design drift."""
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        manifest = proj.read_manifest()
+        consistency = manifest["layer_states"]["L4-编码实现"]["consistency"]
+        consistency.pop("design_hash", None)  # simulate an old anchor
+        proj.write_manifest(manifest)
+
+        assert detect_drift(proj)["state"] == "clean"
+
+    def test_record_state_never_erases_existing_keys(self, proj):
+        from vinw.workflow.consistency_llm import LLMConsistencyAuditor
+
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        before = proj.read_manifest()["layer_states"]["L4-编码实现"]["consistency"]
+        assert before.get("design_hash")
+
+        # a report without design_hash must not blank the anchor
+        path = LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest="",
+            hashes=gate.current_fingerprint()["file_hashes"],
+            kind="text",
+            auditor="reviewer",
+        )
+        import frontmatter
+
+        gate._record_state(frontmatter.load(path).metadata, "passed")
+
+        after = proj.read_manifest()["layer_states"]["L4-编码实现"]["consistency"]
+        assert after.get("design_hash") == before["design_hash"]

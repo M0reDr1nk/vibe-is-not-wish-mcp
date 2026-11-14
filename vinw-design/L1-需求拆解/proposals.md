@@ -369,4 +369,8 @@ anchor report     : 1fc249d1（该报告的 design_hash = 7bb0ca74d50c4f45）
 
 ## 状态
 
-Backlog — 下一轮 asc 时修复（与「决策倾向性配置」「模糊需求反向提问」「新建工程 TUI 不可见」并列）
+**已修（2026-11-14）**：
+1. `_record_state` 改为仅在值非 None 时覆盖，锚点不再被缺字段的报告清空
+2. `detect_drift` 在锚点缺 `design_hash` 时回退到锚点报告的值（修复 completed 工程永久报 design drift）
+3. 报告查找前移，使 `report` 同时用于指纹回退与 `changed` 计算
+4. 回归测试 2 例（`TestAnchorRobustness`），真实工程重新锚定后 `drift: clean`

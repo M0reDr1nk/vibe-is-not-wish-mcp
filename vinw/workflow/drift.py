@@ -73,6 +73,14 @@ def detect_drift(project: Project) -> dict[str, Any]:
         audited = state.get("code_fingerprint")
         audited_design_state = state.get("design_hash")
 
+        # Resolve the report that produced the audited state first: older
+        # anchors may be missing design_hash or even the fingerprint itself.
+        report = (
+            _audited_report(gate, state)
+            or gate.latest_llm()
+            or gate.latest_passing()
+        )
+
         current = gate.current_fingerprint()
 
         # A project may have audit reports before the manifest was anchored
@@ -97,6 +105,10 @@ def detect_drift(project: Project) -> dict[str, Any]:
             )
 
         audited_design = audited_design_state
+        # Older anchors may lack design_hash: fall back to the report they
+        # point at, otherwise a completed project reports phantom design drift.
+        if not audited_design and report:
+            audited_design = report.get("design_hash")
         code_same = audited == current_fp
         design_same = (not audited_design) or audited_design == current["design_hash"]
         if code_same and design_same:
@@ -104,9 +116,8 @@ def detect_drift(project: Project) -> dict[str, Any]:
                 state="clean", reason="in_sync", baseline=audited, current=current_fp
             )
 
-        # Use the report that actually produced the audited state (text or llm),
-        # otherwise `changed` stays empty in the default text+llm flow.
-        report = _audited_report(gate, state) or gate.latest_llm() or gate.latest_passing()
+        # `report` was resolved above so it can also supply the hashes;
+        # without it `changed` would stay empty in the default text+llm flow.
         audited_hashes = _parse_hashes((report or {}).get("file_hashes"))
 
         # Did the *design* move with the code? Prefer the hash recorded with the

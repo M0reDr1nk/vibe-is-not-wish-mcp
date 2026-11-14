@@ -68,7 +68,7 @@ So the process is a directory tree, state transitions are tool calls, the change
    Every ascent records `from_layer`, `to_layer`, `to_baseline`, `reason`, and the before/after descent numbers. Every change records intent before the modification. Nothing important is silently overwritten; even `force=true` leaves a `[force]` trace in the baseline reason.
 
 4. **Gates over goodwill.**
-   "Please remember to check" is not a control. `se_can_descend` refuses while a blocking confirmation is open; design-review gates default to blocking; L4 cannot be baselined or left without a passing consistency state; unresolved audit escalations block the gate. The TUI and `se_get_next_steps` surface the block instead of letting it disappear into a chat message. (The supported path is to check `se_can_descend` before descending; like any advisory API, it cannot stop a caller that ignores it.)
+   "Please remember to check" is not a control. `se_can_descend` refuses while a blocking confirmation is open; design-review gates default to blocking; L4 cannot be baselined or descended from without a passing consistency state; unresolved audit escalations block the gate. The TUI and `se_get_next_steps` surface the block instead of letting it disappear into a chat message. (The supported path is to check `se_can_descend` before descending; like any advisory API, it cannot stop a caller that ignores it.)
 
 5. **Evidence before design.**
    L2 is not a literature-review decoration. It forces references, an evidence matrix, and a synthesis whose conclusions become constraints on L3. "I like this stack" is not an argument; "this stack wins on these weighted criteria, and here is the measurement" is.
@@ -95,19 +95,19 @@ So the process is a directory tree, state transitions are tool calls, the change
 
 ## Self-hosting Record
 
-**Statistics snapshot: commit `d484fd6`** (2026-11-14 12:43 +08:00). At this commit the test suite reports `274 passed`.
+**Statistics snapshot: commit `830a5c2`** (2026-11-14 12:47 +08:00). At this commit the test suite reports `275 passed`.
 
-VINW's own implementation is its longest-running test case. As of this commit, **66 design/code deviations had been intercepted and recorded**:
+VINW's own implementation is its longest-running test case. As of this commit, **67 design/code deviations had been intercepted and recorded**:
 
-| Type | Count | Representative example |
-|------|------:|------------------------|
-| `impl_bug` | 48 | `ensure()` re-anchored the audited fingerprint even when the text re-check failed, so a rejected transition could be retried successfully. |
-| `design_gap` | 14 | Drift detection and `heal_drift` were implemented and sitting in the gate path before L3 had any contract for them. |
-| `design_bug` | 2 | The design described two mutually exclusive triage routes: append a triage section to PROMPT v3, or expose a separate `se_triage_prompt` tool. |
-| `ambiguous` | 2 | The execution position of `heal_drift` (before or after the guards) was undefined; both readings were defensible. |
-| **Total** | **66** | |
+| Type | Count | Description | Representative example |
+|------|------:|-------------|------------------------|
+| `impl_bug` | 49 | Code contradicts or omits something the approved design already specifies. | `ensure()` re-anchored the audited fingerprint even when the text re-check failed, so a rejected transition could be retried successfully. |
+| `design_gap` | 14 | Code implements real behavior that the design never specified; the design has to catch up. | Drift detection and `heal_drift` were implemented and sitting in the gate path before L3 had any contract for them. |
+| `design_bug` | 2 | The design itself is wrong, internally inconsistent, or contradicts behavior the implementation needs. | The design described two mutually exclusive triage routes: append a triage section to PROMPT v3, or expose a separate `se_triage_prompt` tool. |
+| `ambiguous` | 2 | The design is silent and either reading is defensible; a human must choose the intended behavior. | The execution position of `heal_drift` (before or after the guards) was undefined; both readings were defensible. |
+| **Total** | **67** | — | — |
 
-**Counting basis.** 46 findings come from the three triage-tagged audit reports (`report-7474b697`, `report-f454649b`, `report-954217cd`), where each entry carries a classification and confidence. The remaining 20 come from the later reviewer4/reviewer6/reviewer7/reviewer8 fix tables. Rounds are counted separately, so a conceptual issue re-found by a later reviewer can appear twice; this is an audit-record count, not a deduplicated defect count. Process-only violations and development-time self-checks are excluded.
+**Counting basis.** 46 findings come from the three triage-tagged audit reports (`report-7474b697`, `report-f454649b`, `report-954217cd`), where each entry carries an explicit classification and confidence. The remaining 21 come from the later reviewer4/reviewer6/reviewer7/reviewer8/reviewer9 fix tables, classified from their fix descriptions. Rounds are counted separately, so a conceptual issue re-found by a later reviewer can appear twice; this is an audit-record count, not a deduplicated defect count. Process-only violations and development-time self-checks are excluded. Later commits are not included in this snapshot.
 
 The full evidence lives in [`vinw-design/L4-编码实现/consistency-reports/`](vinw-design/L4-编码实现/consistency-reports/) and the append-only [changelog](vinw-design/.vinw/changelog.md).
 
@@ -398,7 +398,7 @@ The same state is visible from three surfaces: the TUI for humans, MCP tools for
 .venv/bin/vinw tui ./projects/my-app  # by path
 ```
 
-The TUI is **read-only**. It polls the project files every **2 seconds**, so it can stay open in a second terminal while an agent works. It never writes, never blocks the agent, and if a file is caught mid-write it keeps the last good render and shows the error instead of crashing.
+The TUI does not modify project documents or workflow state. It polls the project files every **2 seconds**, so it can stay open in a second terminal while an agent works. It never blocks the agent; the only write it makes is the registry's last-accessed timestamp when you switch projects. If a file is caught mid-write, it keeps the last good render and shows the error instead of crashing.
 
 **Keys**
 
@@ -525,7 +525,7 @@ human decision is pending, quote the gate id and the exact decision you need.
 
 The TUI and MCP tools are designed to run at the same time:
 
-- The TUI **reads**; MCP tools **write**. The TUI cannot corrupt the workflow.
+- The TUI **reads project state**; MCP tools **write it**. The TUI cannot corrupt the workflow.
 - The TUI refreshes every 2 seconds, so it usually shows a new state before the agent's summary arrives.
 - The agent sees the same facts through `se_get_project`, so the human and the agent cannot tell two different stories about the same layer.
 - If the TUI and the agent disagree, `manifest.md` wins. Ask the agent to read it directly.

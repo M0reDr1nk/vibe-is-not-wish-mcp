@@ -393,6 +393,7 @@ class ConsistencyGate:
                 or consistency.get("code_fingerprint"),
                 "design_hash": meta.get("design_hash")
                 or consistency.get("design_hash"),
+                # (never overwrite an existing anchor with a missing value)
             }
         )
         entry["consistency"] = consistency
@@ -418,16 +419,16 @@ class ConsistencyGate:
         # Merge: llm_verdict / tooling_discrepancy are written by other code
         # paths and must survive a text re-check.
         existing = entry.get("consistency") or {}
-        existing.update(
-            {
-                "report_id": meta.get("report_id"),
-                "overall": overall,
-                "descent": meta.get("descent"),
-                "checked_at": meta.get("checked_at"),
-                "code_fingerprint": meta.get("code_fingerprint"),
-                "design_hash": meta.get("design_hash"),
-            }
-        )
+        anchor = {
+            "report_id": meta.get("report_id"),
+            "overall": overall,
+            "descent": meta.get("descent"),
+            "checked_at": meta.get("checked_at"),
+            "code_fingerprint": meta.get("code_fingerprint"),
+            "design_hash": meta.get("design_hash"),
+        }
+        # Never let a report missing a field erase an existing anchor value
+        existing.update({k: v for k, v in anchor.items() if v is not None})
         entry["consistency"] = existing
         manifest["layer_states"] = states
         self.project.write_manifest(manifest)

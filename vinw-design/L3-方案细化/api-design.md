@@ -772,6 +772,14 @@ v0.14 只在 **L4→L5** 与 **项目完成前** 校验"审核结论是否匹配
 
 否则一律返回可执行的审核 prompt。`ignore_fresh` 用于"必须重新审一遍"的场景。
 
+### 锚点写入契约（v0.15 补充）
+
+- 三处写入点（`_record_state` / `record_llm_state` / `sync_audited_state`）**不得用 None 覆盖既有值**：
+  报告缺某字段时保留锚点原值
+- 读取侧（`detect_drift`）在锚点缺 `design_hash` 时，回退到**锚点所指向的报告**的 `design_hash`；
+  仅当两者都缺才按"设计未知"处理
+- 理由：历史锚点可能由旧版本写入而缺字段，若不回退，已完成的工程会永久报告 `design_changed_since_audit`
+
 ### 失败重审不得锚定（v0.15 补充）
 
 `ensure()` 生成报告后：`overall == passed` 才刷新 `consistency.code_fingerprint/design_hash`；

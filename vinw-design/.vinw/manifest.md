@@ -147,11 +147,12 @@ layer_states:
       report_id: 65ded222
     baselined_at: '2026-11-14T04:54:06.768357+00:00'
     consistency:
-      checked_at: '2026-11-14T04:54:06.762458+00:00'
-      code_fingerprint: c09508d828bb04f4e7664713904be5948356971e58becd6e6da268c3a4cd77dd
+      checked_at: '2026-11-14T04:58:42.653988+00:00'
+      code_fingerprint: 65bf40b0a59eeaefd1d588296c4534e99fa9dec69779108725de60e3d50c4c4e
       descent: 14
+      design_hash: 1a53c08d049fb3582957a3bb231e611b25c62b041bab03e76936b6447957f27b
       overall: passed
-      report_id: 1fc249d1
+      report_id: 7fb70fab-01
     descent_count: 13
     latest_baseline: v013
     status: baselined
