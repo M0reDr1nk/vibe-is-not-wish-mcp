@@ -382,3 +382,45 @@ class TestClarificationTui:
         )
         assert cfm["resolution"] == "assume-ok"
         assert cfm["corrected"] is False
+
+
+class TestTodoStaleness:
+    """User report: completed work still showed as pending because a
+    baselined layer's todo list is never revisited."""
+
+    def test_stale_todos_are_separated(self, proj):
+        from rich.console import Console
+
+        from vinw.store.project import replace_todo_section
+        from vinw.tui.app import build_mid_panel
+
+        manifest = proj.read_manifest()
+        manifest["current_descent"] = 5
+        proj.write_manifest(manifest)
+
+        # 旧轮次写下的待办（descent 1），其中含未完成项
+        readme = proj.read_layer_readme("L1-需求拆解")
+        proj.write_layer_readme(
+            "L1-需求拆解",
+            {**readme, "todo_descent": 1},
+            replace_todo_section(
+                readme["content"], "## 当前待办\n\n- [ ] 旧轮次遗留项"
+            ),
+        )
+        # 本轮待办
+        readme2 = proj.read_layer_readme("L2-参考文献与方案搜证汇总")
+        proj.write_layer_readme(
+            "L2-参考文献与方案搜证汇总",
+            {**readme2, "todo_descent": 5},
+            replace_todo_section(
+                readme2["content"], "## 当前待办\n\n- [x] 本轮已完成项"
+            ),
+        )
+
+        console = Console(width=140, record=True)
+        console.print(build_mid_panel(proj, proj.read_manifest()))
+        text = console.export_text()
+
+        assert "本轮已完成项" in text
+        assert "旧轮次遗留项" not in text      # 旧轮次不混进本轮列表
+        assert "旧轮次未完成项" in text        # 但会提示存在历史残留

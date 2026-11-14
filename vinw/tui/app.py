@@ -28,7 +28,11 @@ def build_mid_panel(project, manifest) -> Panel:
     Extracted from the Textual render path so tests can assert on the actual
     rendered text without reaching into Textual internals (R33-1).
     """
-    todos = project.get_todos()
+    todos_all = project.get_todos()
+    current_descent = manifest.get("current_descent", 1)
+    # v0.19：陈旧待办（旧轮次写、从未更新）单独归类，避免"已完成却仍显示未做"
+    todos = [t for t in todos_all if t.get("descent") == current_descent]
+    stale = [t for t in todos_all if t.get("descent") != current_descent]
     pending = manifest.get("pending_confirmations", [])
 
     table = Table(show_header=True, header_style="bold magenta", expand=True)
@@ -94,11 +98,18 @@ def build_mid_panel(project, manifest) -> Panel:
         style = "green" if t["done"] else "white"
         table.add_row(t["layer"], str(t["descent"]), status, t["text"], style=style)
 
+    if stale:
+        table.add_row(
+            "历史轮次", "—", "🕘",
+            f"共 {len(stale)} 条旧轮次未完成项（可能已完成但未更新，按 r 刷新前请核对）",
+            style="dim",
+        )
+
     done_count = sum(1 for t in todos if t["done"])
     mid_content = Panel(
         table if (todos or open_gates) else Text("暂无待办", style="dim"),
         title=(
-            f"📋 待办 {done_count}/{len(todos)} 已完成 · "
+            f"📋 本轮待办 {done_count}/{len(todos)} · 历史 {len(stale)} · "
             f"🔒 阻塞 {len(blocking_gates)} · 🔓 待审阅 {len(review_gates)}"
         ),
         border_style="red" if blocking_gates else "blue",
@@ -106,7 +117,7 @@ def build_mid_panel(project, manifest) -> Panel:
     return Panel(
         table if (todos or open_gates) else Text("暂无待办", style="dim"),
         title=(
-            f"📋 待办 {done_count}/{len(todos)} 已完成 · "
+            f"📋 本轮待办 {done_count}/{len(todos)} · 历史 {len(stale)} · "
             f"🔒 阻塞 {len(blocking_gates)} · 🔓 待审阅 {len(review_gates)}"
         ),
         border_style="red" if blocking_gates else "blue",
