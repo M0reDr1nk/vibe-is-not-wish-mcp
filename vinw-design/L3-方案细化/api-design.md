@@ -891,3 +891,74 @@ TUI 选择器的数据源是「注册表 + 当前工作目录工程」，因此*
 
 - 自动登记会产生"创建即登记"的副作用；用户若想要临时工程，需显式 `register=false`
 - 不实现「扫描发现未登记工程」（B 方案）：需要遍历目录，慢盘成本高，且与"注册表即事实源"的设计冲突
+
+---
+
+# v0.17 澄清选项与进程防护（descent-16 / asc-015）
+
+## 一、R31：带参考选项的澄清请求
+
+### 选项结构扩展（兼容性红线）
+
+`se_require_confirmation` 的 `options` 参数向后兼容：仍接受 `["approve","reject","modify"]` 字符串数组；
+新增支持对象数组，每项：
+
+```json
+{"id": "opt-perf", "label": "性能优先", "description": "接受宏内核复杂度", "impact": "可读性下降，1024³ 预计 +40%"}
+```
+
+- `id`：稳定标识（resolution 用）
+- `label`：短标签（TUI 按钮文字）
+- `description`：参考方向说明（可选）
+- `impact`：取舍影响（可选）
+
+### 新工具：`se_request_clarification`
+
+```
+se_request_clarification(
+  question: str,            # 歧义点描述（必填）
+  layer: str,               # 所在层级（必填，如 "L3-方案细化"）
+  context: str = "",        # 背景/为什么需要确认
+  options: str = "[]",      # 参考选项 JSON 数组（≥2，结构如上；自动追加 {"id":"other","label":"其他（请说明）"}）
+  blocking: bool = false,   # 是否阻塞当前层推进（默认否）
+  recommendation: str = ""  # 发起方的推荐选项 id 与理由（可选）
+) -> {confirmation_id, status: "pending"}
+```
+
+- item_type 固定为 `"clarification"`，写入 manifest.pending_confirmations（复用既有存储、purge、changelog 语义）
+- blocking=true 时参与既有一致性门控的 blocking_pending 统计
+
+### 裁决扩展：`se_resolve_confirmation`
+
+`resolution` 允许直接填**选项 id**（如 `"opt-perf"`）；选择选项时 `feedback` 可选（补充说明），
+选择 `"other"` 时 `feedback` 必填。裁决记录写入 changelog：`{question, chosen_option, feedback}`。
+
+### TUI 呈现
+
+确认面板中 clarification 类型的问题展开显示：context、各选项的 label+description+impact、
+推荐项标记（★推荐）。键盘：数字键选择选项 / a拒绝 / m修改。选中后写入 resolution。
+
+## 二、R30：进程陈旧防护
+
+### server_version（AC1）
+
+- `vinw/__init__.py` 暴露 `__commit__`：构建/启动时取 `git rev-parse HEAD`（失败则为 `"unknown"`）
+- `se_get_project` 响应与 server 启动日志均带 `server_version`
+- TUI（AC2）：启动时读仓库 HEAD 与 `se_get_project.server_version` 对比，不符则 header 显示
+  `⚠ server 代码陈旧（启动于旧版本）——请重启 MCP server`
+
+### design_hash_algo（AC4）
+
+- 报告 frontmatter 与 manifest consistency 均写 `design_hash_algo: "layer-v1"`（当前算法）
+- `freshness` / `llm_matches_current`：报告缺该字段或值不符 → 视为 stale（fail-closed，同 design_hash 缺失语义）
+- 算法升级时递增版本号，旧报告自然失效
+
+## 三、R32 边界
+
+decision_bias 本轮**不进设计**（L2 调研已定结论：混合形态、问卷 v1、规则映射）；实现另行立项。
+
+## 版本历史补记
+
+| 版本 | 下降轮 | 内容 |
+|------|--------|------|
+| v0.17 | descent-16 | 澄清选项结构、se_request_clarification、server_version、design_hash_algo |
