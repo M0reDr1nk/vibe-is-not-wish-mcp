@@ -1,6 +1,7 @@
 """Smoke tests for the TUI (headless via textual run_test)."""
 
 import asyncio
+import pathlib
 import shutil
 
 import pytest
@@ -8,8 +9,10 @@ import pytest
 from textual.widgets import Static
 
 from vinw.store.project import Project
+from vinw.workflow.state_machine import WorkflowEngine
 from vinw.tui.app import SEApp
 from vinw.tui.selector import ProjectSelector
+from vinw.workflow.state_machine import WorkflowEngine
 
 
 @pytest.fixture
@@ -424,3 +427,116 @@ class TestTodoStaleness:
         assert "本轮已完成项" in text
         assert "旧轮次遗留项" not in text      # 旧轮次不混进本轮列表
         assert "旧轮次未完成项" in text        # 但会提示存在历史残留
+
+
+class TestDriftInvalidatesHigherLayers:
+    """User report: only L4 showed design lag while L5-L7 stayed green."""
+
+    def test_layers_above_code_are_marked_invalid(self, proj):
+        from vinw.store.project import replace_todo_section
+        from vinw.workflow.consistency_gate import ConsistencyGate
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        # 造出"全部基线化 + L7 完成"的历史，再让代码漂移
+        for layer in ("L1-需求拆解", "L2-参考文献与方案搜证汇总"):
+            readme = proj.read_layer_readme(layer)
+            proj.write_layer_readme(
+                layer,
+                readme,
+                replace_todo_section(readme["content"], "## 当前待办\n\n- [x] done"),
+            )
+        ConsistencyGate(proj).ensure()
+        manifest = proj.read_manifest()
+        manifest["layer_states"] = {
+            l: {"status": "baselined", "latest_baseline": "v001"} for l in manifest["layer_states"]
+        }
+        manifest["layer_states"]["L7-终验"] = {"status": "completed"}
+        manifest["current_layer"] = "L7-终验"
+        proj.write_manifest(manifest)
+
+        (proj.root / "main.py").write_text("def main():\n    return 99\n")
+        ConsistencyGate(proj).ensure()      # 建立审计锚点
+        (proj.root / "main.py").write_text("def main():\n    return 123\n")  # 再漂移
+
+        from vinw.workflow.drift import detect_drift
+
+        assert detect_drift(proj)["state"] in ("design_lag", "drifted", "design_synced")
+
+        # 渲染代码中 L5/L6/L7 有"依据失效"标记（纯绿不再成立）
+        import vinw.tui.app as tui
+
+        src = pathlib.Path(tui.__file__).read_text()
+        assert "依据失效：代码已变更" in src
+
+
+class TestBottomPanelInfo:
+    """User report: the bottom panel dumped raw changelog tables and said little."""
+
+    def test_recent_changes_are_structured(self, proj):
+        from vinw.tui.app import build_recent_changes
+
+        WorkflowEngine(proj).baseline("L1-需求拆解", "首个基线", force=True)
+        rows = build_recent_changes(proj, limit=3)
+        assert rows, "应解析出至少一条变更"
+        when, label, summary = rows[0]
+        assert when, "应解析出时间"
+        assert label == "基线"
+        assert "首个基线" in summary
+
+    def test_next_action_prefers_drift(self, proj):
+        from vinw.tui.app import next_action
+        from vinw.workflow.consistency_gate import ConsistencyGate
+        from vinw.workflow.drift import detect_drift
+
+        ConsistencyGate(proj).ensure()
+        (proj.root / "main.py").write_text("def main():\n    return 7\n")
+        manifest = proj.read_manifest()
+        manifest["layer_states"]["L7-终验"] = {"status": "completed"}
+        severity, action = next_action(manifest, detect_drift(proj))
+        assert severity == "red"
+        assert "se_ascend" in action
+
+    def test_next_action_when_layer_in_progress(self, proj):
+        from vinw.tui.app import next_action
+
+        manifest = proj.read_manifest()
+        manifest["layer_states"]["L1-需求拆解"] = {"status": "in_progress"}
+        manifest["current_layer"] = "L1-需求拆解"
+        severity, action = next_action(manifest, {"state": "clean"})
+        assert "se_baseline" in action
+
+
+class TestBottomPanelContent:
+    """User report: the bottom bar had almost no information about recent changes."""
+
+    def test_bottom_panel_shows_structured_changes_and_next_action(self, proj):
+        from rich.console import Console
+
+        from vinw.tui.app import build_bottom_panel
+        from vinw.workflow.drift import detect_drift
+
+        WorkflowEngine(proj).baseline("L1-需求拆解", "首个基线", force=True)
+        manifest = proj.read_manifest()
+        console = Console(width=120, record=True)
+        console.print(
+            build_bottom_panel(
+                proj, manifest, detect_drift(proj),
+                manifest.get("current_descent", 1), manifest.get("current_layer"),
+            )
+        )
+        text = console.export_text()
+        assert "下一步:" in text
+        assert "[基线]" in text          # 变更类型被翻译
+        assert "首个基线" in text        # 原因是可读摘要
+        assert "chg-" not in text        # 不再倾倒原始 changelog 块
+
+    def test_next_action_reports_blocking_clarifications(self, proj):
+        from vinw.tui.app import next_action
+
+        manifest = proj.read_manifest()
+        manifest["pending_confirmations"].append(
+            {"id": "cfm-x", "item_type": "clarification",
+             "blocking": True, "question": "q", "resolved_at": None}
+        )
+        severity, action = next_action(manifest, {"state": "clean"})
+        assert severity == "red" and "澄清" in action

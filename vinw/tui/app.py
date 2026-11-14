@@ -124,6 +124,98 @@ def build_mid_panel(project, manifest) -> Panel:
     )
 
 
+_CHANGE_STYLE = {
+    "baseline": ("green", "基线"),
+    "descend": ("cyan", "下降"),
+    "ascend": ("red", "上升"),
+    "auto-audit": ("yellow", "自动重审"),
+    "alignment": ("magenta", "澄清对齐"),
+    "assumption-taken": ("yellow", "按假设推进"),
+    "repair": ("magenta", "状态修复"),
+    "complete": ("bold green", "完成"),
+    "force-baseline": ("red", "强制基线"),
+}
+
+
+def build_recent_changes(project, limit: int = 5) -> list[tuple[str, str, str]]:
+    """Parse the changelog into (time, kind_label, summary) rows."""
+    import re
+
+    path = project.vinw_dir / "changelog.md"
+    if not path.exists():
+        return []
+    content = path.read_text(encoding="utf-8")
+    blocks = re.split(r"\n## (chg-\S+)", content)
+    rows: list[tuple[str, str, str]] = []
+    for i in range(1, len(blocks), 2):
+        body = blocks[i + 1] if i + 1 < len(blocks) else ""
+        kind = scope = reason = ""
+        for line in body.splitlines():
+            if line.startswith("| **变更类型**"):
+                kind = line.split("|")[2].strip().strip("` ")
+            elif line.startswith("| **范围**"):
+                scope = line.split("|")[2].strip().strip("` ")
+            elif line.startswith("| **原因**"):
+                reason = line.split("|")[2].strip()
+        when = ""
+        m = re.search(r"\[(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})", body)
+        if m:
+            when = f"{m.group(1)[5:]} {m.group(2)}"
+        label = _CHANGE_STYLE.get(kind, ("dim", kind or "变更"))[1]
+        rows.append((when, label, (reason or scope)[:90]))
+    return rows[-limit:][::-1]
+
+
+def next_action(manifest, drift) -> tuple[str, str]:
+    """One-line 'what should happen next', derived from the real state."""
+    layers = manifest.get("layer_states", {})
+    current = manifest.get("current_layer", "")
+    state = (drift or {}).get("state")
+    l7 = layers.get("L7-终验", {}).get("status")
+    pending = [
+        c for c in manifest.get("pending_confirmations", [])
+        if not c.get("resolved_at")
+    ]
+    blocking = [c for c in pending if c.get("blocking")]
+
+    if l7 == "completed" and state not in (None, "clean"):
+        return ("red", "完成态已被改动 → se_ascend 回对应层补齐流程")
+    if state == "design_lag":
+        return ("red", "实现先于设计 → se_ascend 回 L3 补设计")
+    if state in ("drifted", "design_synced"):
+        return ("yellow", "工作区已漂移 → 重跑 se_check_consistency 并提交审核")
+    if blocking:
+        return ("red", f"{len(blocking)} 条阻塞澄清待裁决（按 1-9 选选项 / y 确认假设）")
+    if layers.get(current, {}).get("status") == "in_progress":
+        return ("yellow", f"当前层进行中 → 完成后 se_baseline({current})")
+    if layers.get(current, {}).get("status") == "baselined":
+        return ("green", "当前层已冻结 → se_descend 进入下一层")
+    return ("dim", "按 se_get_next_steps 推进")
+
+
+def build_bottom_panel(project, manifest, drift, descent, current) -> Panel:
+    """Bottom panel: structured recent changes + the single next action."""
+    recent_rows = build_recent_changes(project, limit=5)
+    lines = []
+    for when, label, summary in recent_rows:
+        style = next((st for st, lb in _CHANGE_STYLE.values() if lb == label), "dim")
+        lines.append(
+            Text.assemble((f"{when}  ", "dim"), (f"[{label}] ", style), (summary, ""))
+        )
+
+    sev, action = next_action(manifest, drift)
+    body = Text("\n").join(lines) if lines else Text("无变更记录", style="dim")
+    return Panel(
+        Text.assemble(("下一步: ", "bold"), (action, sev))
+        + Text("\n\n")
+        + Text("最近变更:", style="bold dim")
+        + Text("\n")
+        + body,
+        title=f"📝 下一步 · 最近 {len(recent_rows)} 条变更（descent-{descent} @ {current}）",
+        border_style="red" if sev == "red" else ("yellow" if sev == "yellow" else "blue"),
+    )
+
+
 class SEApp(App):
     """Main TUI application for SE-MCP."""
 
@@ -390,6 +482,15 @@ class SEApp(App):
                 icon, color = "○", "dim"
                 extra = ""
 
+            drift_active = drift.get("state") not in (None, "clean")
+            if (
+                drift_active
+                and layer in ("L5-测试验证", "L6-检视清理", "L7-终验")
+                and status in ("baselined", "completed")
+            ):
+                icon, color = "⚠", "yellow"
+                extra = " [依据失效：代码已变更]"
+
             is_current_layer = layer == current
             if is_current_layer:
                 # Current layer is always the brightest element
@@ -445,6 +546,21 @@ class SEApp(App):
             Columns(layers_render, equal=True),
             Text(""),
         ]
+        if (
+            layer_states.get("L7-终验", {}).get("status") == "completed"
+            and drift.get("state") not in (None, "clean")
+        ):
+            blocks.append(
+                Panel(
+                    Text.from_markup(
+                        "⚠ [bold]完成态已被改动[/bold]：终验后工作区指纹变化，"
+                        "L5/L6/L7 的通过依据已失效。\n"
+                        "   处置：se_ascend 回到对应层补齐设计/实现，再重新下降"
+                    ),
+                    border_style="red",
+                )
+            )
+
         if drift.get("state") == "design_lag":
             children.append(
                 Panel(
@@ -534,10 +650,8 @@ class SEApp(App):
                 )
             )
 
-        bottom_content = Panel(
-            Text("\n").join(hints) + Text("\n\n") + Text(recent, style="dim"),
-            title="📝 状态与最近变更",
-            border_style="yellow",
+        bottom_content = build_bottom_panel(
+            self.project, manifest, drift, descent, current
         )
         self.query_one("#bottom-content", Static).update(bottom_content)
 

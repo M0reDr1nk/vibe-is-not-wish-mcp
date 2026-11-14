@@ -167,6 +167,16 @@ def _split_pending(pending: list[dict]) -> tuple[list[dict], list[dict]]:
     return blocking, review
 
 
+def _drift_with_flag(proj, manifest) -> dict:
+    """drift payload + completed-but-dirty flag (shared by server and TUI)."""
+    drift = detect_drift(proj)
+    completed_dirty = (
+        manifest.get("layer_states", {}).get("L7-终验", {}).get("status") == "completed"
+        and drift.get("state") not in (None, "clean")
+    )
+    return {**drift, "completed_dirty": completed_dirty}
+
+
 def _project_or_error(project: str | None) -> tuple[Project | None, str | None]:
     """Resolve a tool's optional `project` argument.
 
@@ -283,7 +293,8 @@ def se_get_project(project: str | None = None) -> str:
             "blocking_pending": blocking_pending,
             "pending_review": pending_review,
             "consistency": _consistency_state(proj),
-            "drift": detect_drift(proj),
+            "drift": _drift_with_flag(proj, manifest),
+            "completed_dirty": _drift_with_flag(proj, manifest)["completed_dirty"],
             "pending_confirmations": manifest.get("pending_confirmations", []),
         },
         ensure_ascii=False,
