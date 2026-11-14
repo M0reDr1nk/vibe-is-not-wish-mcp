@@ -1,26 +1,26 @@
 ---
 baseline_reason: descent-14 L3 v0.16：全阶段审计契约（任何转换漂移后必须出示匹配当前设计与代码的结论）
-baseline_version: v018
-baselined_at: '2026-11-14T06:01:19.777322+00:00'
+baseline_version: v019
+baselined_at: '2026-11-14T09:45:31.584601+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
 rolled_back_at: '2026-11-14T05:07:28.906056+00:00'
 rolled_back_from: v016
 se_version: '2.0'
-status: superseded
-todo_descent: 10
+status: baselined
+todo_descent: 17
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [x] 接口设计 v0.1~v0.9（自举/一致性门控/多项目/SQLite/待审呈现）
-- [x] v0.10：符号提取模块 symbols.py 契约 + 语言规则表
-- [x] v0.10：TextConsistencyChecker 改造（扩展名/空扫描报错/双语交集）
-- [x] v0.10：门控异常分类（PlaceholderTodoError / ConsistencyGateError）
-- [ ] 等待审批 → 基线 L3 → 下降 L4
+- [x] 定义 impact×reversibility 分级与自动阻塞规则
+- [x] 定义 assumption-taken 留痕字段与复查点
+- [x] 定义 se_clarification_brief 契约与分组
+- [x] 定义队列升级与优先级顺序
+- [x] 定义门控衔接（AC4）
 ## 阶段小结
 
 （阶段完成时填写）

@@ -1,23 +1,22 @@
 ---
-baseline_version: v013
-baselined_at: '2026-11-14T07:20:29.063301+00:00'
+baseline_version: v014
+baselined_at: '2026-11-14T09:45:55.329131+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
-status: superseded
-todo_descent: 9
+status: baselined
+todo_descent: 17
 ---
 
 # L6-检视清理
 
 ## 当前待办
 
-- [x] 死代码删除：gate.py（GateManager 无引用）
-- [x] 未使用导入清理（consistency_gate/consistency_llm）
-- [x] 文档同步（L3 v0.9/L4/L5）
-- [x] 最终一致性检查（126 测试通过，门控自动校验 passed）
-- [x] L6 基线化 → 下降到 L7
+- [x] 移除 changelog 文本解析（改读 manifest）
+- [x] 修复 markdown 表格分隔符
+- [x] README 工具数与工具表同步
+- [x] 316/316 复验
 
 ## 阶段小结
 

@@ -285,3 +285,31 @@ updated_at: "2026-11-13T10:02:19.675591"
 | force 基线无可辨识痕迹 | reason 加 `[force]` 前缀 |
 | 漂移基线回退/结论复用规则未进设计 | v0.15 补三节：回退顺序、复用三条件、失败不锚定 |
 | design_lag 与 config_error 判定顺序与文档不符 | 文档改为 design_lag 优先，并说明 hint |
+
+## descent-17 实现：澄清 harness（v0.18 / R34）
+
+### 改动
+
+| 组件 | 内容 |
+|------|------|
+| `se_request_clarification` | 新增 `impact`/`reversibility`；`blocking` 改为可选（None → 自动推导 `high && irreversible`）；同主题未裁决达 2 条 → 第 3 条强制阻塞并标 `escalated` |
+| assumption-taken 留痕 | 非阻塞时写 changelog（问题/假设/**偏离**/影响/可逆/复查点），分隔符用中文分号避免破坏 markdown 表格 |
+| `se_clarification_brief`（新） | 一次性汇总 blocking/queued/assumptions_taken；**从 manifest 结构化读取**（不解析 changelog） |
+| 引擎门控 | `baseline`/`descend` 新增阻塞澄清守卫（`_assert_no_blocking_clarifications`），与 complete 一致；TUI/MCP 共用 |
+| 层转换返回体 | 注入 `pending_clarifications: {blocking, queued}` |
+
+### 评审驱动的修正（reviewer18，11 项）
+
+| 发现 | 修正 |
+|------|------|
+| brief 返回 changelog 原始行、每条重复两次（critical） | 改读 manifest 记录，按 descent 过滤、去重 |
+| AC4 承诺 blocking 阻断 baseline/descend，实际只有 complete 阻断（critical） | 引擎层新增守卫，AC4 字面成立 |
+| `summary.assumptions` 与数组长度不一致 | 条目计数 |
+| 队列升级 warning 被 repeat_warning 覆盖 | 合并为 `/` 连接 |
+| 显式 blocking 与队列升级优先级未定义 | 设计写明 auto < explicit < escalation |
+| README 仍写 38 工具 | 改 39 并补 3 个澄清工具 |
+| from_finding 不透传分级 | 已透传，blocking 留空以触发自动推导 |
+
+### 测试
+
+316/316（+7：真值表、非法值、显式覆盖、brief 结构、门控集成、非阻塞不阻断、转换计数）

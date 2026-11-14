@@ -394,3 +394,23 @@ descent-13/14 共进行 11 轮独立 reviewer 审计，累计发现 70+ 项问�
 
 descent-16 进行 2 轮独立评审（reviewer14 设计定稿前、reviewer15 实现后），累计 23 项发现全部处置
 （19 修复 / 4 记入 R33 backlog）。
+
+## descent-17 round 1（澄清 harness v0.18，2026-11-14）
+
+| 指标 | 值 |
+|------|-----|
+| 总用例数 | 316 |
+| 通过 | 316 |
+| 增量 | +9（303 → 316，含 reviewer18 后补的 7 例） |
+| 工具数 | 39（+1：se_clarification_brief） |
+
+### 按 AC 覆盖
+
+| AC | 用例 |
+|----|------|
+| AC1 分级字段 | `test_truth_table`、`test_invalid_reversibility_rejected` |
+| AC2 自动阻塞 | 真值表四组合（high+irr → blocking；其余不阻塞） |
+| AC3 批量呈报 | `test_brief_returns_structured_entries` |
+| AC4 门控 | `test_blocking_clarification_blocks_baseline_and_descend`、`test_non_blocking_does_not_block` |
+| AC5 留痕 | `test_low_impact_queues_and_records_assumption` |
+| AC6 队列升级 | `test_queue_escalates_after_two_pending` |

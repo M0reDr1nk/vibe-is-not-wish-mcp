@@ -1,15 +1,15 @@
 ---
 baseline_reason: descent-16 L1 v006：R31 泛化歧义确认（带参考选项，P1）+ R32 decision_bias 调研（P2）+
   R30 防护 AC
-baseline_version: v006
-baselined_at: '2026-11-14T05:42:59.735100+00:00'
+baseline_version: v007
+baselined_at: '2026-11-14T09:45:08.274465+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L1-需求拆解
 rolled_back_at: '2026-11-14T09:18:33.480533+00:00'
 rolled_back_from: v006
 se_version: '2.0'
-status: in_progress
+status: baselined
 todo_descent: 12
 ---
 

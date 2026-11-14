@@ -5,15 +5,15 @@ doc_type: "final-report"
 status: "in_progress"
 ---
 
-# 终验报告 — VINW（descent-16，澄清对齐与进程防护版）
+# 终验报告 — VINW（descent-17，澄清 harness 版）
 
 ## 项目信息
 
 | 字段 | 值 |
 |------|-----|
 | 项目名称 | vinw-self-design |
-| 下降轮次 | descent-1 ~ descent-16 |
-| 上升次数 | 15（asc-001 ~ asc-015） |
+| 下降轮次 | descent-1 ~ descent-17 |
+| 上升次数 | 16（asc-001 ~ asc-016） |
 | 终验时间 | 2026-11-13 |
 | 版本 | 0.2.0 |
 
@@ -48,6 +48,7 @@ status: "in_progress"
 | asc-013 | L5 → L3(v015) | 用户裁定 A：审计结论须匹配当前设计与代码，且覆盖所有阶段转换 |
 | asc-014 | L7 → L3(v016) | backlog 3：新建工程不写注册表，TUI 选择器不可见 |
 | asc-015 | L7 → L1(v005) | R30 进程陈旧防护 + R31 泛化歧义确认（带参考选项）+ R32 decision_bias 方案调研 |
+| asc-016 | L7 → L1(v006) | R34：R31 澄清从「同步阻塞逐个问」升级为 harness 式（按影响分级 + 队列 + 断点批量呈报） |
 
 ## descent-4 交付内容（asc-003）
 
@@ -264,6 +265,24 @@ L2 产出调研：形态对比（自由 prompt / 结构化问卷 / 混合）、*
 
 八份独立审计报告机器计数、同内容重复存档按内容哈希去重。
 
+## descent-17 交付内容（asc-016 / R34：澄清 harness）
+
+用户提出：「R31 在更多场景下可以优化成 harness 下的询问，而不都是直接停下来。」
+
+| 改造 | 内容 |
+|------|------|
+| 分级 | `se_request_clarification` 新增 `impact`（high/medium/low）× `reversibility`（reversible/irreversible） |
+| 自动阻塞 | `blocking` 未指定时自动推导：**high + irreversible → 立即停**；其余 → 入队，agent 带假设继续 |
+| 留痕 | 非阻塞澄清写 `assumption-taken`：问题/假设/**偏离**/影响/可逆/复查点（本层结束） |
+| 批量呈报 | 新工具 `se_clarification_brief`：一次给出 blocking / queued / 已按假设推进清单 |
+| 队列升级 | 同 (layer, topic) 未裁决达 3 条 → 强制阻塞，防无限推迟 |
+| 门控 | 引擎层新增阻塞澄清守卫：baseline/descend/complete 统一阻断（AC4 字面成立） |
+
+**优先级**（评审澄清后写入设计）：自动推导 < 显式 `blocking` < 队列升级强制。
+
+**评审（reviewer18，11 项）**：其中 2 项 critical——brief 返回 changelog 原始行（每条重复两次、
+不可机读）、AC4 声称阻断 baseline/descend 而实际只有 complete 阻断。均已修复，测试 309→316。
+
 ## 流程违规与补救披露（延续）
 
 descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并立规 DESC-001（基线后缺陷必须 ascend）。descent-4 本身即是按 DESC-001 执行的第四次下降：发现完成态缺口后先上升、改设计（L3 v0.4/v005）、再下降实现，未走热修。
@@ -310,7 +329,7 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 | test_bootstrap.py（含完成态 3 例） | 10 | 10/10 ✅ |
 | test_tui.py（滚动断言 + 多项目 4 例） | 9 | 9/9 ✅ |
 | test_todo_lifecycle.py（新增） | 15 | 15/15 ✅ |
-| **合计** | **303** | **303/303 ✅** |
+| **合计** | **316** | **316/316 ✅** |
 
 端到端实测：MCP 自举加载 ✅；一致性检查 20/20 ✅；se_complete_project 前置校验与成功路径 ✅；TUI 渲染/滚动/容错/completed ✅。
 
@@ -324,4 +343,4 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 
 ## 结论
 
-**十六次下降、十五次上升全部闭环，303 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**
+**十七次下降、十六次上升全部闭环，316 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**

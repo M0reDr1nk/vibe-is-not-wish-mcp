@@ -180,3 +180,14 @@ status: "completed"
 | 文档同步 | v0.17 设计（reviewer14 定稿版）、README 3.5 重启规则、R33 backlog 登记 |
 | 进程卫生 | 安装后重启 MCP server（R30 教训实践） |
 | 测试复验 | 303/303 通过 ✅ |
+
+## descent-17 清理（v0.18 harness）
+
+| 项 | 说明 |
+|----|------|
+| changelog 解析 | 移除文本解析（会双计且不可机读），改读 manifest 结构化记录 |
+| markdown 表格 | assumption-taken 的 reason 用中文分号分隔，避免 `|` 破坏表格 |
+| 死代码 | `_assumption_entries` 重写，移除 `assumptions[-20:]` 静默截断 |
+| README | 工具数 38 → 39，补 3 个澄清工具 |
+| 测试 hack | 无 |
+| 测试复验 | 316/316 ✅ |

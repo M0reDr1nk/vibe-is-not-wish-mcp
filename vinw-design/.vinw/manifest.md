@@ -140,34 +140,28 @@ code_root: ..
 completed_at: '2026-11-14T07:20:54.997257+00:00'
 created_at: '2026-11-13T10:02:18.532679'
 current_descent: 17
-current_layer: L1-需求拆解
+current_layer: L7-终验
 descent_started_at: '2026-11-14T09:18:33.481607+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
     active_ascent: asc-016
-    baselined_at: '2026-11-14T05:42:59.736213+00:00'
-    descent_count: 7
-    latest_baseline: v006
-    status: in_progress
-  L2-参考文献与方案搜证汇总:
-    active_ascent: asc-007
-    baselined_at: '2026-11-14T05:43:42.485690+00:00'
+    baselined_at: '2026-11-14T09:45:08.274465+00:00'
     descent_count: 7
     latest_baseline: v007
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:18:33.481583+00:00'
-    superseded_by: asc-016
+    status: baselined
+  L2-参考文献与方案搜证汇总:
+    active_ascent: asc-007
+    baselined_at: '2026-11-14T09:45:24.561365+00:00'
+    descent_count: 8
+    latest_baseline: v008
+    status: baselined
   L3-方案细化:
     active_ascent: asc-014
-    baselined_at: '2026-11-14T06:01:19.777322+00:00'
-    descent_count: 16
-    latest_baseline: v018
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:18:33.481583+00:00'
-    superseded_by: asc-016
+    baselined_at: '2026-11-14T09:45:31.584601+00:00'
+    descent_count: 17
+    latest_baseline: v019
+    status: baselined
   L4-编码实现:
     audit:
       auto_fixable: []
@@ -175,51 +169,39 @@ layer_states:
       decision: resolved
       escalations: []
       escalations_count: 0
-      findings: 10
-      report_id: 2a032951-01
-    baselined_at: '2026-11-14T07:17:34.030792+00:00'
+      findings: 11
+      report_id: 1047eb03-01
+    baselined_at: '2026-11-14T09:45:40.818787+00:00'
     consistency:
-      checked_at: '2026-11-14T07:17:34.025486+00:00'
-      code_fingerprint: f1e7b7f8e03fff7a309d324d34a88d1d7f1d11c84536fb4522cba17509ab6b5f
-      descent: 16
-      design_hash: 5c2c0e536267b3090d50271421481b38561b521a694874135e3288899577fcf4
+      checked_at: '2026-11-14T09:45:40.805533+00:00'
+      code_fingerprint: 90dc6ba59965fccde64f40fdf0e9b8398840d3d12df14b0a0bcb3f334d4ffa73
+      descent: 17
+      design_hash: 42834b235d34e90ca81c568419cc86a6435d630bdca05e283c5efd8d014f7b57
       design_hash_algo: layer-v1
       llm_auditor: reviewer
-      llm_report_id: 2a032951-01
+      llm_report_id: 1047eb03-01
       llm_verdict: warning
       overall: passed
-      report_id: 4092f6c2-01
-    descent_count: 15
-    latest_baseline: v015
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:18:33.481583+00:00'
-    superseded_by: asc-016
+      report_id: f4a6526c-01
+    descent_count: 16
+    latest_baseline: v016
+    status: baselined
   L5-测试验证:
     abandoned_at: '2026-11-14T04:16:39.686081+00:00'
-    baselined_at: '2026-11-14T07:18:11.438430+00:00'
-    descent_count: 14
-    latest_baseline: v013
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:18:33.481583+00:00'
-    superseded_by: asc-016
+    baselined_at: '2026-11-14T09:45:47.887859+00:00'
+    descent_count: 15
+    latest_baseline: v014
+    status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-14T07:20:29.063301+00:00'
-    descent_count: 14
-    latest_baseline: v013
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:18:33.481583+00:00'
-    superseded_by: asc-016
+    baselined_at: '2026-11-14T09:45:55.329131+00:00'
+    descent_count: 15
+    latest_baseline: v014
+    status: baselined
   L7-终验:
     completed_at: '2026-11-14T07:20:54.997257+00:00'
-    descent_count: 13
+    descent_count: 14
     latest_baseline: null
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:18:33.481583+00:00'
-    superseded_by: asc-016
+    status: in_progress
 name: vinw-self-design
 pending_confirmations:
 - blocking: true

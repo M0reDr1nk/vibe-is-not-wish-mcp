@@ -1,24 +1,25 @@
 ---
-baseline_version: v015
-baselined_at: '2026-11-14T07:17:34.030792+00:00'
+baseline_version: v016
+baselined_at: '2026-11-14T09:45:40.818787+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L4-编码实现
 se_version: '2.0'
 started_at: '2026-11-13T10:15:00Z'
-status: superseded
-todo_descent: 8
+status: baselined
+todo_descent: 17
 ---
 
 # L4-编码实现
 
 ## 当前待办
 
-- [x] descent-1~7 存储/工作流/TUI/多项目实现
-- [x] descent-8：registry.py 重写为 SQLite（projects+project_events、WAL、user_version=2）
-- [x] descent-8：消除写放大（touch 单行 UPDATE）、并发安全、intent/observation 分离
-- [x] descent-8：JSON 迁移 + 损坏隔离 + export/history/set_state 工具与 CLI
-- [x] 一致性 30/30 passed → L4 基线化 → 下降 L5
+- [x] 实现 impact/reversibility 与自动阻塞推导
+- [x] 实现 assumption-taken 留痕（含 deviation）
+- [x] 实现 se_clarification_brief（读 manifest）
+- [x] 引擎层阻塞澄清守卫（baseline/descend）
+- [x] 转换返回体注入 pending_clarifications
+- [x] reviewer18 11 项发现处置
 
 ## 阶段小结
 

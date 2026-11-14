@@ -1,23 +1,22 @@
 ---
-baseline_version: v013
-baselined_at: '2026-11-14T07:18:11.438430+00:00'
+baseline_version: v014
+baselined_at: '2026-11-14T09:45:47.887859+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
-status: superseded
-todo_descent: 12
+status: baselined
+todo_descent: 17
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
-- [x] descent-1~11 测试体系（162 例）
-- [x] descent-12：test_triage.py 18 例（分类/路由/裁决/门控/工具）
-- [x] descent-12：strict 策略 3 例 + TUI 一致性标记 1 例
-- [x] 全量 184/184 通过；端到端实战（15 发现→全裁定→放行）已记录
-- [x] L5 基线化 → 下降 L6
+- [x] AC1-AC6 逐条用例覆盖
+- [x] 真值表四组合验证
+- [x] 门控集成（blocking 阻断 baseline/descend）
+- [x] 316/316 全绿
 
 ## 阶段小结
 

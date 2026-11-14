@@ -4,19 +4,18 @@ descent_count: 1
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
-status: superseded
-todo_descent: 9
+status: in_progress
+todo_descent: 17
 ---
 
 # L7-终验
 
 ## 当前待办
 
-- [x] 终验报告更新至 descent-9（一致性门控版）
-- [x] 汇总 9 次下降与 8 次上升历史
-- [x] 确认测试覆盖（126/126，含一致性门控 14 例）
-- [x] 记录已知限制（历史报告无指纹、code_root 依赖）
-- [x] 项目完成标记（se_complete_project）
+- [x] R34 AC1-AC6 逐条核对
+- [x] reviewer18 11 项发现处置
+- [x] 316/316 复验
+- [x] 终验报告更新
 
 ## 阶段小结
 
