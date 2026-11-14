@@ -1228,3 +1228,78 @@ v0.16 只在 `se_init_project` / `se_use_project` 时登记。工具还接受 `p
 | 版本 | 下降轮 | 内容 |
 |------|--------|------|
 | v0.20 | descent-19 | R33-2：changelog `extra` 结构化写入 + 共享解析器 + alignment 字段化 |
+
+---
+
+# v0.21 流程违规特例审批（descent-20 / asc-019，R35）
+
+## 一、数据模型
+
+manifest 新增：
+
+```yaml
+workflow_exceptions:
+  - id: exc-20261114-220000-001
+    reason: "修复完成态下的报告数字错误（用户当场指出）"
+    files: ["example/gemm/L7-终验/final-report.md"]
+    necessity: "不回改会导致验收报告数字错误"
+    impact: "low"                      # 由请求方声明，影响用户判断
+    requested_at: "2026-...Z"
+    requested_descent: 6
+    status: pending | approved | rejected | regularized
+    approved_at: "2026-...Z"
+    deadline_descent: 7                # current + expires_in_descents
+```
+
+## 二、工具
+
+### `se_request_workflow_exception(reason, files, necessity, impact="medium", expires_in_descents=1)`
+
+- 登记一条 `status=pending` 的特例
+- **同时创建阻塞确认**（`item_type="workflow-exception"`），即必须用户批准：
+  返回体含 `confirmation_id`、`blocking: true`、明确的"请用户确认"提示
+- 同一轮重复请求：同 `reason` 已存在 pending/approved 时不重复创建，返回已有 id
+
+### 裁决：`se_resolve_confirmation(confirmation_id, resolution)`
+
+- `approve` → 特例 `status=approved`，写 `approved_at`、`deadline_descent`
+- `reject` / `modify` → `status=rejected`（不得带漂移转换）
+- 解析路径与既有门控一致（引擎层，TUI/MCP 同副作用）
+
+## 三、门控（engine 层，`baseline`/`descend`/`complete` 共用）
+
+```
+def _exception_state(manifest) -> "none" | "active" | "expired":
+    for exc in workflow_exceptions (newest first):
+        if status == approved:
+            return "active" if current_descent <= deadline_descent else "expired"
+    return "none"
+```
+
+| 漂移状态 | 特例状态 | 行为 |
+|----------|---------|------|
+| clean | any | 正常转换 |
+| 非 clean | none | **拒绝**，提示先 `se_ascend`，或如需特例先 `se_request_workflow_exception` |
+| 非 clean | active | **允许**，返回体带 `tolerated_violation: {exception_id, deadline_descent}`，并写 `violation-tolerated` changelog |
+| 非 clean | expired | **拒绝**，提示「特例已过期（descent-X），必须先 se_ascend 正规化」 |
+
+## 四、完成态约束
+
+`complete_project` 额外要求：**不得存在 pending/approved 未正规化的特例**；
+正规化的判定 = 该特例 `status=regularized`（由 asc 到达时自动结转）。
+即：靠特例推进的轮次必须在结束前上升把变更正规化。
+
+## 五、TUI
+
+| 状态 | 显示 |
+|------|------|
+| pending | 🔒 红：「流程违规特例待你批准（<reason>）」 |
+| active | 🟡 黄：「已批准特例 <id>，descent-N 前必须正规化」 |
+| expired | 🔴 红：「特例已过期，需 se_ascend 正规化」 |
+
+`next_action` 优先级：过期特例 > 待批准特例 > 完成态被改动 > 设计滞后 > 漂移。
+
+## 六、默认拒绝原则
+
+- 不传特例时行为与 v0.20 一致（漂移即阻断），**不会因为工具存在而放宽**
+- 特例必须经用户**显式 approve**，agent 不能自行批准（`se_resolve_confirmation` 是用户动作）
