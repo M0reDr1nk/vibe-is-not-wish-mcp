@@ -95,6 +95,7 @@ def _untriaged(raw: dict[str, Any], kind: str, fallback_id: str) -> dict[str, An
         "impact": raw.get("impact") or "",
         # A report finding that was never triaged is open by definition
         "status": raw.get("status") or "open",
+        "clarification_id": raw.get("clarification_id"),
     }
     finding["finding_id"] = finding["id"]
     return finding

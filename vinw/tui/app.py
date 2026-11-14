@@ -125,10 +125,10 @@ class SEApp(App):
             )
             if head and head != __commit__:
                 version_note = (
-                    " | ⚠ 运行代码与仓库 HEAD 不一致——pip install 后请重启"
+                    " | ⚠ server 代码陈旧——请重启 MCP server"
                 )
             elif __dirty__ or dirty_tree:
-                version_note = " | ⚠ 工作区有未提交改动"
+                version_note = " | 工作区有未提交改动"
         bar.update(f"工作目录: {self.workdir}    {current}{version_note}")
 
     def action_select_project(self) -> None:

@@ -490,3 +490,13 @@ DSH 插件的 `vinw server` 进程 10:42 启动后持续运行 3 小时；期间
 | AC2 | TUI 检测到 server commit ≠ 仓库 HEAD 时显示警告条 |
 | AC3 | README 开发章节写明"pip install 后必须重启 MCP server" |
 | AC4 | 一致性报告 frontmatter 记录 `design_hash_algo` 版本标识；算法不匹配时视为 stale |
+
+
+# R33（descent-16 评审遗留，P2）：TUI 澄清就地裁决 + alignment 条目结构化
+
+| 项 | 内容 | 来源 |
+|----|------|------|
+| R33-1 | TUI 门控面板展开渲染 clarification 的 assumption/deviation/options/★推荐，并支持就地裁决（调引擎层 resolve_confirmation）；数字键选择选项 | reviewer15 GAP-002 |
+| R33-2 | alignment changelog 条目改结构化字段（question/assumption/chosen_option/feedback/corrected），去除截断，支持机读统计 | reviewer15 INC-003 |
+
+已接受的偏差记录：当前 alignment 用截断 reason 承载（reviewer 判定闭环语义成立、可接受）。

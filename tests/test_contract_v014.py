@@ -1026,3 +1026,132 @@ class TestDesignHashAlgoVersioning:
             server._active_project = saved
         assert "server_version" in payload
         assert payload["server_version"]["commit"]
+
+
+class TestClarificationEdgeCases:
+    """reviewer15 GAP-004: boundary coverage for v0.17."""
+
+    def _call(self, proj, **over):
+        import vinw.server as server
+
+        base = {
+            "question": "分块尺寸？", "layer": "L3-方案细化",
+            "uncertainty": "两种解读", "assumption": "4x8",
+            "deviation": "基准口径", "options": '["a", "b"]',
+        }
+        base.update(over)
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            return json.loads(server.se_request_clarification(**base))
+        finally:
+            server._active_project = saved
+
+    def test_string_reserved_id_rejected(self, proj):
+        r = self._call(proj, options='["assume-ok", "x"]')
+        assert "error" in r
+
+    def test_mixed_array_rejected(self, proj):
+        r = self._call(
+            proj,
+            options='["a", {"id": "b", "label": "b"}]',
+        )
+        assert "error" in r
+
+    def test_empty_layer_rejected(self, proj):
+        r = self._call(proj, layer="")
+        assert "error" in r
+
+    def test_recommendation_must_be_object(self, proj):
+        r = self._call(proj, recommendation='"just a string"')
+        assert "error" in r
+
+    def test_recommendation_id_must_be_option(self, proj):
+        r = self._call(
+            proj,
+            recommendation=json.dumps({"id": "nope", "reason": "x"}),
+        )
+        assert "error" in r
+
+    def test_topic_default_normalizes_question(self, proj):
+        import vinw.server as server
+
+        q = "  宏内核 寄存器 分块 取 4x8 还是 6x16？"
+        r = self._call(proj, question=q)
+        assert r["status"] == "pending"
+        manifest = server._active_project = None or proj
+        cfm = next(
+            c for c in proj.read_manifest()["pending_confirmations"]
+            if c["id"] == r["confirmation_id"]
+        )
+        assert cfm["topic_normalized"] == "".join(q.split())[:32]
+
+    def test_repeat_warning_after_two_resolved(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        engine = WorkflowEngine(proj)
+
+        def mk():
+            return engine.require_confirmation(
+                item_type="clarification", description="q",
+                options=["a", "assume-ok", "other"], blocking=False,
+                extra={
+                    "layer": "L3-方案细化", "question": "q", "uncertainty": "u",
+                    "assumption": "a", "deviation": "d",
+                    "topic_normalized": "same-topic", "options": [],
+                    "recommendation": None,
+                },
+            )
+
+        first = mk()
+        engine.resolve_confirmation(first, "assume-ok")
+        second = mk()
+        engine.resolve_confirmation(second, "a")
+        # a purged (superseded) entry must NOT count toward the repeat warning
+        third = mk()
+        engine.purge_confirmations(before_descent=0, only_non_blocking=True)
+        r = self._call(proj, topic="same-topic")
+        assert r["status"] == "pending"
+        assert "warning" in r  # two genuine resolutions -> third warns
+
+    def test_from_finding_marks_and_rejects(self, proj):
+        import vinw.server as server
+
+        store_llm(proj, findings=[
+            {"id": "AMB-1", "description": "歧义点",
+             "difference": "假设A", "analysis": "可能偏离B"},
+        ])
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            ok = json.loads(
+                server.se_request_clarification_from_finding(
+                    finding_id="AMB-1", layer="L3-方案细化",
+                    question="哪个？", uncertainty="低置信",
+                    options='["A","B"]',
+                )
+            )
+            assert ok["status"] == "pending"
+            assert ok["finding_marked"] == "AMB-1"
+            # finding 记录已带 clarification_id 标记
+            from vinw.workflow.triage import AuditTriage
+            import frontmatter as fm
+
+            latest = AuditTriage(proj).latest_llm_report()
+            report_path = (
+                proj.get_layer_dir("L4-编码实现")
+                / "consistency-reports" / f"report-{latest[0]}.md"
+            )
+            meta = fm.load(report_path).metadata
+            marked = [f for f in meta["inconsistencies"] if f.get("id") == "AMB-1"]
+            assert marked[0].get("clarification_id") == ok["confirmation_id"]
+
+            missing = json.loads(
+                server.se_request_clarification_from_finding(
+                    finding_id="NOPE", layer="L3", question="?",
+                    uncertainty="u", options='["a","b"]',
+                )
+            )
+            assert "error" in missing
+        finally:
+            server._active_project = saved

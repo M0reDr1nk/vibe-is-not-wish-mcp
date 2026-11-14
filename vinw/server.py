@@ -1221,6 +1221,10 @@ def _normalize_options(options_raw: str) -> tuple[list[dict[str, Any]] | None, s
     out: list[dict[str, Any]] = []
     for i in items:
         if isinstance(i, str):
+            if not i.strip():
+                return None, "选项字符串不能为空"
+            if i in _RESERVED_OPTION_IDS:
+                return None, f"选项 id '{i}' 为保留字"
             out.append({"id": i, "label": i})
         else:
             opt_id = str(i.get("id") or "").strip()
@@ -1258,6 +1262,7 @@ def _clarification_record(
         for c in proj.read_manifest().get("pending_confirmations", [])
         if c.get("item_type") == "clarification"
         and c.get("resolved_at")
+        and c.get("resolution") != "superseded"
         and c.get("layer") == layer
         and (c.get("topic_normalized") or "") == topic
     )
@@ -1305,7 +1310,8 @@ def se_request_clarification(
     proj, err = _project_or_error(project)
     if err:
         return err
-    for name, value in (("question", question), ("uncertainty", uncertainty),
+    for name, value in (("question", question), ("layer", layer),
+                        ("uncertainty", uncertainty),
                         ("assumption", assumption), ("deviation", deviation)):
         if not value.strip():
             return json.dumps({"error": f"{name} 不能为空"}, ensure_ascii=False)
@@ -1317,6 +1323,8 @@ def se_request_clarification(
         try:
             rec = json.loads(recommendation)
         except json.JSONDecodeError:
+            return json.dumps({"error": "recommendation 需为 JSON 对象"}, ensure_ascii=False)
+        if not isinstance(rec, dict):
             return json.dumps({"error": "recommendation 需为 JSON 对象"}, ensure_ascii=False)
         rec_id = rec.get("id")
         valid = {o["id"] for o in opts or []}
@@ -1378,9 +1386,10 @@ def se_request_clarification_from_finding(
         return json.dumps(
             {"error": f"未找到 finding: {finding_id}"}, ensure_ascii=False
         )
-    if finding.get("classification") != "ambiguous":
+    cls = finding.get("classification")
+    if cls not in ("ambiguous", "untriaged"):
         return json.dumps(
-            {"error": f"finding {finding_id} 不是 ambiguous 分类"},
+            {"error": f"finding {finding_id} 已裁定为 {cls}，只有 ambiguous/untriaged 可转澄清"},
             ensure_ascii=False,
         )
     payload = {
@@ -1389,7 +1398,39 @@ def se_request_clarification_from_finding(
         "options": options, "topic": topic, "context": context,
         "recommendation": recommendation, "blocking": blocking, "project": project,
     }
-    return se_request_clarification(**payload)
+    result_raw = se_request_clarification(**payload)
+    try:
+        result = json.loads(result_raw)
+    except json.JSONDecodeError:
+        return result_raw
+    if result.get("status") == "pending":
+        # mark the finding so escalations can show "已转澄清" (v0.17 §5)
+        try:
+            import frontmatter as _fm
+
+            from .workflow.triage import AuditTriage as _AT
+
+            triage = _AT(proj)
+            latest = triage.latest_llm_report()
+            report_id = latest[1].get("report_id") if latest else None
+            if report_id:
+                path = (
+                    proj.get_layer_dir("L4-编码实现")
+                    / "consistency-reports"
+                    / f"report-{report_id}.md"
+                )
+                post = _fm.load(path)
+                findings = post.metadata.get("inconsistencies") or []
+                for raw in findings:
+                    if (raw.get("id") or raw.get("finding_id")) == finding_id:
+                        raw["clarification_id"] = result["confirmation_id"]
+                post.metadata["inconsistencies"] = findings
+                path.write_text(_fm.dumps(post), encoding="utf-8")
+        except Exception as e:
+            _log.warning("回写 clarification_id 失败: %s", e)
+        result["finding_marked"] = finding_id
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    return result_raw
 
 
 # ── Guidance ────────────────────────────────────────────────
