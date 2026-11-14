@@ -308,14 +308,25 @@ class WorkflowEngine:
             "overall": overall,
             "report_id": status.get("report_id"),
             "logged": log,
+            "drift": drift,
         }
 
     # ── Baseline ──────────────────────────────────────────────
 
     def baseline(self, layer: str, reason: str = "", force: bool = False) -> dict[str, Any]:
-        # heals run after the guards below (see the call site at the end):
-        # a rejected transition must not leave an auto-audit trail.
+        # Guards run first and have no side effects; healing (which anchors
+        # state) happens only after them, so a rejected baseline writes nothing.
         l4_heal: dict[str, Any] | None = None
+
+        # The placeholder guard has no side effects, so it runs before anything
+        # that writes state: a rejected baseline must leave no trace at all.
+        if not force:
+            readme = self.project.read_layer_readme(layer)
+            if has_placeholder_todo(readme.get("content", "")):
+                raise PlaceholderTodoError(
+                    f"{layer} 待办仍为模板占位符 '{TODO_PLACEHOLDER}'；"
+                    f"请先用 se_update_todo 填写真实待办，或以 force=true 跳过"
+                )
         if layer == L4_LAYER and not force:
             gate = ConsistencyGate(self.project)
             # Heal first (so ensure() cannot wash the drift away before the
@@ -362,14 +373,6 @@ class WorkflowEngine:
                         f"{len(triage.get('auto_fixable', []))} 条高置信实现缺陷待修正"
                     )
 
-        if not force:
-            readme = self.project.read_layer_readme(layer)
-            content = readme.get("content", "")
-            if has_placeholder_todo(content):
-                raise PlaceholderTodoError(
-                    f"{layer} 待办仍为模板占位符 '{TODO_PLACEHOLDER}'；"
-                    f"请先用 se_update_todo 填写真实待办，或以 force=true 跳过"
-                )
         if not force and layer != L4_LAYER:
             # (the L4 branch above already healed, before its ensure())
             self.heal_drift(f"baseline:{layer}")

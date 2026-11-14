@@ -773,3 +773,53 @@ class TestForceIsVisible:
         WorkflowEngine(proj).baseline("L1-需求拆解", "forced for test", force=True)
         changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
         assert "[force]" in changelog
+
+
+class TestRejectedBaselineIsFullySideEffectFree:
+    """reviewer8 INC-001: a rejected baseline must not even advance the anchor."""
+
+    def test_placeholder_rejection_keeps_drift_state(self, proj):
+        from vinw.workflow.drift import detect_drift
+        from vinw.workflow.state_machine import PlaceholderTodoError
+
+        manifest = proj.read_manifest()
+        manifest["consistency_policy"] = "text"
+        proj.write_manifest(manifest)
+        ConsistencyGate(proj).ensure()
+
+        (proj.root / "main.py").write_text("def main():\n    return 2\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n改\n")
+        assert detect_drift(proj)["state"] != "clean"
+
+        readme = proj.read_layer_readme("L4-编码实现")
+        proj.write_layer_readme(
+            "L4-编码实现",
+            readme,
+            replace_todo_section(readme["content"], "## 当前待办\n\n- [ ] 初始化本层工作"),
+        )
+        changelog = proj.vinw_dir / "changelog.md"
+        before = changelog.read_text(encoding="utf-8").count("auto-audit")
+
+        with pytest.raises(PlaceholderTodoError):
+            WorkflowEngine(proj).baseline("L4-编码实现", "rejected")
+
+        # nothing was written: drift unchanged, no audit entry
+        assert detect_drift(proj)["state"] != "clean"
+        assert changelog.read_text(encoding="utf-8").count("auto-audit") == before
+
+    def test_successful_path_records_the_audit(self, proj):
+        from vinw.workflow.drift import detect_drift
+
+        manifest = proj.read_manifest()
+        manifest["consistency_policy"] = "text"
+        proj.write_manifest(manifest)
+        ConsistencyGate(proj).ensure()
+
+        (proj.root / "main.py").write_text("def main():\n    return 3\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n改\n")
+
+        WorkflowEngine(proj).baseline("L4-编码实现", "ok")
+
+        assert detect_drift(proj)["state"] == "clean"
+        changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
+        assert "auto-audit" in changelog
