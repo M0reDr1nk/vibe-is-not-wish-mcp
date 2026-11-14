@@ -414,3 +414,22 @@ descent-16 进行 2 轮独立评审（reviewer14 设计定稿前、reviewer15 �
 | AC4 门控 | `test_blocking_clarification_blocks_baseline_and_descend`、`test_non_blocking_does_not_block` |
 | AC5 留痕 | `test_low_impact_queues_and_records_assumption` |
 | AC6 队列升级 | `test_queue_escalates_after_two_pending` |
+
+## descent-18 round 1（v0.19 可见性与状态可信度，2026-11-14）
+
+| 指标 | 值 |
+|------|-----|
+| 总用例数 | 333 |
+| 通过 | 333 |
+| 增量 | +17（316 → 333） |
+
+### 新增覆盖（对应 reviewer19）
+
+| 发现 | 用例 |
+|------|------|
+| GAP-001 路径登记 | `test_path_resolution_registers_project`（幂等） |
+| GAP-002 completed_dirty | `test_completed_dirty_flag` |
+| GAP-002 问题块优先级 | `test_issue_panel_single_and_prioritized` |
+| INC-001 current 保护 | `test_invalidate_above_keeps_current_layer_actionable` |
+| INC-008 完成戳 | `test_invalidate_above_clears_completion_stamp` |
+| TUI 三栏 | `TestTodoStaleness` / `TestBottomPanelContent` / `TestClarificationTui` |

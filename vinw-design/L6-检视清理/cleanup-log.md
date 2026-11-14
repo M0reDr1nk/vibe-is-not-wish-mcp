@@ -191,3 +191,14 @@ status: "completed"
 | README | 工具数 38 → 39，补 3 个澄清工具 |
 | 测试 hack | 无 |
 | 测试复验 | 316/316 ✅ |
+
+## descent-18 清理（v0.19）
+
+| 项 | 说明 |
+|----|------|
+| `_refresh_ui` 死代码 | 删除旧的 recent/hints/todos 读取（每 2s 无谓 I/O） |
+| 重复登记 | `se_use_project` 中第二次 `_register_quietly` 删除 |
+| 重复计算 | `se_get_project` 的 `detect_drift` 由 2 次降为 1 次 |
+| 重复文案 | 问题块不再重复 drift_lines 的处置/变更文件 |
+| 死键 | `_CHANGE_STYLE.force-baseline` 删除，补 `purge-confirmations` |
+| 测试复验 | 333/333 ✅ |

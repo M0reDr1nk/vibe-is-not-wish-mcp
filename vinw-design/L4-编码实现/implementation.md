@@ -313,3 +313,17 @@ updated_at: "2026-11-13T10:02:19.675591"
 ### 测试
 
 316/316（+7：真值表、非法值、显式覆盖、brief 结构、门控集成、非阻塞不阻断、转换计数）
+
+## descent-18 实现：可见性与状态可信度（v0.19）
+
+| 改动 | 内容 | 来源 |
+|------|------|------|
+| 工程可见性 | `_project_or_error` 解析成功后按工程根登记（幂等，best-effort） | 用户报 gemm 在 TUI 不可见 |
+| 状态可信度 | `_invalidate_above`：下层重新基线 → 上层依据失效（superseded + needs_redo + changelog）；`current_layer` 保留 `in_progress` 并置 needs_redo，返回 `current_layer_reset` | 用户问"下层变更是否触发上层检查"（原答案：没有） |
+| 完成戳 | L7 离开 completed 时清除 manifest/层内 `completed_at` | reviewer19 INC-008 |
+| 性能 | `se_get_project` 只算一次 `detect_drift`（5.6s → 1.8s） | reviewer19 GAP-005 |
+| TUI | 三栏：单一问题块（按优先级）、本轮/历史待办分离、底栏结构化变更 + 下一步；`superseded` 改黄（红只留问题）；澄清就地裁决 | 用户三次反馈 |
+| 清理 | 删除 `_refresh_ui` 死代码、`se_use_project` 重复登记、问题块重复文案 | reviewer19 |
+
+评审：reviewer19 共 17 项（9 impl_bug / 5 design_gap / 3 design_bug），
+15 项已修复、2 项记录为已知取舍（写侧完成态守卫、三处谓词抽公共）。
