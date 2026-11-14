@@ -1,14 +1,14 @@
 ---
-baseline_reason: descent-17 L3 v019：v0.18 澄清 harness 契约定稿（分级/自动阻塞/呈报/升级/门控）
+baseline_reason: descent-18 L3 v019：可见性与状态可信度定稿（路径登记、三栏 IA、下层作废上层 + current 保护、completed_dirty、R33-1）
 baseline_version: v020
-baselined_at: '2026-11-14T10:47:36.465909+00:00'
+baselined_at: '2026-11-14T10:47:36.457000+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-14T10:24:11.724021+00:00'
-rolled_back_from: v019
+rolled_back_at: '2026-11-14T13:40:10.784204+00:00'
+rolled_back_from: v020
 se_version: '2.0'
-status: baselined
+status: in_progress
 todo_descent: 18
 ---
 

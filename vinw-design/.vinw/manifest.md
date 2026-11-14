@@ -145,12 +145,20 @@ ascent_history:
     标志）需写进 L3 设计并重新下降验证
   to_baseline: v019
   to_layer: L3-方案细化
+- created_at: '2026-11-14T13:40:10.781615+00:00'
+  descent_after: 19
+  descent_before: 18
+  from_layer: L7-终验
+  id: asc-018
+  reason: R33-2 结构化 alignment 条目：先改代码后补设计（design_lag），上升回 L3 把契约写入设计并重新下降验证
+  to_baseline: v020
+  to_layer: L3-方案细化
 code_root: ..
 completed_at: '2026-11-14T10:49:26.885298+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 18
-current_layer: L7-终验
-descent_started_at: '2026-11-14T10:24:11.724623+00:00'
+current_descent: 19
+current_layer: L3-方案细化
+descent_started_at: '2026-11-14T13:40:10.784519+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
@@ -166,11 +174,11 @@ layer_states:
     latest_baseline: v008
     status: baselined
   L3-方案细化:
-    active_ascent: asc-017
+    active_ascent: asc-018
     baselined_at: '2026-11-14T10:47:36.465909+00:00'
-    descent_count: 18
+    descent_count: 19
     latest_baseline: v020
-    status: baselined
+    status: in_progress
   L4-编码实现:
     audit:
       auto_fixable: []
@@ -194,23 +202,35 @@ layer_states:
       report_id: c0315e94-01
     descent_count: 17
     latest_baseline: v017
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T13:40:10.784505+00:00'
+    superseded_by: asc-018
   L5-测试验证:
     abandoned_at: '2026-11-14T04:16:39.686081+00:00'
     baselined_at: '2026-11-14T10:48:02.216261+00:00'
     descent_count: 16
     latest_baseline: v015
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T13:40:10.784505+00:00'
+    superseded_by: asc-018
   L6-检视清理:
     baselined_at: '2026-11-14T10:48:12.140355+00:00'
     descent_count: 16
     latest_baseline: v015
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T13:40:10.784505+00:00'
+    superseded_by: asc-018
   L7-终验:
     completed_at: '2026-11-14T10:49:26.885298+00:00'
     descent_count: 15
     latest_baseline: null
-    status: completed
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T13:40:10.784505+00:00'
+    superseded_by: asc-018
 name: vinw-self-design
 pending_confirmations:
 - blocking: true

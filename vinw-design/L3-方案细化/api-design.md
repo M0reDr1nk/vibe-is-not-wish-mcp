@@ -1166,3 +1166,55 @@ v0.16 只在 `se_init_project` / `se_use_project` 时登记。工具还接受 `p
 | 版本 | 下降轮 | 内容 |
 |------|--------|------|
 | v0.19 | descent-18 | 路径登记可见性、TUI 三栏契约与颜色语义、下层变更作废上层、completed_dirty、R33-1 就地裁决 |
+
+---
+
+# v0.20 结构化 changelog（descent-19 / asc-018，R33-2）
+
+## 一、问题
+
+`alignment` 条目此前是**自由文本**：`澄清对齐：<问题前60字> | 假设：<前40字> | 选择：x | corrected=`。
+问题：①截断丢信息 ②无法机读（统计澄清类型、纠正率都做不到）③TUI 只能正则硬解析。
+
+## 二、契约
+
+### 写入：`append_changelog_entry(..., extra: dict | None)`
+
+`extra` 的每个键值渲染成额外表格行：
+
+```
+| **question** | 分块尺寸选哪种？ |
+| **chosen_option** | 6x16 |
+```
+
+转义规则：`|` → `\|`，换行 → 空格（避免破坏 markdown 表格）。
+既有字段（变更类型/下降轮次/层/范围/原因）不变，向后兼容。
+
+### 读取：`read_changelog_entries(path) -> list[dict]`
+
+返回按时间顺序的条目字典，含 `id`、`timestamp` 与全部表格字段
+（读取时反转义 `\|`）。**TUI 与任何机读消费者共用此实现**，不再各自写正则。
+
+### alignment 条目的字段
+
+| 字段 | 含义 |
+|------|------|
+| `question` | 原始问题（不截断） |
+| `assumption` | 当时假设 |
+| `deviation` | 若假设错会偏离什么 |
+| `chosen_option` | 用户选择（选项 id / `assume-ok` / `other`） |
+| `feedback` | 用户补充说明（不截断） |
+| `corrected` | 选择是否推翻假设 |
+| `impact` / `reversibility` / `layer` | 分级与来源层 |
+
+## 三、边界
+
+- 不改既有条目格式（历史条目仍可读，`read_changelog_entries` 兼容）
+- 不引入 JSON 旁路文件：changelog 仍是唯一事实来源、仍是纯 markdown
+- 其他 change_type 需要结构化时复用 `extra`，无需再改写入器
+
+## 版本历史补记
+
+| 版本 | 下降轮 | 内容 |
+|------|--------|------|
+| v0.20 | descent-19 | R33-2：changelog `extra` 结构化写入 + 共享解析器 + alignment 字段化 |
