@@ -154,7 +154,7 @@ ascent_history:
   to_baseline: v020
   to_layer: L3-方案细化
 code_root: ..
-completed_at: '2026-11-14T10:49:26.885298+00:00'
+completed_at: '2026-11-14T13:52:50.450933+00:00'
 created_at: '2026-11-13T10:02:18.532679'
 current_descent: 19
 current_layer: L7-终验
@@ -215,10 +215,10 @@ layer_states:
     latest_baseline: v016
     status: baselined
   L7-终验:
-    completed_at: '2026-11-14T10:49:26.885298+00:00'
+    completed_at: '2026-11-14T13:52:50.450933+00:00'
     descent_count: 16
     latest_baseline: null
-    status: in_progress
+    status: completed
 name: vinw-self-design
 pending_confirmations:
 - blocking: true
