@@ -74,7 +74,7 @@ So the process is a directory tree, state transitions are tool calls, the change
 
 ## Self-hosting Record
 
-**Statistics snapshot: commit `5a888fe`** (2026-11-14 22:34 +08:00). At this commit the test suite reports `354 passed` across 16 files, and the MCP surface exposes `40` tools. Regenerate with `python scripts/readme_stats.py`.
+**Statistics snapshot at commit `4ea57ec`** (2026-11-14 22:34 +08:00; the last code-bearing commit — documentation-only commits after it do not change any number). At this commit the test suite reports `354 passed` across 16 files, and the MCP surface exposes `40` tools. Regenerate with `python scripts/readme_stats.py`.
 
 VINW's own implementation is its longest-running test case. As of this commit, **137 design/code deviations had been intercepted across 12 distinct LLM audits**:
 
