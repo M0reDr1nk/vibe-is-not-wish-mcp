@@ -136,12 +136,21 @@ ascent_history:
   reason: R34：R31 澄清机制升级为 harness 下的结构化询问——按影响/可逆性自动决定阻塞或入队、批量呈报与断点裁决、agent 可带假设继续推进
   to_baseline: v006
   to_layer: L1-需求拆解
+- created_at: '2026-11-14T10:24:11.720333+00:00'
+  descent_after: 18
+  descent_before: 17
+  from_layer: L7-终验
+  id: asc-017
+  reason: 补正规流程：6 处热修（路径登记可见性、TUI 待办分层/问题块/底栏信息架构、R33-1 澄清就地裁决、上层失效触发、completed_dirty
+    标志）需写进 L3 设计并重新下降验证
+  to_baseline: v019
+  to_layer: L3-方案细化
 code_root: ..
 completed_at: '2026-11-14T09:46:28.913660+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 17
-current_layer: L7-终验
-descent_started_at: '2026-11-14T09:18:33.481607+00:00'
+current_descent: 18
+current_layer: L3-方案细化
+descent_started_at: '2026-11-14T10:24:11.724623+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
@@ -157,11 +166,11 @@ layer_states:
     latest_baseline: v008
     status: baselined
   L3-方案细化:
-    active_ascent: asc-014
+    active_ascent: asc-017
     baselined_at: '2026-11-14T09:45:31.584601+00:00'
-    descent_count: 17
+    descent_count: 18
     latest_baseline: v019
-    status: baselined
+    status: in_progress
   L4-编码实现:
     audit:
       auto_fixable: []
@@ -185,23 +194,35 @@ layer_states:
       report_id: f4a6526c-01
     descent_count: 16
     latest_baseline: v016
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T10:24:11.724602+00:00'
+    superseded_by: asc-017
   L5-测试验证:
     abandoned_at: '2026-11-14T04:16:39.686081+00:00'
     baselined_at: '2026-11-14T09:45:47.887859+00:00'
     descent_count: 15
     latest_baseline: v014
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T10:24:11.724602+00:00'
+    superseded_by: asc-017
   L6-检视清理:
     baselined_at: '2026-11-14T09:45:55.329131+00:00'
     descent_count: 15
     latest_baseline: v014
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T10:24:11.724602+00:00'
+    superseded_by: asc-017
   L7-终验:
     completed_at: '2026-11-14T09:46:28.913660+00:00'
     descent_count: 14
     latest_baseline: null
-    status: completed
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T10:24:11.724602+00:00'
+    superseded_by: asc-017
 name: vinw-self-design
 pending_confirmations:
 - blocking: true

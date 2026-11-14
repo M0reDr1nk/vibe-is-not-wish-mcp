@@ -1,14 +1,14 @@
 ---
-baseline_reason: descent-14 L3 v0.16：全阶段审计契约（任何转换漂移后必须出示匹配当前设计与代码的结论）
+baseline_reason: descent-17 L3 v019：v0.18 澄清 harness 契约定稿（分级/自动阻塞/呈报/升级/门控）
 baseline_version: v019
-baselined_at: '2026-11-14T09:45:31.584601+00:00'
+baselined_at: '2026-11-14T09:45:31.582568+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-14T05:07:28.906056+00:00'
-rolled_back_from: v016
+rolled_back_at: '2026-11-14T10:24:11.724021+00:00'
+rolled_back_from: v019
 se_version: '2.0'
-status: baselined
+status: in_progress
 todo_descent: 17
 ---
 

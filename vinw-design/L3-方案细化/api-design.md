@@ -1099,3 +1099,62 @@ v0.18 只改**何时阻塞、如何收集、如何呈报**。
 | 版本 | 下降轮 | 内容 |
 |------|--------|------|
 | v0.18 | descent-17 | 澄清 harness：影响分级、自动阻塞规则、assumption-taken 留痕、批量 brief、队列升级 |
+
+---
+
+# v0.19 可见性与状态可信度（descent-18 / asc-017）
+
+本节把 6 处**先改代码后补流程**的热修补成正式设计（用户当场发现的 TUI 问题）。
+
+## 一、工程可见性（补 v0.16 漏洞）
+
+v0.16 只在 `se_init_project` / `se_use_project` 时登记。工具还接受 `project=<path>`，
+而**路径解析不登记**——只按路径使用过的工程永远不出现在 TUI 选择器（用户报告 gemm 不可见）。
+
+**契约**：`_project_or_error` 解析成功后，对解析出的工程根执行 `_register_quietly`（幂等、best-effort，
+失败不影响调用）。
+
+## 二、TUI 信息架构（三栏职责）
+
+| 栏 | 职责 | 契约 |
+|----|------|------|
+| 上：层状态图 | 层级进度 + **单一问题块** | 问题块按优先级只显示一个：完成态被改动 > 实现先于设计 > 需重新审计 > 漂移未知；携带指纹明细；上升历史只显示最近 3 条（原因截断 110 字） |
+| 中：待办与澄清 | 本轮待办 + 待确认/澄清 | **本轮待办按 current_descent 过滤**；旧轮次项折叠为「历史 N 条」提示行；澄清项展开 assumption/deviation/编号选项/★推荐 |
+| 下：下一步与变更 | 单一「下一步」+ 最近 5 条结构化变更 | 变更按类型标签（基线/下降/上升/自动重审/澄清对齐/按假设推进/完成）；**不再倾倒原始 changelog 表格** |
+
+**颜色语义**：红 = 问题（需行动）；黄 = 待办/提醒；绿 = 已通过；`superseded/待重做` 属正常流程，
+用黄色而非红色。
+
+三栏构造均为**纯函数**（`build_issue_panel` / `build_mid_panel` / `build_bottom_panel`），
+便于渲染级测试。
+
+## 三、状态可信度：下层变更必须作废上层依据
+
+**缺口**：此前没有任何触发点在「下层重新基线」时重检上层，导致 L5/L6/L7 保持 `baselined`
+而其证据针对的是旧代码（用户报告的"假绿"）。
+
+**契约**：`baseline(layer)` 成功后，对 `LAYERS` 中位于其上的所有层：
+
+- 若状态为 `baselined`/`completed` → 改为 `superseded`，置 `needs_redo=true`，
+  `superseded_by = "baseline:<layer>"`，并镜像 README
+- 返回体新增 `invalidated_above: [layer...]`
+
+补充派生标志：`completed_dirty = (L7 == completed) and (drift != clean)`，
+由 `se_get_project` 暴露；TUI 据此显示红色横幅。
+
+## 四、R33-1 澄清就地裁决
+
+数字键 `1-9` 对「第一条待裁决澄清」（阻塞优先）选择对应参考选项；`y` 确认当前假设（`assume-ok`）。
+裁决经 `WorkflowEngine.resolve_confirmation`，与 MCP 路径产生相同 `alignment` changelog。
+`other` 需 feedback，仍只走 MCP。
+
+## 五、流程自省
+
+这 6 处热修都是在**完成态下直接改代码**产生的 `design_lag`。门控只存在于层转换，
+无法阻止直接写盘；能做的两件事已实现：①状态层作废上层依据；②TUI 用红色横幅明确要求 ascend。
+
+## 版本历史补记
+
+| 版本 | 下降轮 | 内容 |
+|------|--------|------|
+| v0.19 | descent-18 | 路径登记可见性、TUI 三栏契约与颜色语义、下层变更作废上层、completed_dirty、R33-1 就地裁决 |

@@ -6,7 +6,7 @@ doc_type: layer-readme
 layer: L4-编码实现
 se_version: '2.0'
 started_at: '2026-11-13T10:15:00Z'
-status: baselined
+status: superseded
 todo_descent: 17
 ---
 
