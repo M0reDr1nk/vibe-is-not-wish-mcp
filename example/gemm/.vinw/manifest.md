@@ -38,7 +38,7 @@ ascent_history:
 completed_at: '2026-11-14T09:31:25.298593+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 5
-current_layer: L2-参考文献与方案搜证汇总
+current_layer: L7-终验
 descent_started_at: '2026-11-14T09:53:31.804508+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
@@ -49,19 +49,16 @@ layer_states:
     latest_baseline: v003
     status: baselined
   L2-参考文献与方案搜证汇总:
-    baselined_at: '2026-11-14T08:27:04.922050+00:00'
+    baselined_at: '2026-11-14T12:46:45.123272+00:00'
     descent_count: 3
-    latest_baseline: v002
-    status: in_progress
+    latest_baseline: v003
+    status: baselined
   L3-方案细化:
     active_ascent: asc-003
-    baselined_at: '2026-11-14T09:30:54.479228+00:00'
-    descent_count: 4
-    latest_baseline: v004
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:53:31.804481+00:00'
-    superseded_by: asc-004
+    baselined_at: '2026-11-14T12:54:52.898888+00:00'
+    descent_count: 5
+    latest_baseline: v005
+    status: baselined
   L4-编码实现:
     audit:
       auto_fixable: []
@@ -71,9 +68,9 @@ layer_states:
       escalations_count: 0
       findings: 2
       report_id: 9b7b63cf-01
-    baselined_at: '2026-11-14T09:30:59.021288+00:00'
+    baselined_at: '2026-11-14T12:59:25.180426+00:00'
     consistency:
-      checked_at: '2026-11-14T09:30:59.015940+00:00'
+      checked_at: '2026-11-14T12:59:25.168064+00:00'
       code_fingerprint: 119f123f5db7debecf790334095b0b4b7401edd8d3985b8f9600859b4565bc14
       descent: 5
       design_hash: fe3b082b7f3c1231de88b66701357cb099827356bc52af7c1fb74d8cec7ec9b8
@@ -82,37 +79,25 @@ layer_states:
       llm_report_id: 9b7b63cf-01
       llm_verdict: warning
       overall: passed
-      report_id: 9a884b54-01
-    descent_count: 4
-    latest_baseline: v002
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:53:31.804481+00:00'
-    superseded_by: asc-004
+      report_id: ac246cbf-01
+    descent_count: 5
+    latest_baseline: v003
+    status: baselined
   L5-测试验证:
-    baselined_at: '2026-11-14T09:31:08.009653+00:00'
-    descent_count: 2
-    latest_baseline: v002
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:53:31.804481+00:00'
-    superseded_by: asc-004
+    baselined_at: '2026-11-14T13:00:17.653949+00:00'
+    descent_count: 3
+    latest_baseline: v003
+    status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-14T09:31:12.319181+00:00'
-    descent_count: 2
-    latest_baseline: v002
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:53:31.804481+00:00'
-    superseded_by: asc-004
+    baselined_at: '2026-11-14T13:05:59.655805+00:00'
+    descent_count: 3
+    latest_baseline: v003
+    status: baselined
   L7-终验:
     completed_at: '2026-11-14T09:31:25.298593+00:00'
-    descent_count: 2
+    descent_count: 3
     latest_baseline: null
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:53:31.804481+00:00'
-    superseded_by: asc-004
+    status: in_progress
 name: gemm
 pending_confirmations:
 - blocking: true

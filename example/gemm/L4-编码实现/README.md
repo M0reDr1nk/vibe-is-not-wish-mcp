@@ -1,24 +1,23 @@
 ---
-baseline_version: v002
-baselined_at: '2026-11-14T09:30:59.021288+00:00'
+baseline_version: v003
+baselined_at: '2026-11-14T12:59:25.180426+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L4-编码实现
 se_version: '2.0'
-status: superseded
-todo_descent: 2
+status: baselined
+todo_descent: 5
 ---
 
 # L4-编码实现
 
 ## 当前待办
 
-- [x] gemm.h 公共接口 + gemm_ref.c 参考实现
-- [x] gemm_blocked.c：三层分块 + pack_a/pack_b + 4x8 微内核
-- [x] pthreads 并行（gemm_blocked_par / parallel_for_m / gemm_blocked_1t）
-- [x] Makefile：make / make test / make bench / make clean
-- [x] 正确性测试 586/586 通过；一致性检查 13/13 passed
-- [ ] 性能未达标：1024³ 仅 4.07x（要求 8x），线程扩展 1.93x（要求 4x） → L5 优化迭代
+- [x] gemm_f32 路由与失败回退
+- [x] gemm_f32_neon 显式入口
+- [x] bench vinw-neon/vinw-delivery + gate-delivery
+- [x] 线程标签按实际生效值
+- [x] 自查评审（subagent 连续失败，已标注 self-audit）
 
 ## 阶段小结
 
