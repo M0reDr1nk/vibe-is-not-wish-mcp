@@ -1056,9 +1056,13 @@ def se_use_project(project: str) -> str:
             indent=2,
         )
     _active_project = resolved
-    _get_registry().touch(str(resolved.root))
     # A project may be reachable by path without ever being registered
     registration = _register_quietly(resolved.root, True)
+    try:
+        _get_registry().touch(str(resolved.root))
+    except (OSError, sqlite3.Error) as e:
+        # Read-only or damaged registry must not break activation
+        _log.warning("更新注册表访问时间失败 %s: %s", resolved.root, e)
     manifest = resolved.read_manifest()
     return json.dumps(
         {

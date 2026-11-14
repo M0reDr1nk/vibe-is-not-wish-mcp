@@ -8,7 +8,7 @@ updated_at: '2026-11-13T10:02:22.740498'
 # 设计约束与检查点
 
 - [x] 架构决策已记录（MCP + Skill + Markdown 分层）
-- [x] 接口签名已冻结（18 个 MCP tools）
+- [x] 接口签名已冻结（36 个 MCP tools）
 - [x] 数据模型已确认（7 层目录 + manifest 状态机）
 - [x] 螺旋上升机制已设计（ascend/descend/baseline 三操作）
 - [x] 门控机制已设计（require/resolve confirmation）

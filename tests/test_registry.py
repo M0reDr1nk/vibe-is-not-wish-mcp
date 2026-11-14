@@ -558,3 +558,41 @@ class TestCliRegistration:
         from vinw.store.registry import ProjectRegistry
 
         assert "cli-tmp" not in [p["name"] for p in ProjectRegistry().list()]
+
+
+class TestRegistrationEdgePaths:
+    """reviewer13: collision passthrough and read-only-registry activation."""
+
+    def test_name_collision_returns_actual_name(self, tmp_path):
+        """GAP-005 regression: the MCP payload must carry the renamed name."""
+        import vinw.server as server
+
+        first = json.loads(server.se_init_project("dup", str(tmp_path / "a")))
+        second = json.loads(server.se_init_project("dup", str(tmp_path / "b")))
+
+        assert first["registered"] is True
+        assert second["registered"] is True
+        assert second["name"] != first["name"]
+        assert "warning" in second  # rename is reported, not silent
+
+    def test_use_project_tolerates_touch_failure(self, tmp_path, monkeypatch):
+        """GAP-R13-001: read-only registry must not break activation."""
+        import sqlite3
+
+        import vinw.server as server
+        from vinw.store.project import Project
+        from vinw.store.registry import ProjectRegistry
+
+        root = tmp_path / "touchy"
+        Project.init(root, "touchy", "")
+        ProjectRegistry().add(root)
+
+        class FlakyRegistry(ProjectRegistry):
+            def touch(self, _path):
+                raise sqlite3.OperationalError("readonly")
+
+        monkeypatch.setattr(server, "_get_registry", lambda: FlakyRegistry())
+        payload = json.loads(server.se_use_project("touchy"))
+
+        assert payload["active"] is True
+        assert payload["registered"] is True
