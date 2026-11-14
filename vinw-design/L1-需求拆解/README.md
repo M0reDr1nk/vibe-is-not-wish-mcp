@@ -10,7 +10,7 @@ rolled_back_at: '2026-11-14T09:18:33.480533+00:00'
 rolled_back_from: v006
 se_version: '2.0'
 status: baselined
-todo_descent: 12
+todo_descent: 17
 ---
 
 # L1-需求拆解
@@ -19,9 +19,10 @@ todo_descent: 12
 
 - [x] descent-1~11 需求拆解与基线 v005
 - [x] descent-12：审计分级裁定 R22-R28 已实现并基线 v005
-- [ ] 遗留特性：决策倾向性配置 decision_bias（prefer/auto_fix_max_risk/allow_auto_design_change）作为 LLM 推荐与高置信自动决策依据
-- [ ] 遗留特性：对模糊需求反向提问（requires_clarification）
-- [ ] 缺陷：se_init_project/se_use_project 不写注册表 → TUI 选择器看不到新建工程
+- [x] 反向提问/歧义确认能力 —— 由 R31（descent-16）+ R34 harness 化（descent-17）实现
+- [x] 工程自动登记（se_init_project/se_use_project 写注册表）—— descent-15 实现
+- [x] R30 进程陈旧防护（版本横幅 / 重启规则 / 算法版本）—— descent-16 实现
+- [ ] decision_bias 决策倾向 —— **已延期至 ROADMAP.md**（不阻塞发布）
 ## 阶段小结
 
 （阶段完成时填写）

@@ -28,6 +28,10 @@ void gemm_f32_ref(int M, int N, int K,
 void gemm_f32_small(int M, int N, int K,
                     const float *A, const float *B, float *C);
 
+/* 强制 NEON 路径（bench 对照 / 用户强制） */
+gemm_status gemm_f32_neon(int M, int N, int K,
+                          const float *A, const float *B, float *C);
+
 /* AMX 后端（实验性，需 USE_AMX 编译开关；返回 0 表示未编译或不可用） */
 int gemm_amx_available(void);
 const char *gemm_amx_name(void);

@@ -328,6 +328,13 @@ static gemm_status gemm_blocked_1t(int M, int N, int K,
     return st;
 }
 
+gemm_status gemm_f32_neon(int M, int N, int K, const float *A, const float *B, float *C) {
+    if (M <= 0 || N <= 0 || K <= 0) return GEMM_OK; /* 幂等空操作 */
+    if (!A || !B || !C) return GEMM_EINVAL;
+    if (num_threads() <= 1) return gemm_blocked_1t(M, N, K, A, B, C);
+    return gemm_blocked_par(M, N, K, A, B, C);
+}
+
 gemm_status gemm_f32(int M, int N, int K, const float *A, const float *B, float *C) {
     if (M <= 0 || N <= 0 || K <= 0) return GEMM_OK; /* 幂等空操作 */
     if (!A || !B || !C) return GEMM_EINVAL;
@@ -336,6 +343,10 @@ gemm_status gemm_f32(int M, int N, int K, const float *A, const float *B, float 
         gemm_f32_small(M, N, K, A, B, C);
         return GEMM_OK;
     }
-    if (num_threads() <= 1) return gemm_blocked_1t(M, N, K, A, B, C);
-    return gemm_blocked_par(M, N, K, A, B, C);
+    /* descent-5：AMX 为交付主力（编译且可用时），失败回退 NEON */
+    if (gemm_amx_available()) {
+        gemm_status st = gemm_amx(M, N, K, A, B, C);
+        if (st == GEMM_OK) return st;
+    }
+    return gemm_f32_neon(M, N, K, A, B, C);
 }

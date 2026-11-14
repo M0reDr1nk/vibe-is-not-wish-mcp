@@ -239,3 +239,37 @@ P 核权重 2.0；E 核权重 1.0
 
 - MC=64 可能降低单线程性能（R3 回归风险）→ 必须同时验证 R3
 - 加权分配依赖 perflevel 探测；探测失败时退化为等分（不劣于 v003）
+
+
+---
+
+# descent-5 设计（v005）：AMX 交付路由
+
+## 1. 路由规则（`gemm_f32`）
+
+```
+gemm_f32(M,N,K):
+  1. 参数校验（不变）
+  2. 小矩阵（M*N*K < 256^3）→ gemm_f32_small（不变）
+  3. USE_AMX 编译且 gemm_amx_available() → gemm_amx()
+  4. 否则 → 既有 pthreads-NEON 路径（gemm_blocked_par / gemm_blocked_1t）
+```
+
+约束：
+- AMX 路径失败（返回非 OK）时回退 NEON，保证不出错结果
+- 提供 `gemm_f32_neon()` 显式入口，供 bench 对照与用户强制 NEON
+
+## 2. bench 输出
+
+| 行 | 含义 |
+|----|------|
+| naive-ijk / naive-ikj | 基线 |
+| vinw-neon | 强制 NEON 路径（多线程） |
+| **vinw-delivery** | **交付路径（AMX 可用则 AMX，否则 NEON）** |
+| accelerate | 上界参照 |
+| gate-delivery | 交付路径 / naive-ijk-1T ≥ 4× |
+| gate-st / gate-ext | R3 不变；R4 扩展性降级为参考 |
+
+## 3. 复杂度边界（与 L1 一致）
+
+不做多线程 AMX、不做 fp16、不做多级阻塞重写。

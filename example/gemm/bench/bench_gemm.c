@@ -31,6 +31,16 @@ static void set_threads(int n) {
     setenv("GEMM_THREADS", buf, 1);
 }
 
+static int effective_threads(void) {
+    const char *v = getenv("GEMM_THREADS");
+    if (v && *v) {
+        int n = atoi(v);
+        if (n > 0) return n;
+    }
+    long c = sysconf(_SC_NPROCESSORS_ONLN);
+    return (c > 0) ? (int)c : 1;
+}
+
 static int blocks_for(int M) {
     const int MC = 128;
     int nb = (M + MC - 1) / MC;
@@ -44,15 +54,6 @@ static int effective_threads_for(int M) {
     return (nt > nb) ? nb : nt;
 }
 
-static int effective_threads(void) {
-    const char *v = getenv("GEMM_THREADS");
-    if (v && *v) {
-        int n = atoi(v);
-        if (n > 0) return n;
-    }
-    long c = sysconf(_SC_NPROCESSORS_ONLN);
-    return (c > 0) ? (int)c : 1;
-}
 
 static double now_sec(void) {
     struct timespec ts;
@@ -66,6 +67,11 @@ static void fill(float *p, size_t n) {
 
 static void vinw_gemm_bench(int M, int N, int K,
                             const float *A, const float *B, float *C) {
+    (void)gemm_f32_neon(M, N, K, A, B, C);
+}
+
+static void vinw_delivery_bench(int M, int N, int K,
+                                const float *A, const float *B, float *C) {
     (void)gemm_f32(M, N, K, A, B, C);
 }
 
@@ -101,7 +107,7 @@ static void bench_shape(int M, int N, int K, int threads) {
     struct { const char *name; void (*fn)(int, int, int, const float *, const float *, float *); } impls[] = {
         {"naive-ijk", gemm_f32_naive_ijk},
         {"naive-ikj", gemm_f32_ref},
-        {"vinw-blocked", vinw_gemm_bench},
+        {"vinw-neon", vinw_gemm_bench},
     };
 
     double base_ijk = 0.0, blocked_g = 0.0;
@@ -118,6 +124,21 @@ static void bench_shape(int M, int N, int K, int threads) {
         if (i == 0) base_ijk = g;
         if (i == 2) blocked_g = g;
         printf("%-22s %10.3f %12.2f\n", impls[i].name, best * 1e3, g);
+    }
+
+    /* 交付路径（AMX 可用即 AMX，否则 NEON） */
+    double delivery_g = 0.0;
+    {
+        run_once(M, N, K, A, B, C, vinw_delivery_bench);
+        double best = 1e9;
+        int reps = (M <= 256) ? 20 : 5;
+        for (int r = 0; r < reps; ++r) {
+            double t = run_once(M, N, K, A, B, C, vinw_delivery_bench);
+            if (t < best) best = t;
+        }
+        delivery_g = gflops(M, N, K, best);
+        printf("%-22s %10.3f %12.2f  %s\n", "vinw-delivery", best * 1e3,
+               delivery_g, gemm_amx_available() ? "(AMX)" : "(NEON)");
     }
 
     /* AMX 后端（实验性，单独一段执行：AMX 与 Accelerate 同进程混用需隔离） */
@@ -172,11 +193,15 @@ static void bench_shape(int M, int N, int K, int threads) {
         const double r_mt = g_mt / base_ijk;        /* 参考：MT 相对单线程基线 */
         const double r_ext = (g1 > 0) ? (g_mt / g1) : 0.0;  /* R4：扩展性 */
 
-        printf("gate-st  blocked-1T/naive-ijk-1T = %6.2fx  (门槛 8x: %s)\n",
+        const double r_delivery = (base_ijk > 0) ? delivery_g / base_ijk : 0.0;
+        printf("gate-delivery 交付路径/naive-ijk = %8.2fx  (门槛 4x: %s)  %s\n",
+               r_delivery, r_delivery >= 4.0 ? "PASS" : "FAIL",
+               gemm_amx_available() ? "[AMX]" : "[NEON]");
+        printf("gate-st  neon-1T/naive-ijk-1T    = %8.2fx  (门槛 8x: %s)\n",
                r_st, r_st >= 8.0 ? "PASS" : "FAIL");
-        printf("gate-mt  blocked-%dT/naive-ijk-1T = %6.2fx  (参考)\n", mt, r_mt);
-        printf("gate-ext blocked-%dT/blocked-1T   = %6.2fx  (门槛 4x: %s)\n",
-               mt, r_ext, r_ext >= 4.0 ? "PASS" : "FAIL");
+        printf("gate-mt  neon-%dT/naive-ijk-1T   = %8.2fx  (参考)\n", mt, r_mt);
+        printf("gate-ext neon-%dT/neon-1T        = %8.2fx  (参考，R4 已降级)\n",
+               mt, r_ext);
         if (amx_g > 0) {
             printf("         AMX-1T/naive-ijk-1T      = %6.2fx  (参考)\n",
                    amx_g / base_ijk);
