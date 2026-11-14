@@ -22,6 +22,97 @@ from ..workflow.state_machine import WorkflowEngine
 from .selector import ProjectSelector
 
 
+def build_mid_panel(project, manifest) -> Panel:
+    """Build the todo/confirmation panel (pure, unit-testable).
+
+    Extracted from the Textual render path so tests can assert on the actual
+    rendered text without reaching into Textual internals (R33-1).
+    """
+    todos = project.get_todos()
+    pending = manifest.get("pending_confirmations", [])
+
+    table = Table(show_header=True, header_style="bold magenta", expand=True)
+    table.add_column("Layer", min_width=16, max_width=26, overflow="fold")
+    table.add_column("Descent", width=7, justify="center")
+    table.add_column("状态", width=6, justify="center")
+    table.add_column("内容", overflow="fold", ratio=1)
+
+    # Pending gates first, blocking group then review group
+    open_gates = [p for p in pending if not p.get("resolved_at")]
+    blocking_gates = [p for p in open_gates if p.get("blocking", True)]
+    review_gates = [p for p in open_gates if not p.get("blocking", True)]
+
+    for label, group, style in (
+        ("🔒 阻塞（会卡流程）", blocking_gates, "bold red"),
+        ("🔓 待你审阅（不卡流程）", review_gates, "yellow"),
+    ):
+        if not group:
+            continue
+        table.add_row(
+            label, "", "—", f"共 {len(group)} 项", style=style
+        )
+        for p in group:
+            table.add_row(
+                p.get("layer", "?"),
+                str(p.get("descent", "?")),
+                "🔒" if p.get("blocking", True) else "🔓",
+                f"{p.get('item_type', '')}: {p['description']} (id: {p['id']})",
+                style=style if p.get("blocking", True) else "yellow",
+            )
+            # v0.18：澄清项展开显示假设/偏离/参考选项（R33-1）
+            if p.get("item_type") == "clarification":
+                table.add_row(
+                    "", "", "",
+                    Text.assemble(
+                        ("   假设: ", "bold yellow"),
+                        (str(p.get("assumption") or "—"), "yellow"),
+                    ),
+                )
+                table.add_row(
+                    "", "", "",
+                    f"   偏离: {p.get('deviation') or '—'}",
+                )
+                rec = p.get("recommendation") or {}
+                rec_id = rec.get("id") if isinstance(rec, dict) else None
+                opts = [
+                    o for o in (p.get("options") or [])
+                    if isinstance(o, dict)
+                ]
+                for idx, opt in enumerate(opts, 1):
+                    mark = " ★推荐" if opt.get("id") == rec_id else ""
+                    desc = opt.get("description") or ""
+                    impact = opt.get("impact") or ""
+                    detail = " — ".join(x for x in (desc, impact) if x)
+                    table.add_row(
+                        "", "", "",
+                        f"   [{idx}] {opt.get('label') or opt.get('id')}{mark}"
+                        + (f"  ({detail})" if detail else ""),
+                    )
+
+    for t in todos:
+        status = "✅" if t["done"] else "⏳"
+        style = "green" if t["done"] else "white"
+        table.add_row(t["layer"], str(t["descent"]), status, t["text"], style=style)
+
+    done_count = sum(1 for t in todos if t["done"])
+    mid_content = Panel(
+        table if (todos or open_gates) else Text("暂无待办", style="dim"),
+        title=(
+            f"📋 待办 {done_count}/{len(todos)} 已完成 · "
+            f"🔒 阻塞 {len(blocking_gates)} · 🔓 待审阅 {len(review_gates)}"
+        ),
+        border_style="red" if blocking_gates else "blue",
+    )
+    return Panel(
+        table if (todos or open_gates) else Text("暂无待办", style="dim"),
+        title=(
+            f"📋 待办 {done_count}/{len(todos)} 已完成 · "
+            f"🔒 阻塞 {len(blocking_gates)} · 🔓 待审阅 {len(review_gates)}"
+        ),
+        border_style="red" if blocking_gates else "blue",
+    )
+
+
 class SEApp(App):
     """Main TUI application for SE-MCP."""
 
@@ -34,6 +125,9 @@ class SEApp(App):
         Binding("p", "select_project", "切换工程"),
         Binding("r", "refresh", "刷新"),
         Binding("q", "quit", "退出"),
+        # v0.18 harness：对「第一条待裁决澄清」就地选择参考选项
+        *[Binding(str(n), f"resolve_option({n})", show=False) for n in range(1, 10)],
+        Binding("y", "resolve_assume_ok", "确认假设"),
     ]
 
     CSS = """
@@ -130,6 +224,52 @@ class SEApp(App):
             elif __dirty__ or dirty_tree:
                 version_note = " | 工作区有未提交改动"
         bar.update(f"工作目录: {self.workdir}    {current}{version_note}")
+
+    # ── 澄清就地裁决（R33-1）────────────────────────────────
+
+    def _first_open_clarification(self) -> dict | None:
+        if self.project is None:
+            return None
+        pending = self.project.read_manifest().get("pending_confirmations", [])
+        items = [
+            c for c in pending
+            if c.get("item_type") == "clarification" and not c.get("resolved_at")
+        ]
+        if not items:
+            return None
+        # 阻塞项优先，其次按提出时间
+        items.sort(key=lambda c: (0 if c.get("blocking") else 1, c.get("proposed_at") or ""))
+        return items[0]
+
+    def _resolve_with(self, resolution: str, feedback: str = "") -> None:
+        from ..workflow.state_machine import WorkflowEngine
+
+        cfm = self._first_open_clarification()
+        if cfm is None:
+            self.notify("没有待裁决的澄清", timeout=2)
+            return
+        try:
+            WorkflowEngine(self.project).resolve_confirmation(
+                cfm["id"], resolution, feedback
+            )
+        except ValueError as e:
+            self.notify(f"裁决失败: {e}", timeout=4, severity="error")
+            return
+        self.notify(f"已裁决 {cfm['id']} → {resolution}", timeout=3)
+        self.action_refresh()
+
+    def action_resolve_option(self, index: int) -> None:
+        cfm = self._first_open_clarification()
+        if cfm is None:
+            return
+        opts = [o for o in (cfm.get("options") or []) if isinstance(o, dict)]
+        if index < 1 or index > len(opts):
+            self.notify(f"无第 {index} 个选项", timeout=2)
+            return
+        self._resolve_with(str(opts[index - 1].get("id")))
+
+    def action_resolve_assume_ok(self) -> None:
+        self._resolve_with("assume-ok")
 
     def action_select_project(self) -> None:
         entries = self.registry.list()
@@ -333,49 +473,7 @@ class SEApp(App):
         todos = self.project.get_todos()
         pending = manifest.get("pending_confirmations", [])
 
-        table = Table(show_header=True, header_style="bold magenta", expand=True)
-        table.add_column("Layer", min_width=16, max_width=26, overflow="fold")
-        table.add_column("Descent", width=7, justify="center")
-        table.add_column("状态", width=6, justify="center")
-        table.add_column("内容", overflow="fold", ratio=1)
-
-        # Pending gates first, blocking group then review group
-        open_gates = [p for p in pending if not p.get("resolved_at")]
-        blocking_gates = [p for p in open_gates if p.get("blocking", True)]
-        review_gates = [p for p in open_gates if not p.get("blocking", True)]
-
-        for label, group, style in (
-            ("🔒 阻塞（会卡流程）", blocking_gates, "bold red"),
-            ("🔓 待你审阅（不卡流程）", review_gates, "yellow"),
-        ):
-            if not group:
-                continue
-            table.add_row(
-                label, "", "—", f"共 {len(group)} 项", style=style
-            )
-            for p in group:
-                table.add_row(
-                    p.get("layer", "?"),
-                    str(p.get("descent", "?")),
-                    "🔒" if p.get("blocking", True) else "🔓",
-                    f"{p.get('item_type', '')}: {p['description']} (id: {p['id']})",
-                    style=style if p.get("blocking", True) else "yellow",
-                )
-
-        for t in todos:
-            status = "✅" if t["done"] else "⏳"
-            style = "green" if t["done"] else "white"
-            table.add_row(t["layer"], str(t["descent"]), status, t["text"], style=style)
-
-        done_count = sum(1 for t in todos if t["done"])
-        mid_content = Panel(
-            table if (todos or open_gates) else Text("暂无待办", style="dim"),
-            title=(
-                f"📋 待办 {done_count}/{len(todos)} 已完成 · "
-                f"🔒 阻塞 {len(blocking_gates)} · 🔓 待审阅 {len(review_gates)}"
-            ),
-            border_style="red" if blocking_gates else "blue",
-        )
+        mid_content = build_mid_panel(self.project, manifest)
         self.query_one("#mid-content", Static).update(mid_content)
 
         # ── Bottom: Recent changelog + Action hints ─────────────

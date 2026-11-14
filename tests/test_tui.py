@@ -5,6 +5,8 @@ import shutil
 
 import pytest
 
+from textual.widgets import Static
+
 from vinw.store.project import Project
 from vinw.tui.app import SEApp
 from vinw.tui.selector import ProjectSelector
@@ -291,3 +293,92 @@ def test_drift_warning_is_visible(registry_home):
         assert "🚫设计滞后" in text
 
     _run(app, scenario)
+
+
+class TestClarificationTui:
+    """R33-1: clarification details render, and keys resolve in place."""
+
+    def _seed(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        engine = WorkflowEngine(proj)
+        return engine.require_confirmation(
+            item_type="clarification",
+            description="分块取哪一种？",
+            options=["4x8", "6x16", "assume-ok", "other"],
+            blocking=True,
+            extra={
+                "layer": "L3-方案细化",
+                "question": "分块取哪一种？",
+                "uncertainty": "两种都合理",
+                "assumption": "取 4x8",
+                "deviation": "packing 布局不同",
+                "topic_normalized": "tile",
+                "options": [
+                    {"id": "4x8", "label": "4x8"},
+                    {"id": "6x16", "label": "6x16", "impact": "+40%"},
+                    {"id": "assume-ok", "label": "确认当前假设"},
+                    {"id": "other", "label": "其他"},
+                ],
+                "recommendation": {"id": "4x8", "reason": "省寄存器"},
+                "impact": "high",
+                "reversibility": "irreversible",
+            },
+        )
+
+    def test_details_render(self, proj):
+        from rich.console import Console
+
+        from vinw.tui.app import build_mid_panel
+
+        self._seed(proj)
+        panel = build_mid_panel(proj, proj.read_manifest())
+        console = Console(width=160, record=True)
+        console.print(panel)
+        rendered = console.export_text()
+
+        assert "假设" in rendered
+        assert "取 4x8" in rendered
+        assert "偏离" in rendered
+        assert "★推荐" in rendered
+        assert "[2] 6x16" in rendered
+
+    def test_option_key_resolves(self, proj):
+        cfm_id = self._seed(proj)
+
+        async def run():
+            app = SEApp(str(proj.root))
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                await pilot.press("2")   # 第 2 个选项 = 6x16
+                await pilot.pause()
+
+        import asyncio
+
+        asyncio.run(run())
+        manifest = proj.read_manifest()
+        cfm = next(c for c in manifest["pending_confirmations"] if c["id"] == cfm_id)
+        assert cfm["resolution"] == "6x16"
+        assert cfm["corrected"] is True
+        changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
+        assert "alignment" in changelog
+
+    def test_assume_ok_key_confirms(self, proj):
+        cfm_id = self._seed(proj)
+
+        async def run():
+            app = SEApp(str(proj.root))
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                await pilot.press("y")
+                await pilot.pause()
+
+        import asyncio
+
+        asyncio.run(run())
+        cfm = next(
+            c for c in proj.read_manifest()["pending_confirmations"]
+            if c["id"] == cfm_id
+        )
+        assert cfm["resolution"] == "assume-ok"
+        assert cfm["corrected"] is False
