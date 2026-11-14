@@ -167,25 +167,6 @@ def _split_pending(pending: list[dict]) -> tuple[list[dict], list[dict]]:
     return blocking, review
 
 
-def _maybe_register_by_path(target: str) -> None:
-    """Register a project when it was addressed by an explicit path.
-
-    v0.16 auto-registers on init/use, but tools also accept `project=<path>`;
-    such a project stayed invisible in the TUI selector (user report: gemm).
-    """
-    try:
-        from pathlib import Path as _Path
-
-        root = _Path(target).expanduser()
-        if not root.is_absolute():
-            return
-        if not (root / ".vinw" / "manifest.md").exists():
-            return
-        _get_registry().add(root)
-    except Exception as e:  # registration must never break a tool call
-        _log.warning("按路径登记失败 %s: %s", target, e)
-
-
 def _project_or_error(project: str | None) -> tuple[Project | None, str | None]:
     """Resolve a tool's optional `project` argument.
 
@@ -205,7 +186,7 @@ def _project_or_error(project: str | None) -> tuple[Project | None, str | None]:
                 ensure_ascii=False,
                 indent=2,
             )
-        _maybe_register_by_path(project)
+        _register_quietly(resolved.root, True)
         _get_registry().touch(str(resolved.root))
         return resolved, None
 
@@ -1099,7 +1080,7 @@ def se_use_project(project: str) -> str:
     # A project may be reachable by path without ever being registered
     registration = _register_quietly(resolved.root, True)
     try:
-        _maybe_register_by_path(project)
+        _register_quietly(resolved.root, True)
         _get_registry().touch(str(resolved.root))
     except (OSError, sqlite3.Error) as e:
         # Read-only or damaged registry must not break activation
