@@ -159,4 +159,12 @@ status: "completed"
 | 真实数据修复 | `ProjectRegistry.prune()` 清除 23 条 `/pytest-of-*` 幽灵条目，现存 1 条（vinw-self-design） |
 | 异常边界 | `_register_quietly` 由 `except Exception` 收窄为 `(OSError, sqlite3.Error, ValueError)`，并 `logging.warning(exc_info=True)` 留痕 |
 | 文档一致性 | 方案编号统一（扫描发现=B）、README 故障排查行更新、设计补 name/warning/异常边界/测试隔离 |
-| 测试复验 | 285/285 通过 ✅ |
+| 测试复验 | 287/287 通过 ✅ |
+
+### descent-15 追加（reviewer13 复核）
+
+| 项 | 说明 |
+|----|------|
+| touch 容错 | `se_use_project` 的 `touch()` 移入 `(OSError, sqlite3.Error)` 容错范围，登记先行 |
+| 文档索引 | 版本历史补 v0.15/v0.16 行；checkpoints.md 工具数 18→36 |
+| 测试复验 | 287/287 通过 ✅ |

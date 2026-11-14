@@ -342,8 +342,8 @@ descent-13/14 共进行 11 轮独立 reviewer 审计，累计发现 70+ 项问�
 
 | 指标 | 值 |
 |------|-----|
-| 总用例数 | 285 |
-| 通过 | 285 |
+| 总用例数 | 287 |
+| 通过 | 287 |
 | 失败 | 0 |
 
 ### 新增覆盖
@@ -358,3 +358,10 @@ descent-13/14 共进行 11 轮独立 reviewer 审计，累计发现 70+ 项问�
 | AC5 可跳过 | `test_init_can_opt_out` |
 | AC6 CLI 一并修复 | `TestCliRegistration`（2 例） |
 | AC7 测试隔离 | `tests/conftest.py` autouse + 真实注册表清理（23 条幽灵条目已 prune） |
+
+### 追加（reviewer13 复核后）
+
+| 用例 | 覆盖 |
+|------|------|
+| `TestRegistrationEdgePaths::test_name_collision_returns_actual_name` | 同名碰撞透传登记名 + warning |
+| `TestRegistrationEdgePaths::test_use_project_tolerates_touch_failure` | touch 失败不破坏激活（GAP-R13-001） |
