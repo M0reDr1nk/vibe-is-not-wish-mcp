@@ -4,17 +4,17 @@ doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
 status: in_progress
-todo_descent: 9
+todo_descent: 12
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
-- [x] descent-1~8 测试体系（112 例）
-- [x] descent-9：一致性门控 14 例（新鲜度四态/三处守卫/复用/分组呈现）
-- [x] descent-9：必然性验证（绕过基线、忘调用、检查后再改码）
-- [x] 全量 126/126 通过，结果与迭代记录已更新
+- [x] descent-1~11 测试体系（162 例）
+- [x] descent-12：test_triage.py 18 例（分类/路由/裁决/门控/工具）
+- [x] descent-12：strict 策略 3 例 + TUI 一致性标记 1 例
+- [x] 全量 184/184 通过；端到端实战（15 发现→全裁定→放行）已记录
 - [x] L5 基线化 → 下降 L6
 
 ## 阶段小结

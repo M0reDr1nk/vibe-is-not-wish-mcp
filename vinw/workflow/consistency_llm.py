@@ -11,6 +11,12 @@ from typing import Any
 import frontmatter
 
 from ..store.project import Project
+from .symbols import (
+    DEFAULT_CODE_EXTENSIONS,
+    extract_code_symbols_with_lines,
+    is_code_file,
+    split_design_symbols,
+)
 
 # Directories never scanned for code
 _EXCLUDED_DIR_PARTS = {".venv", "build", "node_modules", "__pycache__", ".git"}
@@ -30,19 +36,35 @@ def _resolve_code_root(project: Project) -> Path:
     return project.root
 
 
-def _collect_code_files(code_root: Path, code_scope: list[str] | None) -> list[Path]:
-    """Collect .py files; code_scope entries may be files or directories."""
+def code_extensions(project: Project) -> list[str]:
+    """Extensions to scan, from manifest `code_extensions` or the default set."""
+    manifest = project.read_manifest()
+    configured = manifest.get("code_extensions")
+    if isinstance(configured, list) and configured:
+        return [str(e) for e in configured]
+    return list(DEFAULT_CODE_EXTENSIONS)
+
+
+def _collect_code_files(
+    code_root: Path,
+    code_scope: list[str] | None,
+    extensions: list[str] | None = None,
+) -> list[Path]:
+    """Collect code files; code_scope entries may be files or directories."""
     if code_scope:
         candidates = [code_root / p for p in code_scope]
     else:
         candidates = [code_root / "src"] if (code_root / "src").exists() else [code_root]
 
+    exts = extensions or DEFAULT_CODE_EXTENSIONS
     files: list[Path] = []
     for c in candidates:
-        if c.is_file() and c.suffix == ".py":
+        if c.is_file() and is_code_file(c, exts):
             files.append(c)
         elif c.is_dir():
-            files.extend(c.rglob("*.py"))
+            for candidate in c.rglob("*"):
+                if candidate.is_file() and is_code_file(candidate, exts):
+                    files.append(candidate)
 
     return [
         f
@@ -95,6 +117,16 @@ def aggregate_fingerprint(hashes: dict[str, str], design_digest: str) -> str:
     return hashlib.sha256(f"{payload}||{design_digest}".encode()).hexdigest()
 
 
+def _symbol_lines(content: str, names: set[str]) -> dict[str, int]:
+    """First 1-based line where a design symbol is mentioned."""
+    lines: dict[str, int] = {}
+    for idx, line in enumerate(content.splitlines(), 1):
+        for name in names:
+            if name not in lines and name in line:
+                lines[name] = idx
+    return lines
+
+
 def _display_path(code_root: Path, code_file: Path) -> str:
     try:
         return str(code_file.relative_to(code_root))
@@ -102,39 +134,39 @@ def _display_path(code_root: Path, code_file: Path) -> str:
         return str(code_file)
 
 
-PROMPT_TEMPLATE = """你是一名严格的软件工程审计员。你的任务是对比【设计文档】与【代码实现】，找出两者之间的所有不一致，包括：
+PROMPT_TEMPLATE = """你是一名独立的软件工程审查者（reviewer），与被审代码的作者不是同一主体。任务是对照【设计文档】审查【代码与测试】，**不要回答"是否一致"**，而是产出可核查的证据清单。
 
-1. 接口签名不一致：函数名、参数列表、返回类型、异常声明
-2. 数据模型不一致：字段名、类型、约束、默认值
-3. 流程/逻辑不一致：设计描述的步骤与代码实现不符
-4. 命名不一致：设计中的概念名与代码中的变量/类名不匹配
-5. 约束不一致：设计中的限制条件（如缓存时间、并发数）在代码中未体现或数值错误
-6. 缺失实现：设计中有定义但代码中未实现的功能
-7. 多余实现：代码中有但设计中未定义的功能
+## A. 缺口清单（gaps）
+逐条列出「设计要求了，但缺少代码实现或缺少测试覆盖」的条目。
 
-请严格按照以下格式输出，不要添加任何额外说明：
+## B. 实现一致性（inconsistencies）
+检查代码在**逻辑、数据结构、接口签名、约束条件**上是否与设计一致。重点关注：
+1. 控制流/分块/并行策略是否与设计描述一致
+2. 数据结构布局（如打包布局 [MC/MR][KC][MR]）是否与设计一致
+3. 接口签名、参数顺序、返回类型、错误码是否一致
+4. 数值/参量约束（分块参数、容差、阈值）是否与设计一致
+5. 设计中声明但未实现的分支、参数、边界处理
+
+## 证据要求
+每条结论必须给出 `design_ref`（文件:行）与 `code_ref`（文件:行）；确实无对应实现时写 `"code_ref": "无对应实现"`。
+无行号证据的条目视为无效，不要输出。
+
+严格按以下 JSON 输出，不要添加额外说明：
 
 ```json
 {
   "overall": "passed" | "warning" | "failed",
+  "gaps": [
+    {"id": "GAP-001", "design_ref": "file:line", "missing": "code" | "test",
+     "description": "...", "severity": "critical" | "warning"}
+  ],
   "inconsistencies": [
-    {
-      "id": "INC-001",
-      "severity": "critical" | "warning" | "info",
-      "category": "interface" | "data_model" | "logic" | "naming" | "constraint" | "missing" | "extra",
-      "design_ref": "设计文档中的具体位置或引用",
-      "code_ref": "代码中的具体文件和行号",
-      "description": "不一致的详细描述",
-      "suggestion": "建议的修复方案"
-    }
+    {"id": "INC-001", "category": "logic" | "data_model" | "interface" | "constraint",
+     "design_ref": "file:line", "code_ref": "file:line",
+     "description": "...", "suggestion": "..."}
   ],
   "matched": [
-    {
-      "design_ref": "...",
-      "code_ref": "...",
-      "symbol": "...",
-      "note": "匹配说明"
-    }
+    {"design_ref": "file:line", "code_ref": "file:line", "symbol": "...", "note": "..."}
   ]
 }
 ```
@@ -142,10 +174,10 @@ PROMPT_TEMPLATE = """你是一名严格的软件工程审计员。你的任务�
 === 设计文档 ===
 {design_content}
 
-=== 代码 ===
+=== 代码与测试 ===
 {code_content}
 
-=== 审计开始 ===
+=== 审查开始（只输出 JSON） ===
 """
 
 
@@ -177,7 +209,7 @@ class LLMConsistencyAuditor:
 
         # Collect code files
         code_root = _resolve_code_root(self.project)
-        code_files = _collect_code_files(code_root, code_scope)
+        code_files = _collect_code_files(code_root, code_scope, code_extensions(self.project))
 
         code_contents: list[str] = []
         for code_file in code_files:
@@ -222,6 +254,13 @@ class LLMConsistencyAuditor:
         scope: list[str] | None = None,
         design_digest: str = "",
         hashes: dict[str, str] | None = None,
+        kind: str = "text",
+        policy: str | None = None,
+        auditor: str | None = None,
+        auditor_model: str | None = None,
+        files_scanned: int | None = None,
+        extensions: list[str] | None = None,
+        code_symbols_count: int | None = None,
     ) -> Path:
         """Store a parsed LLM consistency report into the project."""
         if report_id is None:
@@ -301,7 +340,41 @@ class LLMConsistencyAuditor:
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "overall_status": overall,
             "code_fingerprint": fingerprint,
+            "kind": kind,
         }
+        if policy:
+            metadata["policy"] = policy
+        if auditor:
+            metadata["auditor"] = auditor
+        if auditor_model:
+            metadata["auditor_model"] = auditor_model
+        gaps = report_data.get("gaps")
+        if gaps:
+            metadata["gaps"] = gaps
+            metadata["gaps_count"] = len(gaps)
+        if inconsistencies:
+            # Machine-readable findings: triage needs them, not just the table
+            metadata["inconsistencies"] = [
+                {
+                    "id": inc.get("id"),
+                    "severity": inc.get("severity"),
+                    "category": inc.get("category"),
+                    "design_ref": inc.get("design_ref"),
+                    "code_ref": inc.get("code_ref"),
+                    "description": inc.get("description"),
+                    "suggestion": inc.get("suggestion"),
+                }
+                for inc in inconsistencies
+            ]
+            metadata["inconsistencies_count"] = len(inconsistencies)
+        if kind == "llm":
+            metadata["llm_verdict"] = overall
+        if files_scanned is not None:
+            metadata["files_scanned"] = files_scanned
+        if extensions:
+            metadata["extensions"] = list(extensions)
+        if code_symbols_count is not None:
+            metadata["code_symbols_count"] = code_symbols_count
         if descent is not None:
             metadata["descent"] = descent
         if scope:
@@ -333,51 +406,69 @@ class TextConsistencyChecker:
             return {"error": f"Design doc {design_layer}/{design_doc} not found"}
 
         design_content = design_path.read_text(encoding="utf-8")
+        exts = code_extensions(self.project)
 
-        # Extract function/class/method names from design doc
-        design_symbols = self._extract_symbols(design_content)
-
-        # Search in code
         code_root = _resolve_code_root(self.project)
-        code_files = _collect_code_files(code_root, code_scope)
+        code_files = _collect_code_files(code_root, code_scope, exts)
 
-        inconsistencies: list[dict[str, Any]] = []
+        # An empty scan is a configuration problem, not a pass: reporting
+        # "everything is missing" would be actively misleading.
+        if not code_files:
+            return {
+                "error": "no code files matched the configured extensions",
+                "code_root": str(code_root),
+                "code_scope": code_scope or [],
+                "extensions": exts,
+                "hint": "在 manifest 配置 code_extensions / code_root，或检查 code_scope",
+            }
+
+        # Only API-surface mentions are blocking; config keys / enum values
+        # and prose mentions are advisory (reported, never blocking).
+        design_symbols, advisory_symbols = split_design_symbols(design_content)
+        design_lines = _symbol_lines(design_content, design_symbols)
+        code_symbol_map: dict[str, str] = {}
+        for code_file in code_files:
+            rel = _display_path(code_root, code_file)
+            for name, line in extract_code_symbols_with_lines(code_file, exts).items():
+                code_symbol_map.setdefault(name, f"{rel}:{line}")
+
         matched: list[dict[str, Any]] = []
-
-        for sym in design_symbols:
-            found = False
-            for code_file in code_files:
-                code = code_file.read_text(encoding="utf-8")
-                if sym["name"] in code:
-                    found = True
-                    matched.append(
-                        {
-                            "design_ref": f"{design_doc} (table/cell)",
-                            "code_ref": _display_path(code_root, code_file),
-                            "symbol": sym["name"],
-                            "note": "Name exists in code",
-                        }
-                    )
-                    break
-            if not found:
+        inconsistencies: list[dict[str, Any]] = []
+        for name in sorted(design_symbols):
+            if name in code_symbol_map:
+                matched.append(
+                    {
+                        "design_ref": f"{design_doc}:{design_lines.get(name, 0)}",
+                        "code_ref": code_symbol_map[name],
+                        "symbol": name,
+                        "note": "Symbol defined in code",
+                    }
+                )
+            else:
                 inconsistencies.append(
                     {
-                        "id": f"INC-{len(inconsistencies)+1:03d}",
+                        "id": f"INC-{len(inconsistencies) + 1:03d}",
                         "severity": "warning",
                         "category": "missing",
-                        "design_ref": sym["source"],
-                        "code_ref": "N/A",
-                        "description": f"Design symbol '{sym['name']}' not found in code",
-                        "suggestion": f"Implement {sym['name']} or update design doc",
+                        "design_ref": f"{design_doc}:{design_lines.get(name, 0)}",
+                        "code_ref": "无对应实现",
+                        "description": f"Design symbol '{name}' not found in code",
+                        "suggestion": f"Implement {name} or remove it from the design doc",
                     }
                 )
 
+        advisory_missing = sorted(advisory_symbols - set(code_symbol_map))
         overall = "passed" if not inconsistencies else "warning"
 
         return {
-            "design_doc": str(design_path.relative_to(code_root)),
+            "design_doc": str(design_path.relative_to(self.project.root)),
             "method": "text",
+            "files_scanned": len(code_files),
+            "extensions": exts,
+            "code_symbols_count": len(code_symbol_map),
             "design_symbols_found": len(design_symbols),
+            "advisory_symbols_found": len(advisory_symbols),
+            "advisory_missing": advisory_missing,
             "matched": matched,
             "inconsistencies": inconsistencies,
             "overall": overall,

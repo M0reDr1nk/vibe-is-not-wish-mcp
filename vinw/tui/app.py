@@ -165,6 +165,9 @@ class SEApp(App):
             return
 
         manifest = self.project.read_manifest()
+        consistency = manifest.get("layer_states", {}).get("L4-编码实现", {}).get(
+            "consistency"
+        )
         current = manifest.get("current_layer")
         descent = manifest.get("current_descent", 1)
         layer_states = manifest.get("layer_states", {})
@@ -196,6 +199,10 @@ class SEApp(App):
             else:
                 icon, color = "○", "dim"
                 extra = ""
+
+            # Auditor state is only meaningful on the L4 block
+            if layer == "L4-编码实现" and consistency:
+                extra += self._consistency_suffix(consistency)
 
             is_current = " [当前]" if layer == current else ""
             text = Text(f"{icon} {layer}{extra}{is_current}", style=color)
@@ -327,6 +334,21 @@ class SEApp(App):
             border_style="yellow",
         )
         self.query_one("#bottom-content", Static).update(bottom_content)
+
+    @staticmethod
+    def _consistency_suffix(consistency: dict) -> str:
+        """Compact audit state for the L4 block: verdict + staleness + conflict."""
+        overall = consistency.get("overall") or "?"
+        mark = {"passed": "✓", "warning": "!", "config_error": "⚙"}.get(overall, "?")
+        suffix = f" chk{mark}"
+        if consistency.get("tooling_discrepancy"):
+            suffix += "⚠冲突"
+        if consistency.get("needs_llm"):
+            suffix += "·待审"
+        llm = consistency.get("llm_verdict")
+        if llm:
+            suffix += f"/llm{'✓' if llm == 'passed' else '!'}"
+        return suffix
 
     def action_refresh(self):
         self.refresh_ui()

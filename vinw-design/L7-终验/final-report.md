@@ -5,15 +5,15 @@ doc_type: "final-report"
 status: "in_progress"
 ---
 
-# 终验报告 — VINW（descent-9，一致性门控版）
+# 终验报告 — VINW（descent-12，审计裁定版）
 
 ## 项目信息
 
 | 字段 | 值 |
 |------|-----|
 | 项目名称 | vinw-self-design |
-| 下降轮次 | descent-1 ~ descent-9 |
-| 上升次数 | 8（asc-001 ~ asc-008） |
+| 下降轮次 | descent-1 ~ descent-12 |
+| 上升次数 | 11（asc-001 ~ asc-011） |
 | 终验时间 | 2026-11-13 |
 | 版本 | 0.2.0 |
 
@@ -21,13 +21,13 @@ status: "in_progress"
 
 | 层 | 状态 | 基线 | 下降次数 |
 |---|------|------|---------|
-| L1-需求拆解 | ✅ baselined | v001, **v002** | 2 |
-| L2-参考文献与方案搜证汇总 | ✅ baselined | v001, v002, **v003** | 3 |
-| L3-方案细化 | ✅ baselined | v001–v010, **v011** | 9 |
-| L4-编码实现 | ✅ baselined | v001–v008, **v009** | 9 |
-| L5-测试验证 | ✅ baselined | v001–v008, **v009** | 9 |
-| L6-检视清理 | ✅ baselined | v001–v008, **v009** | 9 |
-| L7-终验 | ✅ completed | — | 9 |
+| L1-需求拆解 | ✅ baselined | v001–v004, **v005** | 5 |
+| L2-参考文献与方案搜证汇总 | ✅ baselined | v001–v005, **v006** | 6 |
+| L3-方案细化 | ✅ baselined | v001–v013, **v014** | 12 |
+| L4-编码实现 | ✅ baselined | v001–v010, **v011** | 12 |
+| L5-测试验证 | ✅ baselined | v001–v009, **v010** | 12 |
+| L6-检视清理 | ✅ baselined | v001–v009, **v010** | 12 |
+| L7-终验 | ✅ completed | — | 12 |
 
 ## 上升记录（ascensions.md）
 
@@ -41,6 +41,9 @@ status: "in_progress"
 | asc-006 | L7 → L1(v001) | 多项目跟踪管理：需求级扩展，回到 L1 重新拆解 |
 | asc-007 | L7 → L2(v002) | 注册表存储选型复核：descent-7 的 L2 矩阵权重错配，控制面应改 SQLite |
 | asc-008 | L7 → L3(v010) | 一致性检查纯自觉无门控、报告无指纹与轮次、非阻塞门控呈现不直观 |
+| asc-009 | L7 → L1(v002) | GEMM 实战暴露：一致性检查只扫 *.py，非 Python 工程无法通过 L4 门控 |
+| asc-010 | L7 → L1(v003) | text 仅粗检，需在关键点追加 LLM 语义审核（缺口+实现一致性） |
+| asc-011 | L4 → L1(v004) | 需把「审计发现的分级裁定」做进 MCP：高置信实现错自动修，其余升级用户 |
 
 ## descent-4 交付内容（asc-003）
 
@@ -148,6 +151,31 @@ CSV 再评估：结构性够用且最紧凑（1944 B），但 null/空串不可�
 - TUI → 分两组 `🔒 阻塞（会卡流程）` / `🔓 待你审阅（不卡流程）`，双计数标题，有阻塞时边框转红
 - 设计评审类门控（requirement-decomposition / interface-design）**默认阻塞**
 
+## descent-12 交付内容（asc-011：审计分级裁定）
+
+### 背景
+独立 reviewer 一次审出 15 个问题，逐条处理时暴露流程空白：VINW 只会说"不一致"，不会说"该改哪边"。
+
+### 能力
+| 组件 | 说明 |
+|------|------|
+| `vinw/workflow/triage.py` | classification（impl_bug/design_bug/design_gap/ambiguous）+ confidence + difference/analysis/recommendation/impact |
+| 门控决策 | `clear` / `auto_fixable` / `auto_fix_pending` / `escalate`，接入 baseline(strict)、descend、complete |
+| 新工具 ×4 | `se_triage_prompt`、`se_store_triage`、`se_get_escalations`、`se_record_triage_decision` |
+
+### 自动化边界（核心策略）
+| 判定 | 处置 |
+|------|------|
+| impl_bug + high | 记录变更后自动修正，门控放行 |
+| impl_bug + medium/low | 升级用户 |
+| design_bug / design_gap | 升级用户（需上升改设计） |
+| ambiguous | 一律升级用户 |
+
+### 实战效果（本项目自身）
+reviewer 15 项发现 → 裁定 14 项 → **10 项高置信实现缺陷自动修复**（strict 空策略、空扫描误落盘、冲突分支不可达、报告缺字段、.c 声明当实现等）→ 4 项经用户裁决（2 项改设计、1 项改名 search_scope、1 项补 TUI 标记）→ 升级项归零 → 门控放行。
+
+**这轮实战同时证明了「独立 LLM 审核」的价值**：15 项里没有一项是靠 text 门控或自审发现的。
+
 ## 流程违规与补救披露（延续）
 
 descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并立规 DESC-001（基线后缺陷必须 ascend）。descent-4 本身即是按 DESC-001 执行的第四次下降：发现完成态缺口后先上升、改设计（L3 v0.4/v005）、再下降实现，未走热修。
@@ -186,11 +214,14 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 | test_consistency_llm.py | 10 | 10/10 ✅ |
 | test_search.py | 7 | 7/7 ✅ |
 | test_registry.py（含 SQLite 控制面） | 37 | 37/37 ✅ |
-| test_consistency_gate.py（descent-9 新增） | 14 | 14/14 ✅ |
+| test_consistency_gate.py | 14 | 14/14 ✅ |
+| test_symbols.py | 20 | 20/20 ✅ |
+| test_audit_policy.py | 17 | 17/17 ✅ |
+| test_triage.py（descent-12 新增） | 18 | 18/18 ✅ |
 | test_bootstrap.py（含完成态 3 例） | 10 | 10/10 ✅ |
 | test_tui.py（滚动断言 + 多项目 4 例） | 9 | 9/9 ✅ |
 | test_todo_lifecycle.py（新增） | 15 | 15/15 ✅ |
-| **合计** | **126** | **126/126 ✅** |
+| **合计** | **184** | **184/184 ✅** |
 
 端到端实测：MCP 自举加载 ✅；一致性检查 20/20 ✅；se_complete_project 前置校验与成功路径 ✅；TUI 渲染/滚动/容错/completed ✅。
 
@@ -204,4 +235,4 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 
 ## 结论
 
-**九次下降、八次上升全部闭环，126 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**
+**十二次下降、十一次上升全部闭环，184 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**

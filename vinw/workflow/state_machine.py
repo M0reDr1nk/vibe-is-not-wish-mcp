@@ -13,9 +13,34 @@ from ..store.project import (
 )
 from ..store.changelog import append_changelog_entry
 from .consistency_gate import ConsistencyGate
+from .triage import AuditTriage
 
 L4_LAYER = 'L4-编码实现'
 L5_LAYER = 'L5-测试验证'
+
+
+class PlaceholderTodoError(ValueError):
+    """Layer todo list is still the template placeholder."""
+
+
+class ConsistencyGateError(ValueError):
+    """Consistency gate did not pass for this descent."""
+
+
+class LLMAuditRequiredError(ValueError):
+    """Policy requires an LLM verdict that is missing."""
+
+
+class ToolingDiscrepancyError(ValueError):
+    """text and LLM disagree: likely an extractor defect needing triage."""
+
+
+class ConsistencyConfigError(ValueError):
+    """Consistency check could not run (no code files / bad config)."""
+
+
+class AuditEscalationError(ValueError):
+    """Audit findings need a human decision before the gate can open."""
 
 
 class WorkflowEngine:
@@ -66,18 +91,46 @@ class WorkflowEngine:
         if layer == L4_LAYER and not force:
             gate = ConsistencyGate(self.project)
             status = gate.ensure()
+
+            if status.get("overall") == "config_error":
+                raise ConsistencyConfigError(
+                    f"一致性检查无法执行：{status.get('error')}"
+                    f"（extensions={status.get('extensions')}, "
+                    f"code_root={status.get('code_root')}）"
+                )
+
             if status.get("overall") != "passed":
-                raise ValueError(
+                disc = gate.discrepancy()
+                if disc is not None:
+                    gate.mark_discrepancy(disc)
+                    raise ToolingDiscrepancyError(
+                        f"text 与 LLM 结论冲突（{disc['reason']}）；"
+                        f"请修提取器规则后重跑，或显式 force"
+                    )
+                raise ConsistencyGateError(
                     f"L4 一致性校验未通过（overall={status.get('overall')}，"
                     f"{status.get('inconsistencies', 0)} 项不一致）；"
                     f"请修复后重试，或以 force=true 跳过"
                 )
 
+            # strict: baseline also demands a semantic verdict
+            if gate.policy() == "strict":
+                llm = gate.llm_status()
+                if not llm["present"]:
+                    raise LLMAuditRequiredError(
+                        "策略 strict 要求基线前提供本轮 LLM 语义审核结论，尚未提供"
+                    )
+                triage = AuditTriage(self.project).decision()
+                if triage["decision"] == "escalate":
+                    raise AuditEscalationError(
+                        f"{len(triage.get('escalations', []))} 条审计发现需人工裁定"
+                    )
+
         if not force:
             readme = self.project.read_layer_readme(layer)
             content = readme.get("content", "")
             if has_placeholder_todo(content):
-                raise ValueError(
+                raise PlaceholderTodoError(
                     f"{layer} 待办仍为模板占位符 '{TODO_PLACEHOLDER}'；"
                     f"请先用 se_update_todo 填写真实待办，或以 force=true 跳过"
                 )
@@ -207,15 +260,55 @@ class WorkflowEngine:
                 f"Descend only to lower layers; {to_layer} is not below {current_layer}"
             )
 
-        # Consistency must be verified before leaving L4 (gate covers both
-        # the "never ran" and "code changed after the check" cases).
+        # Consistency must be verified before leaving L4 (covers "never ran"
+        # and "code changed after the check").
         if current_layer == L4_LAYER and to_idx > from_idx:
             gate = ConsistencyGate(self.project)
             status = gate.ensure()
+
+            if status.get("overall") == "config_error":
+                raise ConsistencyConfigError(
+                    f"一致性检查无法执行：{status.get('error')}"
+                )
             if status.get("overall") != "passed":
-                raise ValueError(
+                disc = gate.discrepancy()
+                if disc is not None:
+                    gate.mark_discrepancy(disc)
+                    raise ToolingDiscrepancyError(
+                        f"text 与 LLM 结论冲突（{disc['reason']}）；"
+                        f"请修提取器规则后重跑，或显式 force"
+                    )
+                raise ConsistencyGateError(
                     f"L4 一致性校验未通过（overall={status.get('overall')}），"
                     f"不可下降到 {to_layer}"
+                )
+
+            llm = gate.llm_status()
+            if llm["required"] and not llm["present"]:
+                raise LLMAuditRequiredError(
+                    f"策略 {llm['policy']} 要求本轮 LLM 语义审核结论，尚未提供："
+                    f"请用独立 reviewer 审核后调用 se_store_consistency_report"
+                )
+
+            disc = gate.discrepancy()
+            if disc is not None:
+                gate.mark_discrepancy(disc)
+                raise ToolingDiscrepancyError(
+                    f"text 与 LLM 结论冲突（{disc['reason']}）；"
+                    f"请修提取器规则后重跑，或显式 force"
+                )
+
+            triage = AuditTriage(self.project).decision()
+            if triage["decision"] == "escalate":
+                raise AuditEscalationError(
+                    f"{len(triage.get('escalations', []))} 条审计发现需人工裁定；"
+                    f"用 se_get_escalations 查看差异点/分析/推荐，"
+                    f"再以 se_record_triage_decision 裁决"
+                )
+            if triage["decision"] == "auto_fix_pending":
+                raise AuditEscalationError(
+                    f"{len(triage.get('auto_fixable', []))} 条高置信实现缺陷待修正；"
+                    f"修正后调用 se_record_triage_decision(decision=fix_impl)"
                 )
 
         # Verify intermediate layers are baselined or in_progress

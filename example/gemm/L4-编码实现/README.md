@@ -1,0 +1,29 @@
+---
+descent_count: 0
+doc_type: layer-readme
+layer: L4-编码实现
+se_version: '2.0'
+status: pending
+todo_descent: 2
+---
+
+# L4-编码实现
+
+## 当前待办
+
+- [x] gemm.h 公共接口 + gemm_ref.c 参考实现
+- [x] gemm_blocked.c：三层分块 + pack_a/pack_b + 4x8 微内核
+- [x] pthreads 并行（gemm_blocked_par / parallel_for_m / gemm_blocked_1t）
+- [x] Makefile：make / make test / make bench / make clean
+- [x] 正确性测试 586/586 通过；一致性检查 13/13 passed
+- [ ] 性能未达标：1024³ 仅 4.07x（要求 8x），线程扩展 1.93x（要求 4x） → L5 优化迭代
+
+## 阶段小结
+
+（阶段完成时填写）
+
+## 基线记录
+
+| 版本 | 冻结时间 | 原因 |
+|------|---------|------|
+| — | — | — |

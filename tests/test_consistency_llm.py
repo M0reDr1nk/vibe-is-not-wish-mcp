@@ -18,11 +18,12 @@ def proj(tmp_path):
 
 
 class TestTextConsistencyChecker:
-    def test_no_symbols_returns_passed(self, proj):
+    def test_empty_scan_is_an_error_not_a_pass(self, proj):
+        """No code files is a configuration problem (L3 v0.10 / R13)."""
         checker = TextConsistencyChecker(proj)
         result = checker.check()
-        # Design doc with no extractable symbols and no code -> passed (nothing to check)
-        assert result["overall"] == "passed"
+        assert "error" in result
+        assert result["extensions"]
 
     def test_symbol_extraction(self, proj):
         proj.write_document("L3-方案细化", "api-design.md", """
@@ -62,11 +63,15 @@ def missing_func():
     pass
 ```
 """)
+        # Need at least one code file so the scan is not empty
+        src = proj.root / "src"
+        src.mkdir(exist_ok=True)
+        (src / "other.py").write_text("def present_func():\n    pass\n")
+
         checker = TextConsistencyChecker(proj)
-        result = checker.check()
+        result = checker.check(code_scope=["src"])
         assert result["overall"] == "warning"
-        assert len(result["inconsistencies"]) >= 1
-        assert "missing_func" in result["inconsistencies"][0]["description"]
+        assert any("missing_func" in i["description"] for i in result["inconsistencies"])
 
     def test_header_not_extracted(self, proj):
         """Ensure table headers like 'layer' are not extracted as symbols."""
@@ -143,3 +148,50 @@ class TestLLMConsistencyAuditor:
         assert "report-test-001" in str(path)
         content = path.read_text()
         assert "passed" in content
+
+
+class TestGateErrorHints:
+    """L3 v0.10 / R14: hints must match the actual failure reason."""
+
+    def test_consistency_failure_hint_is_not_about_todos(self, proj, monkeypatch):
+        import json
+
+        import vinw.server as server
+
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            readme = proj.read_layer_readme("L4-编码实现")
+            proj.write_layer_readme(
+                "L4-编码实现",
+                readme,
+                readme["content"].replace("- [ ] 初始化本层工作", "- [x] 实现完成"),
+            )
+            (proj.root / "main.py").write_text("def main():\n    return 0\n")
+            # two rows: first is the header, second declares the symbol
+            proj.write_document(
+                "L3-方案细化",
+                "api-design.md",
+                "| 接口名 |\n|--------|\n| `se_not_implemented` |\n",
+            )
+            result = json.loads(server.se_baseline("L4-编码实现"))
+            assert "error" in result
+            assert "todo" not in result["hint"].lower()
+            assert "consistency-reports" in result["hint"]
+            assert result["consistency"] is not None
+        finally:
+            server._active_project = saved
+
+    def test_placeholder_failure_hint_mentions_todos(self, proj, monkeypatch):
+        import json
+
+        import vinw.server as server
+
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            result = json.loads(server.se_baseline("L1-需求拆解"))
+            assert "error" in result
+            assert "se_update_todo" in result["hint"]
+        finally:
+            server._active_project = saved

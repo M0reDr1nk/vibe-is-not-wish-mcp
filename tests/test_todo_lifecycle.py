@@ -178,6 +178,19 @@ class TestCompleteProjectGuards:
             )
         ConsistencyGate(proj).ensure()  # completion requires a passing report
 
+        from vinw.workflow.consistency_llm import LLMConsistencyAuditor
+
+        fp = ConsistencyGate(proj).current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": [], "gaps": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            policy="text+llm",
+            auditor="reviewer",
+        )
+
     def test_blocks_on_placeholder_todo(self, active):
         from vinw.store.project import LAYERS
 
@@ -203,7 +216,22 @@ class TestCompleteProjectGuards:
 
         from vinw.workflow.consistency_gate import ConsistencyGate
 
-        ConsistencyGate(active).ensure()  # report must belong to descent 3
+        (active.root / "main.py").write_text("def main():\n    return 0\n")
+        gate = ConsistencyGate(active)
+        gate.ensure()  # text report for descent 3
+
+        from vinw.workflow.consistency_llm import LLMConsistencyAuditor
+
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(active).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": [], "gaps": []},
+            descent=3,
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            policy="text+llm",
+            auditor="reviewer",
+        )
 
         result = json.loads(server.se_complete_project())
         assert result["status"] == "completed"

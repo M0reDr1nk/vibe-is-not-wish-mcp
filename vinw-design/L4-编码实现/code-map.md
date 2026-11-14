@@ -104,3 +104,14 @@ updated_at: '2026-11-13T10:22:00.320267'
 | api-design.md v0.9 | 完成守卫 | vinw/server.py | se_complete_project 一致性校验 | ✅ 已实现 |
 | api-design.md v0.9 | 复用 | vinw/server.py | se_check_consistency 返回 reused | ✅ 已实现 |
 | api-design.md v0.9 | 待审呈现 | vinw/server.py + tui/app.py | _split_pending / 分组面板 / 设计门控默认阻塞 | ✅ 已实现 |
+
+## descent-11 新增（分层审计契约，对应 asc-010 / L3 v0.13）
+
+| 设计文档 | 段落 | 代码文件 | 函数/类 | 状态 |
+|---------|------|---------|--------|------|
+| api-design.md v0.11 | 策略矩阵 | vinw/workflow/consistency_gate.py | policy / llm_status | ✅ |
+| api-design.md v0.11 | kind 分流 | vinw/workflow/consistency_llm.py | store_report(kind=...) | ✅ |
+| api-design.md v0.11 | v2 schema | vinw/workflow/consistency_llm.py | PROMPT_TEMPLATE（缺口+实现一致性） | ✅ |
+| api-design.md v0.11 | 门控 | vinw/workflow/state_machine.py | descend L4→L5 的 LLM/冲突校验 | ✅ |
+| api-design.md v0.11 | tooling_discrepancy | vinw/workflow/consistency_gate.py | discrepancy() | ✅ |
+| api-design.md v0.11 | 工具 | vinw/server.py | se_store_consistency_report(auditor=...) | ✅ |

@@ -130,3 +130,13 @@ status: "completed"
 | 未使用导入 | consistency_gate.py 移除 re/datetime/timezone/Path/_display_path；consistency_llm.py 移除 json | AST 扫描发现（json 用于构建指纹 metadata 后被 frontmatter.dumps 取代） |
 | 一致性报告 | 本轮新增 report-f6edf36a（含 descent=9 + 指纹） | 历史报告无指纹，`latest_passing(descent)` 按轮次筛选后不受影响 |
 | 测试复验 | 126/126 通过 ✅ | 清理后重跑全绿 |
+
+## descent-12 清理（asc-011 审计分级裁定，2026-11-14）
+
+| 类别 | 操作 | 说明 |
+|------|------|------|
+| 未使用导入 | consistency_llm.py 移除 3 个已不用的 symbols 导入 | 行号提取接手后 extract_code_symbols/filter_symbols/extract_design_identifiers 不再直接调用 |
+| 报告可读性 | 把 inconsistencies 写入 frontmatter | 裁定需要机器可读的 findings，此前只有 gaps 入库 |
+| 旧报告兼容 | 历史报告无 kind/descent 时按 text 处理 | `latest_passing(kind=...)` 使用 `meta.get("kind") or "text"` |
+| 设计同步 | api-design v0.13 补 required/advisory 规则与 .tsx/.js 默认扩展名 | 对应裁定 INC-005 / INC-007（用户批准 fix_design） |
+| 测试复验 | 184/184 通过 ✅ | 清理后重跑全绿 |

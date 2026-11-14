@@ -9,18 +9,18 @@ rolled_back_at: '2026-11-13T17:00:41.343599+00:00'
 rolled_back_from: v002
 se_version: '2.0'
 status: in_progress
-todo_descent: 8
+todo_descent: 10
 ---
 
 # L2-参考文献与方案搜证汇总
 
 ## 当前待办
 
-- [x] descent-7 搜证与基线 v002（JSON/失效/寻址三项）
-- [x] descent-8：复核存储选型并更正权重错配（控制面/数据面分层）
-- [x] 实测证据：写放大 9.5ms/次、无并发锁、三格式 diff 噪音相同
-- [x] CSV 方案再评估：结构性够用但无并发锁 + null/Excel 风险
-- [x] L2 基线化 v003 → 下降 L3 设计 SQLite schema
+- [x] descent-7/8 搜证与基线 v003
+- [x] descent-10：跨语言符号提取方案对比（tree-sitter/ctags/正则）→ 选定正则+规则表
+- [x] 五项设计决策 D1-D5（双语交集/关键字过滤/扩展名配置/空扫描报错/可观测字段）
+- [x] 记录遗留风险（头文件仅声明、关键字表覆盖）
+- [ ] 等待审批 → 基线 L2 → 下降 L3
 ## 阶段小结
 
 （阶段完成时填写）

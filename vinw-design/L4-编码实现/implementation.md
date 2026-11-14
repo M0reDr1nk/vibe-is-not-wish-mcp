@@ -145,3 +145,69 @@ updated_at: "2026-11-13T10:02:19.675591"
 ### 开发期自查发现并修复
 1. 报告 frontmatter 手拼 YAML 导致解析失败（`file_hashes` 内嵌引号）→ 改用 `frontmatter.dumps(Post(...))` 由 yaml 序列化
 2. 设计指纹只覆盖 `design-doc.md`，而检查读的是 `api-design.md` → 改为整层 `*.md` 聚合哈希（否则改接口设计不会使缓存失效，属漏检）
+
+## descent-11 实现记录（asc-010：分层审计契约）
+
+### 新增/改造
+- `consistency_llm.py`：**PROMPT_TEMPLATE v2** —— 分 A 缺口清单 / B 实现一致性（逻辑/数据结构/接口/约束），强制 `design_ref`+`code_ref` 证据，输出 schema 增加 `gaps`
+- `consistency_llm.store_report()`：新增 `kind`(text/llm)、`policy`、`auditor`、`auditor_model`；llm 类报告写 `llm_verdict`、`gaps_count`
+- `consistency_gate.py`：新增 `policy()` / `llm_status()` / `discrepancy()` / `readiness()` / `record_llm_state()`；`latest_passing(descent, kind)`
+- `state_machine.py`：新增 `LLMAuditRequiredError` / `ToolingDiscrepancyError`；L4→L5 下降在 text 通过后按策略校验 LLM 结论与冲突
+- `server.py`：`se_store_consistency_report` 增加 `auditor`/`auditor_model`，自动标记 kind=llm 并回写 manifest；`se_complete_project` 按策略校验 LLM；`_consistency_state()` 输出 `policy`/`needs_llm`/`llm_verdict`
+
+### 默认策略
+`consistency_policy = "text+llm"`：基线只需 text（快），**L4→L5 与完成前强制 LLM 语义审核**。
+
+### 修复的自身缺陷
+1. 变量遮蔽：`se_store_consistency_report` 内 `auditor` 形参被同名对象覆盖，导致 YAML 无法序列化对象（测试抓到）
+2. 正则跨行吞符号（descent-10 遗留，本轮一并修复）
+
+### 验证
+测试 156/156 通过（新增 test_audit_policy.py 14 例、test_symbols.py 14 例）
+
+### descent-11 追加：符号提取语义修正（关键）
+
+实测本项目自身时出现 73 项"缺失"，全部是**配置键 / 枚举值 / 第三方类名 / prose 提及**，并非 API。据此把设计侧符号分为两类：
+
+| 类别 | 判定 | 门控作用 |
+|------|------|---------|
+| **required**（必须存在） | API 表（表头含 接口/工具/函数/命令/API）的首列标识符、单列表格标识符、`foo(` 调用形式、代码围栏中的 `def/fn/func/class` 签名 | 缺失 → **阻塞** |
+| **advisory**（仅供参考） | 其他反引号标识符（配置键、状态机取值、字段名、prose） | 缺失 → 仅列入 `advisory_missing`，不阻塞 |
+
+同时修正噪声：SQL/JSON 围栏不计入符号；版本号（`v0`）、内置函数与标准库（`sorted/rglob/sha256/...`）、模块与表名（`vinw/project_events`）加入过滤。
+
+效果：本项目 required 50 / advisory 76，阻塞项从 73 降至 0；并借此发现 2 处真实设计漂移（`resolve_project`→`resolve`、已删除的 `load/save` 仍留在 API 表）。
+
+## descent-12 实现记录（asc-011：审计分级裁定）
+
+### 新增模块 `vinw/workflow/triage.py`
+- `normalize_finding()`：规范 classification（impl_bug/design_bug/design_gap/ambiguous）、confidence（high/medium/low）、difference/analysis/recommendation/impact、status
+- `requires_human()`：仅 `impl_bug + high` 可自动处置，其余一律需人工
+- `AuditTriage`：`store()`（裁定结论附着到最新 LLM 报告）、`findings()`、`decision()`、`record_decision()`、`escalations()`
+- 门控决策四态：`clear` / `auto_fixable` / `auto_fix_pending` / `escalate`
+
+### 新工具（4 个，共 34 个 se_* 工具）
+| 工具 | 作用 |
+|------|------|
+| `se_triage_prompt` | 给出裁定指令 + 待裁定 findings |
+| `se_store_triage` | 写入 classification/confidence/recommendation |
+| `se_get_escalations` | 列出待人工裁决项（差异点/分析/推荐/影响面） |
+| `se_record_triage_decision` | 记录裁决：fix_impl / fix_design / accept_as_is / defer |
+
+### 门控接入
+- `descend(L4→L5)`、`se_baseline(L4)`（strict）、`se_complete_project` 均先查 `triage.decision()`
+- `escalate` → `AuditEscalationError`（附 escalations 列表）
+- `auto_fix_pending` → 阻断并提示修正后 `se_record_triage_decision(fix_impl)`
+
+### 修正的门控缺陷（reviewer 本轮指出）
+1. **INC-001** strict 在基线处为空策略 → 已接线
+2. **INC-003** tooling_discrepancy 分支不可达 → 判定提前到 text 失败分支
+3. **INC-009** 空扫描被误落盘为 unknown 报告 → 改为返回 `config_error` 且不落盘
+4. **INC-002/GAP-005** 报告缺 `files_scanned`/`extensions`/`code_symbols_count` → 已写入 frontmatter
+5. **INC-006** `.c` 把声明当实现 → 移除声明正则（声明归头文件）
+6. **GAP-001** `tooling_discrepancy` 不落盘 → 新增 `mark_discrepancy()`
+7. **GAP-002** `consistency_auditor` 配置未生效 → 作为工具默认值读取
+8. **INC-004** 证据缺行号 → 新增 `extract_code_symbols_with_lines()`
+
+### LLM 报告结论与门控的关系（重要语义修正）
+`overall=warning` 的 LLM 报告**不再直接拒绝**：它代表"审核已完成且发现问题"，由裁定环节决定放行/升级。仅"缺失 LLM 报告"才抛 `LLMAuditRequiredError`。

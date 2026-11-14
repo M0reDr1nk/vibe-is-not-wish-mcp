@@ -168,7 +168,7 @@ Server 启动时自动探测并加载活动工程，实现 VINW 自举（在自�
 | 模块 | 文件 | 职责 |
 |------|------|------|
 | 注册表 | `vinw/store/registry.py` | `~/.vinw/registry.json` 读写、探测、prune |
-| 工程解析 | `vinw/store/registry.py` → `resolve_project()` | 名称/路径 → `Project` |
+| 工程解析 | `vinw/store/registry.py` → `ProjectRegistry.resolve()` | 名称/路径 → `Project` |
 | MCP 工具 | `vinw/server.py` | 所有 `se_*` 增加可选 `project`；新增注册/列表/prune 工具 |
 | CLI | `vinw/__main__.py` | `vinw project add/remove/list/prune` |
 | TUI | `vinw/tui/app.py` + `vinw/tui/selector.py` | 工作目录显示、选择器、快捷键切换 |
@@ -194,12 +194,10 @@ Server 启动时自动探测并加载活动工程，实现 VINW 自举（在自�
 - 写入：先写 `registry.json.tmp` 再 `os.replace` 原子替换；写前重读合并，避免覆盖他人新增
 - 损坏处理：JSON 解析失败 → 备份为 `registry.json.bak-<ts>` 并以空表继续，返回告警（不丢文件）
 
-### `ProjectRegistry` API
+### `ProjectRegistry` API（v0.8 起为 SQLite 实现，读写走内部事务连接）
 
 | 方法 | 说明 |
 |------|------|
-| `load()` | 读注册表；损坏时备份并重建空表 |
-| `save()` | 原子写 |
 | `add(path, name=None)` | 探测 `.vinw/manifest.md` 后登记；重名追加 `-2` 并告警 |
 | `remove(name_or_path)` | 显式移除条目（只删登记，不动磁盘） |
 | `get(name_or_path)` | 返回条目或 None |
@@ -312,7 +310,7 @@ CREATE INDEX IF NOT EXISTS idx_events_path ON project_events(path, id DESC);
 
 | 方法 | 变化 |
 |------|------|
-| `load/save` | 内部改为 SQL，对外不再暴露（保留 `export_json()` 供人读） |
+| （已移除）读/写方法 | 随 v0.8 SQLite 迁移删除；改为内部事务连接 + `export_json()` 导出 |
 | `add/remove/get/list/resolve/describe` | 签名不变 |
 | `prune(missing_only, force)` | 语义不变（默认 dry-run） |
 | `touch(name_or_path)` | 单行 UPDATE |
@@ -402,3 +400,202 @@ CREATE INDEX IF NOT EXISTS idx_events_path ON project_events(path, id DESC);
 - `requirement-decomposition` / `interface-design` 类门控**默认阻塞**（它们的作用就是拦住实现）
 - `se_require_confirmation` 对这两类 `item_type` 在未显式传 `blocking` 时默认 `True`
 - 其余类型（test-results 等）默认 `False`，作为"知会式审阅"
+
+---
+
+# v0.10 跨语言一致性检查（descent-10 / asc-009）
+
+## 配置契约（manifest）
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `code_extensions` | list[str] | `[".py",".c",".h",".cc",".cpp",".hpp",".rs",".go",".java",".ts",".tsx",".js"]` | 参与一致性检查的代码扩展名（v0.13：补入 .tsx/.js，支持前端工程） |
+| `code_root` | str | `"."` | 代码根（相对工程根） |
+
+## 模块契约
+
+### `vinw/workflow/symbols.py`（新增）
+
+| 函数 | 签名 | 说明 |
+|------|------|------|
+| `extract_code_symbols` | `(path: Path) -> set[str]` | 按扩展名选规则提取定义符号 |
+| `filter_symbols` | `(names: Iterable[str]) -> set[str]` | 过滤语言关键字与保护宏 |
+| `extract_design_identifiers` | `(content: str) -> set[str]` | 从设计文档提取候选标识符（反引号/表格/代码块） |
+
+语言规则表：`LANGUAGE_RULES: dict[str, list[re.Pattern]]`，键为扩展名。
+- Python: `def` / `class` / `NAME =`（模块级常量可选）
+- C/C++: 函数定义 `\b(\w+)\s*\([^;{]*\)\s*\{`；函数声明 `\b(\w+)\s*\([^;{]*\)\s*;`（仅头文件）；`#define NAME`
+- Rust: `fn NAME` / `struct NAME` / `enum NAME`
+- Go: `func NAME` / `type NAME`
+- Java/TS: `class|interface|function NAME`
+
+### 设计侧符号的 required / advisory 二分（v0.13 补入，descent-12 裁定 INC-005）
+
+设计文档中出现的标识符并非都要求代码实现。判定规则：
+
+| 类别 | 判定条件 | 缺失后果 |
+|------|---------|---------|
+| **required** | ① API 表（表头含 接口/工具/函数/命令/方法/API/endpoint）**首列**的首个标识符；② 单列表格中的标识符；③ `foo(...)` 调用形式（且含下划线）；④ 代码围栏中的 `def/fn/func/class/struct/interface` 签名 | **阻塞**（计入 inconsistencies） |
+| **advisory** | 其他反引号标识符：配置键、状态机取值、JSON 字段名、prose 提及、SQL/JSON 围栏内容 | 仅列入 `advisory_missing`，**不阻塞** |
+
+理由：不加二分时，本项目实测产生 73 项假阳性（`kind`/`gaps`/`dormant`/`Panel` 等配置键、枚举值与第三方类名），门控失去意义。
+过滤规则同时覆盖：语言关键字、头文件保护宏（`FOO_H`）、保留标识符（`_OPENMP`）、版本号（`v0`）、标准库/内置函数、模块与 SQL 对象名。
+
+### `TextConsistencyChecker.check()` 改造
+
+1. 用 `code_extensions` 收集文件（替代写死 `*.py`）
+2. `files_scanned == 0` → 返回 `{"error": "no code files matched", "extensions": [...], "code_root": ...}`（**不产出报告**）
+3. 代码侧符号集 = 所有文件符号并集
+4. 设计侧符号集 = `extract_design_identifiers()` 过滤后
+5. 缺失项 = 设计侧 − 代码侧；匹配项 = 交集（各带首个出现位置）
+6. 返回增加 `files_scanned` / `extensions` / `code_symbols_count`
+
+### `store_report()` 增加字段
+
+`files_scanned`、`extensions`、`code_symbols_count`（写入 frontmatter，可供门控与人工核对）
+
+## 门控异常契约
+
+| 异常类 | 触发 | 对应 hint |
+|--------|------|-----------|
+| `PlaceholderTodoError(ValueError)` | 待办仍为模板占位符 | 调用 se_update_todo 填写真实待办，或 force=true |
+| `ConsistencyGateError(ValueError)` | 一致性门控未通过 | 查看 consistency-reports/ 最新报告；修复后重试或 force=true |
+
+`se_baseline` 按异常类型返回对应 hint，不再写死。
+
+## 兼容性
+
+- 报告结构与既有字段保持（`overall_status`/`inconsistencies`/`matched`）
+- 指纹机制不变：`file_hashes` 覆盖新扩展名的文件
+- Python 工程行为不变（回归测试保障）
+
+## 版本历史
+
+| v0.10 | 2026-11-14 | 跨语言一致性检查：code_extensions 配置、双语符号交集、关键字/保护宏过滤、空扫描报错、门控异常分类 |
+
+---
+
+# v0.11 分层审计契约（descent-11 / asc-010）
+
+## 策略配置（manifest）
+
+| 字段 | 取值 | 默认 | 含义 |
+|------|------|------|------|
+| `consistency_policy` | `text` / `text+llm` / `strict` | `text+llm` | 各处门控要求的审核深度 |
+| `consistency_auditor` | `self` / `reviewer` | `reviewer` | 期望审查者类型（写入报告） |
+
+政策矩阵：
+
+| 触发点 | `text` | `text+llm` | `strict` |
+|--------|--------|-----------|----------|
+| `se_baseline(L4)` | text | text | text + llm |
+| `se_descend(L4→L5)` | text | **text + llm** | text + llm |
+| `se_complete_project` | text | **text + llm** | text + llm |
+
+## 报告类型（`kind`）与新增元数据
+
+| 字段 | 说明 |
+|------|------|
+| `kind` | `text`（门控自动/R文本方法） / `llm`（语义审核结论入库） |
+| `policy` / `auditor` / `auditor_model` | 产生时的策略与审查者 |
+| `llm_verdict` | `passed/warning/failed` |
+| `gaps` | 缺口清单（设计要求但缺代码/缺测试） |
+| `tooling_discrepancy` | text 与 LLM 结论冲突标记 |
+
+`latest_passing(descent, kind=None)` 按 kind 过滤。
+
+## LLM 审核输出 schema（v2）
+
+```json
+{
+  "overall": "passed|warning|failed",
+  "gaps": [{"id":"GAP-001","design_ref":"api-design.md:42","missing":"code|test",
+            "description":"...","severity":"critical"}],
+  "inconsistencies": [{"id":"INC-001","category":"logic|data_model|interface|constraint",
+            "design_ref":"design-doc.md:31","code_ref":"src/x.c:120",
+            "description":"...","suggestion":"..."}],
+  "matched": [{"design_ref":"...","code_ref":"...","symbol":"...","note":"..."}]
+}
+```
+
+每条结论必须带 `design_ref`，尽可能带 `code_ref`；无证据条目视为无效。
+
+## 门控行为
+
+```
+ensure(kind="text"): 指纹判定 → 非 fresh 跑 text 并落盘 kind=text
+llm_status(): policy != "text" → 查 latest_passing(descent, kind="llm")
+              缺失/非 passed → needs_llm=true
+tooling_discrepancy: 最新 text=warning 且同指纹 llm=passed → 拒绝放行并列冲突原因
+```
+
+## 接口增量
+
+| 接口 | 变化 |
+|------|------|
+| `se_check_consistency(method="llm")` | 返回 v2 prompt（缺口清单 + 实现一致性两部分） |
+| `se_store_consistency_report` | 新增 `auditor`/`auditor_model`；自动 kind=llm，写 llm_verdict/gaps |
+| `se_get_project.consistency` | 增加 `llm_verdict`/`policy`/`needs_llm` |
+
+---
+
+# v0.12 审计分级裁定（descent-12 / asc-011）
+
+## 数据模型
+
+LLM 报告的每条 `inconsistencies` / `gaps` 增加：
+
+| 字段 | 取值 | 必填 |
+|------|------|------|
+| `classification` | `impl_bug` / `design_bug` / `design_gap` / `ambiguous` | 是 |
+| `confidence` | `high` / `medium` / `low` | 是 |
+| `recommendation` | 推荐处置文本 | 是 |
+| `status` | `open` / `fixed` / `decided` / `accepted` | 由系统维护 |
+
+## 裁定提示词（PROMPT v3 追加段）
+
+```
+对每条发现，先判断"设计本身是否合理"，再判断"实现是否偏离设计"：
+1. 设计不合理/过时/自相矛盾 → design_bug 或 design_gap
+2. 设计合理而实现偏离       → impl_bug
+3. 涉及外部契约、命名偏好、优先级等需权衡 → ambiguous
+4. confidence=high 必须能给出明确证据（行号 + 推理链）；证据不足时降为 medium
+禁止默认把不一致判为 impl_bug。
+```
+
+## 门控判定
+
+`ConsistencyGate.triage_decision()` 返回：
+
+| decision | 条件 | 门控行为 |
+|----------|------|---------|
+| `auto_fixable` | 全部 finding 为 `impl_bug` 且 `confidence=high` 且 `status != open` | 放行 |
+| `auto_fix_pending` | 全部为 impl_bug/high，但仍有 `open` | 阻断，提示可自动修正 |
+| `escalate` | 存在 `design_*` / `ambiguous`，或 impl_bug 置信度非 high，且未裁定 | 阻断，返回升级项 |
+| `clear` | 无 findings | 放行 |
+
+## 新工具
+
+| 工具 | 输入 | 输出 |
+|------|------|------|
+| `se_triage_prompt` | project | 返回裁定提示词 + 现有 findings（供 reviewer 作答） |
+| `se_store_triage` | report_json | 写入图文裁定（classification/confidence/recommendation） |
+| `se_get_escalations` | project | 待用户裁决项：finding_id、difference、analysis、recommendation、impact |
+| `se_record_triage_decision` | finding_id, decision, note | 记录用户裁定；decision ∈ fix_impl / fix_design / accept_as_is / defer |
+
+裁决以 `decision` 映射 `status`：`fix_impl`→`fixed`（需配合 se_log_change），`fix_design`→`decided`，`accept_as_is`→`accepted`，`defer`→保持 `open`。
+
+## 持久化
+
+- LLM 报告 frontmatter：`triage: [{id, classification, confidence, recommendation, status}]`
+- manifest：`layer_states[L4].audit = {report_id, decision, escalations: n, auto_fixable: [...]}`
+
+## 与既有契约的关系
+
+- 不改变 text 门控与指纹缓存的语义
+- `se_complete_project` / `descend(L4→L5)` 增加 `triage_decision()` 校验
+- 升级项不写进 `pending_confirmations`（避免与人工门控混淆），由 `se_get_escalations` 统一管理
+
+## 版本历史
+
+| v0.12 | 2026-11-14 | 审计分级裁定：classification/confidence/recommendation、triage 门控决策、4 个新工具 |

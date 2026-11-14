@@ -189,3 +189,34 @@ def test_tui_accepts_registered_name(registry_home):
         assert app.project.root == roots[1].root.resolve()
 
     _run(app, scenario)
+
+
+def test_consistency_marker_on_l4_block(registry_home, monkeypatch):
+    """GAP-003: the layer graph must surface the audit state."""
+    from vinw.store.project import replace_todo_section
+
+    reg, roots = registry_home
+    proj = roots[0]
+    (proj.root / "main.py").write_text("def main():\n    return 0\n")
+    r = proj.read_layer_readme("L4-编码实现")
+    proj.write_layer_readme(
+        "L4-编码实现",
+        {**r, "todo_descent": 1},
+        replace_todo_section(r["content"], "## 当前待办\n\n- [x] 实现"),
+    )
+
+    from vinw.workflow.consistency_gate import ConsistencyGate
+
+    ConsistencyGate(proj).ensure()
+
+    app = SEApp(str(proj.root), registry=reg)
+
+    async def scenario(pilot):
+        await pilot.pause()
+        suffix = app._consistency_suffix(
+            app.project.read_manifest()["layer_states"]["L4-编码实现"]["consistency"]
+        )
+        assert "chk" in suffix
+        assert "✓" in suffix
+
+    _run(app, scenario)

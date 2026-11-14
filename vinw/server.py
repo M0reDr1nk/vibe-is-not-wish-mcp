@@ -14,9 +14,23 @@ import frontmatter
 from .store.project import Project, LAYERS, has_placeholder_todo
 from .store.registry import ProjectRegistry, ProjectNotFound
 from .store.document import DocumentStore
-from .workflow.state_machine import WorkflowEngine
+from .workflow.state_machine import (
+    AuditEscalationError,
+    ConsistencyConfigError,
+    ConsistencyGateError,
+    LLMAuditRequiredError,
+    PlaceholderTodoError,
+    ToolingDiscrepancyError,
+    WorkflowEngine,
+)
 from .workflow.consistency_llm import LLMConsistencyAuditor, TextConsistencyChecker
 from .workflow.consistency_gate import ConsistencyGate
+from .workflow.triage import (
+    CLASSIFICATIONS,
+    DECISIONS,
+    AuditTriage,
+    TriageError,
+)
 
 # Gate types whose purpose is to stop work until a human approves
 DESIGN_REVIEW_GATES = {"requirement-decomposition", "interface-design"}
@@ -62,6 +76,25 @@ def _get_registry() -> ProjectRegistry:
     if _registry is None:
         _registry = ProjectRegistry()
     return _registry
+
+
+def _consistency_state(proj) -> dict | None:
+    state = proj.read_manifest().get("layer_states", {}).get("L4-编码实现", {}).get(
+        "consistency"
+    )
+    if state is None:
+        return None
+    try:
+        gate = ConsistencyGate(proj)
+        llm = gate.llm_status()
+        return {
+            **state,
+            "policy": llm["policy"],
+            "needs_llm": not llm["satisfied"],
+            "llm_verdict": state.get("llm_verdict"),
+        }
+    except Exception:
+        return state
 
 
 def _split_pending(pending: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -194,7 +227,7 @@ def se_get_project(project: str | None = None) -> str:
             "ascent_history": manifest.get("ascent_history", []),
             "blocking_pending": blocking_pending,
             "pending_review": pending_review,
-            "consistency": layer_states.get("L4-编码实现", {}).get("consistency"),
+            "consistency": _consistency_state(proj),
             "pending_confirmations": manifest.get("pending_confirmations", []),
         },
         ensure_ascii=False,
@@ -217,11 +250,65 @@ def se_baseline(layer: str, reason: str = "", force: bool = False, project: str 
     engine = WorkflowEngine(proj)
     try:
         result = engine.baseline(layer, reason, force=force)
-    except ValueError as e:
+    except PlaceholderTodoError as e:
         return json.dumps(
             {
                 "error": str(e),
                 "hint": "调用 se_update_todo 填写真实待办，或传 force=true",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    except ConsistencyGateError as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "hint": "查看 L4-编码实现/consistency-reports/ 最新报告修复不一致；"
+                        "若确认可跳过，传 force=true",
+                "consistency": _consistency_state(proj),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    except LLMAuditRequiredError as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "hint": "用独立 reviewer 执行 se_check_consistency(method=\"llm\") 的提示词，"
+                        "再以 se_store_consistency_report 提交结论（auditor=reviewer）",
+                "consistency": _consistency_state(proj),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    except ToolingDiscrepancyError as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "hint": "疑似提取器缺陷：核对 vinw/workflow/symbols.py 的规则，"
+                        "修正后重跑；或显式 force=true",
+                "consistency": _consistency_state(proj),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    except AuditEscalationError as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "hint": "用 se_get_escalations 查看差异点/分析/推荐，"
+                        "se_record_triage_decision 裁决后重试",
+                "escalations": AuditTriage(proj).escalations(),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    except ConsistencyConfigError as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "hint": "检查 manifest 的 code_extensions / code_root 与 code_scope",
+                "consistency": _consistency_state(proj),
             },
             ensure_ascii=False,
             indent=2,
@@ -480,14 +567,42 @@ def se_check_consistency(
 
 
 @mcp.tool()
-def se_store_consistency_report(report_json: str, project: str | None = None) -> str:
-    """Store a parsed LLM consistency report (call after getting LLM response)."""
+def se_store_consistency_report(
+    report_json: str,
+    auditor: str = "",
+    auditor_model: str = "",
+    project: str | None = None,
+) -> str:
+    """Store a parsed LLM consistency report (call after getting LLM response).
+
+    The report is recorded with kind="llm" plus auditor identity, so later
+    gates can require and trace semantic review.
+    """
     proj, err = _project_or_error(project)
     if err:
         return err
-    auditor = LLMConsistencyAuditor(proj)
+    llm_auditor = LLMConsistencyAuditor(proj)
     report_data = json.loads(report_json)
-    report_path = auditor.store_report(report_data)
+    if not auditor:
+        # manifest.consistency_auditor declares the expected reviewer type
+        auditor = str(
+            proj.read_manifest().get("consistency_auditor") or "reviewer"
+        )
+    gate = ConsistencyGate(proj)
+    descent_now = proj.read_manifest().get("current_descent", 1)
+    fingerprint = gate.current_fingerprint()
+
+    report_path = llm_auditor.store_report(
+        report_data,
+        descent=descent_now,
+        design_digest=fingerprint["design_hash"],
+        hashes=fingerprint["file_hashes"],
+        kind="llm",
+        policy=gate.policy(),
+        auditor=auditor,
+        auditor_model=auditor_model or None,
+    )
+    gate.record_llm_state(frontmatter.load(report_path).metadata)
     return json.dumps(
         {"report_path": str(report_path), "status": "stored"},
         ensure_ascii=False,
@@ -499,7 +614,7 @@ def se_store_consistency_report(report_json: str, project: str | None = None) ->
 @mcp.tool()
 def se_search_proposals(
     query: str,
-    scope: str = "local",
+    search_scope: str = "local",
     method: str = "rg",
     archive_dir: str = "",
     top_k: int = 10,
@@ -519,7 +634,7 @@ def se_search_proposals(
     searcher = ProposalSearcher(proj)
     result = searcher.search(
         query=query,
-        scope=scope,
+        scope=search_scope,
         method=method,
         archive_dir=archive_dir or None,
         top_k=top_k,
@@ -639,13 +754,33 @@ def se_complete_project(project: str | None = None) -> str:
         )
 
     gate = ConsistencyGate(proj)
-    passing = gate.latest_passing(manifest.get("current_descent", 1))
+    descent_now = manifest.get("current_descent", 1)
+    passing = gate.latest_passing(descent_now)
     if passing is None:
         errors.append(
-            "本轮（descent-"
-            f"{manifest.get('current_descent', 1)}）缺少通过的一致性检查报告："
+            f"本轮（descent-{descent_now}）缺少通过的一致性检查报告："
             "请调用 se_check_consistency 后重试"
         )
+    else:
+        llm = gate.llm_status(descent_now)
+        if llm["required"] and not llm["present"]:
+            errors.append(
+                f"策略 {llm['policy']} 要求本轮 LLM 语义审核结论，尚未提供"
+                "（se_store_consistency_report 提交 reviewer 结论后重试）"
+            )
+        disc = gate.discrepancy(descent_now)
+        if disc is not None:
+            errors.append(f"text 与 LLM 结论冲突：{disc['reason']}")
+        triage = AuditTriage(proj).decision()
+        if triage["decision"] == "escalate":
+            errors.append(
+                f"{len(triage.get('escalations', []))} 条审计发现待人工裁定"
+                "（se_get_escalations 查看）"
+            )
+        elif triage["decision"] == "auto_fix_pending":
+            errors.append(
+                f"{len(triage.get('auto_fixable', []))} 条高置信实现缺陷待修正"
+            )
 
     if errors:
         return json.dumps(
@@ -796,6 +931,95 @@ def se_use_project(project: str) -> str:
     )
 
 
+# ── Audit triage (L3 v0.12) ─────────────────────────────────
+
+
+@mcp.tool()
+def se_triage_prompt(project: str | None = None) -> str:
+    """Return the triage instructions plus the findings awaiting judgement."""
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+
+    triage = AuditTriage(proj)
+    latest = triage.latest_llm_report()
+    findings = triage.findings()
+
+    instructions = (
+        "对每条发现先判断『设计本身是否合理』，再判断『实现是否偏离设计』：\n"
+        "1. 设计不合理/过时/自相矛盾 → design_bug 或 design_gap\n"
+        "2. 设计合理而实现偏离       → impl_bug\n"
+        "3. 涉及外部契约、命名偏好、优先级权衡 → ambiguous\n"
+        "4. confidence=high 必须给出明确证据（行号+推理链），否则降为 medium\n"
+        "禁止默认把不一致判为 impl_bug。\n\n"
+        "输出 JSON：{\"triage\":[{\"id\":..., \"classification\":"
+        "\"impl_bug|design_bug|design_gap|ambiguous\", \"confidence\":"
+        "\"high|medium|low\", \"difference\":\"设计侧 vs 代码侧\", "
+        "\"analysis\":\"为什么可能是实现错/设计错\", \"recommendation\":\"...\", "
+        "\"impact\":\"影响面\"}]}"
+    )
+
+    return json.dumps(
+        {
+            "instructions": instructions,
+            "report_id": latest[0] if latest else None,
+            "findings": findings,
+            "classifications": list(CLASSIFICATIONS),
+            "decisions": list(DECISIONS),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+@mcp.tool()
+def se_store_triage(report_json: str, project: str | None = None) -> str:
+    """Attach triage verdicts to the latest LLM audit report."""
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+    try:
+        result = AuditTriage(proj).store(json.loads(report_json))
+    except (TriageError, json.JSONDecodeError) as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False, indent=2)
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def se_get_escalations(project: str | None = None) -> str:
+    """List findings that need a human decision (difference/analysis/recommendation)."""
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+    triage = AuditTriage(proj)
+    decision = triage.decision()
+    return json.dumps(
+        {
+            "decision": decision.get("decision"),
+            "count": len(decision.get("escalations", []) or []),
+            "escalations": decision.get("escalations", []),
+            "auto_fixable": decision.get("auto_fixable", []),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+@mcp.tool()
+def se_record_triage_decision(
+    finding_id: str, decision: str, note: str = "", project: str | None = None
+) -> str:
+    """Record a human decision for one escalated finding."""
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+    try:
+        result = AuditTriage(proj).record_decision(finding_id, decision, note)
+    except TriageError as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False, indent=2)
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
 # ── Guidance ────────────────────────────────────────────────
 
 @mcp.tool()
@@ -892,7 +1116,7 @@ def se_get_next_steps(project: str | None = None) -> str:
             "next_layer": next_layer,
             "special_instruction": s.get("special", ""),
             "awaiting_review": pending_review,
-            "consistency": layer_states.get("L4-编码实现", {}).get("consistency"),
+            "consistency": _consistency_state(proj),
         },
         ensure_ascii=False,
         indent=2,

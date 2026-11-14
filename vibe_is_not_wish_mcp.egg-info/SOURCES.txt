@@ -1,6 +1,7 @@
 LICENSE
 README.md
 pyproject.toml
+tests/test_audit_policy.py
 tests/test_bootstrap.py
 tests/test_consistency_gate.py
 tests/test_consistency_llm.py
@@ -8,7 +9,9 @@ tests/test_project.py
 tests/test_registry.py
 tests/test_search.py
 tests/test_state_machine.py
+tests/test_symbols.py
 tests/test_todo_lifecycle.py
+tests/test_triage.py
 tests/test_tui.py
 vibe_is_not_wish_mcp.egg-info/PKG-INFO
 vibe_is_not_wish_mcp.egg-info/SOURCES.txt
@@ -34,6 +37,7 @@ vinw/utils/validators.py
 vinw/workflow/__init__.py
 vinw/workflow/consistency_gate.py
 vinw/workflow/consistency_llm.py
-vinw/workflow/gate.py
 vinw/workflow/search.py
 vinw/workflow/state_machine.py
+vinw/workflow/symbols.py
+vinw/workflow/triage.py

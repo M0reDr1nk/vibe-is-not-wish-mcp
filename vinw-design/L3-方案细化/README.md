@@ -10,18 +10,18 @@ rolled_back_at: '2026-11-13T17:16:46.739191+00:00'
 rolled_back_from: v010
 se_version: '2.0'
 status: in_progress
-todo_descent: 8
+todo_descent: 10
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [x] 接口设计 v0.1~v0.7（自举/一致性/完成态/TUI/待办契约/多项目）
-- [x] v0.8：SQLite schema（projects + project_events、WAL、user_version=2）
-- [x] v0.8：state(intent)/missing_since(observation) 分离与探测策略
-- [x] v0.8：JSON→SQLite 迁移、export_json、history、set_state
-- [x] L3 基线化 → 下降 L4
+- [x] 接口设计 v0.1~v0.9（自举/一致性门控/多项目/SQLite/待审呈现）
+- [x] v0.10：符号提取模块 symbols.py 契约 + 语言规则表
+- [x] v0.10：TextConsistencyChecker 改造（扩展名/空扫描报错/双语交集）
+- [x] v0.10：门控异常分类（PlaceholderTodoError / ConsistencyGateError）
+- [ ] 等待审批 → 基线 L3 → 下降 L4
 ## 阶段小结
 
 （阶段完成时填写）

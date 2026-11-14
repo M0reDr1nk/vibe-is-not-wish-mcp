@@ -286,3 +286,27 @@ updated_at: "2026-11-13T12:00:00Z"
 ### 开发期自查发现并修复
 1. 报告 frontmatter 手拼 YAML 解析失败 → 改由 `frontmatter.dumps` 序列化
 2. 设计指纹仅覆盖 `design-doc.md`（漏检 `api-design.md` 变更）→ 改为整层 `*.md` 聚合哈希
+
+## descent-12 round 1（asc-011 审计分级裁定，2026-11-14）
+
+| 指标 | 值 |
+|------|-----|
+| 测试轮次 | descent-12 round 1 |
+| 总用例数 | 184（新增 test_triage.py 16 例、strict 策略 3 例、TUI 一致性标记 1 例） |
+| 通过 | 184 |
+| 失败 | 0 |
+
+### 本轮验证的关键行为
+
+| 行为 | 验证方式 |
+|------|---------|
+| 只有 impl_bug+high 可自动处置 | `TestNormalization` 单测 |
+| 设计类问题必须人工 | `test_decision_escalates_for_design_bug` |
+| 裁决后门控放行 | `test_descend_passes_after_decisions` |
+| 未裁定即阻断 | `test_descend_blocked_on_escalation` |
+| 四个新工具 | `TestTools` 4 例 |
+| strict 基线要求 LLM | `TestStrictPolicy` 3 例 |
+| TUI 一致性标记 | `test_consistency_marker_on_l4_block` |
+
+### 端到端实战（本项目自身）
+reviewer 独立审出 15 项 → 裁定 14 项（10 项 impl_bug/high 自动修复、2 项 design_gap 经用户批准改设计、1 项命名经用户裁决改名、1 项 TUI 标记经批准实现）→ `se_get_escalations` 归零 → 门控放行。

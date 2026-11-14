@@ -110,10 +110,26 @@ class TestCompleteProject:
                 readme,
                 replace_todo_section(readme["content"], "## 当前待办\n\n- [x] done"),
             )
-        # Completion requires a passing consistency report for this descent
+        # Completion requires a passing consistency report for this descent.
+        # An empty code scan is an error now, so give the project real code.
+        (proj.root / "main.py").write_text("def main():\n    return 0\n")
         from vinw.workflow.consistency_gate import ConsistencyGate
 
         ConsistencyGate(proj).ensure()
+        # text+llm is the default policy: store a reviewer verdict as well
+        from vinw.workflow.consistency_llm import LLMConsistencyAuditor
+
+        gate = ConsistencyGate(proj)
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": [], "gaps": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            policy="text+llm",
+            auditor="reviewer",
+        )
         return proj
 
     def test_complete_success(self, tmp_path, clean_active_project):

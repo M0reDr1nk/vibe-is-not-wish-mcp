@@ -68,57 +68,89 @@ ascent_history:
   reason: 一致性审核无强制触发点（纯自觉）+ 非阻塞门控遗留呈现不直观；需新增指纹增量校验与三处守卫、改进待审呈现、并区分设计评审门控阻塞语义
   to_baseline: v010
   to_layer: L3-方案细化
+- created_at: '2026-11-13T17:39:07.404055+00:00'
+  descent_after: 10
+  descent_before: 9
+  from_layer: L7-终验
+  id: asc-009
+  reason: GEMM 实战暴露 P0 缺陷：一致性检查器硬编码 *.py 与 Python 符号规则，非 Python 工程无法通过 L4 门控；另有 P1
+    门控错误提示错位。需回 L1 补跨语言需求后重新设计
+  to_baseline: v002
+  to_layer: L1-需求拆解
+- created_at: '2026-11-13T17:54:09.040374+00:00'
+  descent_after: 11
+  descent_before: 10
+  from_layer: L7-终验
+  id: asc-010
+  reason: 审计契约变更：text 仅粗检（单向保证），需在 L4→L5 与完成前追加 LLM 审核，且审核目标改为「缺口清单 + 实现一致性（逻辑/数据结构/约束）」；报告需记录审查者与
+    tooling_discrepancy
+  to_baseline: v002
+  to_layer: L1-需求拆解
+- created_at: '2026-11-13T18:08:09.779194+00:00'
+  descent_after: 12
+  descent_before: 11
+  from_layer: L4-编码实现
+  id: asc-011
+  reason: 新增能力：审计发现不一致需 LLM 分级裁定（实现错/方案错/设计缺失/待定），高置信实现错自动修正并记录，其余结构化升级给用户。需回需求层设计
+  to_baseline: v002
+  to_layer: L1-需求拆解
 code_root: ..
 completed_at: '2026-11-13T17:22:28.121911+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 9
+current_descent: 12
 current_layer: L7-终验
-descent_started_at: '2026-11-13T17:16:46.739602+00:00'
+descent_started_at: '2026-11-13T18:08:09.780756+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
-    active_ascent: asc-006
-    baselined_at: '2026-11-13T16:48:28.833923+00:00'
-    descent_count: 2
-    latest_baseline: v002
+    active_ascent: asc-011
+    baselined_at: '2026-11-13T18:08:17.439055+00:00'
+    descent_count: 5
+    latest_baseline: v005
     status: baselined
   L2-参考文献与方案搜证汇总:
     active_ascent: asc-007
-    baselined_at: '2026-11-13T17:00:53.003651+00:00'
-    descent_count: 3
-    latest_baseline: v003
+    baselined_at: '2026-11-13T18:08:28.269585+00:00'
+    descent_count: 6
+    latest_baseline: v006
     status: baselined
   L3-方案细化:
     active_ascent: asc-008
-    baselined_at: '2026-11-13T17:16:58.853596+00:00'
-    descent_count: 9
-    latest_baseline: v011
+    baselined_at: '2026-11-13T18:08:39.481242+00:00'
+    descent_count: 12
+    latest_baseline: v014
     status: baselined
   L4-编码实现:
-    baselined_at: '2026-11-13T17:21:05.576006+00:00'
+    audit:
+      auto_fixable: 0
+      decision: auto_fixable
+      escalations: 0
+      findings: 14
+      report_id: 7474b697
+    baselined_at: '2026-11-14T02:42:32.784118+00:00'
     consistency:
-      checked_at: '2026-11-13T17:21:05.549885+00:00'
-      code_fingerprint: 97d5973005f26a3ec85bf1be6d7e90babf3de2ac3343c38fb7a9bc0f4119d6ac
-      descent: 9
+      checked_at: '2026-11-14T02:42:32.774567+00:00'
+      code_fingerprint: 9857f5a800480c6db5647e73303bc22c61743b829a633dd6cbe52cca038b3a0b
+      descent: 12
       overall: passed
-      report_id: f6edf36a
-    descent_count: 8
-    latest_baseline: v009
+      report_id: ae076f59
+    descent_count: 11
+    latest_baseline: v011
     status: baselined
   L5-测试验证:
-    baselined_at: '2026-11-13T17:21:38.321156+00:00'
-    descent_count: 9
-    latest_baseline: v009
+    baselined_at: '2026-11-14T02:43:01.655609+00:00'
+    descent_count: 10
+    latest_baseline: v010
     status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-13T17:22:12.874883+00:00'
-    descent_count: 9
-    latest_baseline: v009
+    baselined_at: '2026-11-14T02:43:51.413339+00:00'
+    descent_count: 10
+    latest_baseline: v010
     status: baselined
   L7-终验:
-    descent_count: 9
+    descent_count: 10
     latest_baseline: null
-    status: completed
+    status: in_progress
 name: vinw-self-design
 pending_confirmations:
 - blocking: true
