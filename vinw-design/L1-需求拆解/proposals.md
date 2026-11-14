@@ -399,3 +399,39 @@ anchor report     : 1fc249d1（该报告的 design_hash = 7bb0ca74d50c4f45）
 ## 优先级
 
 P2（可用性缺陷：工程不丢但用户看不到，易误判为创建失败）
+
+---
+
+# R30（descent-15 事故记录）：MCP server 进程陈旧导致门控失效（2026-11-14）
+
+## 事故
+
+DSH 插件的 `vinw server` 进程 10:42 启动后持续运行 3 小时；期间所有 `pip install --force-reinstall`
+只更新磁盘，**运行中进程的 Python 模块缓存不刷新**。后果：
+
+1. descent-13/14/15 的所有 MCP 状态转换（baseline/descend/complete）均由 **10:42 时刻的旧代码**执行，
+   晚于该时刻的全部状态机修复（唯一 in_progress 不变量、被拒零写入、v0.15 全阶段门控）**实际未参与**
+2. 旧代码的 `layer_design_hash` 不排除 README → 用户另一 agent 编辑 L3 README（13:07）即改变"设计哈希"
+   → 已完成的工程永久报 `design_changed_since_audit`
+3. 发现链条：drift 异常 → 哈希算法对比（063d=include-README）→ `ps` 发现进程 10:42 启动 → 杀进程重启 → 重新锚定
+
+## 处置（已完成）
+
+- 终止旧进程（PID 68232），DSH 自动拉起新进程（PID 36306）
+- 新 server 重新锚定：text passed + 重存 reviewer13 结论（report-67a552c3-01，design_hash 新算法）
+- 终态：drift clean、llm satisfied、triage 全部处置完毕
+- 数据完整性核查：manifest 层状态无残留标记（superseded_by 全 null），无不变量违反
+
+## 教训与缓解（backlog）
+
+| 编号 | 措施 | 优先级 |
+|------|------|--------|
+| R30-1 | server 启动时把 commit hash 写入 `se_get_project` 响应；与仓库 HEAD 不符时在 TUI 显示警告条 | P1 |
+| R30-2 | `pip install` 后必须重启 MCP server（文档化进 README 开发章节；探索 DSH 插件 reload 钩子） | P1 |
+| R30-3 | 一致性报告记录**算法版本**（如 `design_hash_algo: "layer-v2"`），算法升级时旧报告自然失效而非静默错位 | P2 |
+
+## 对用户问题的回答存档
+
+「是不是因为我起了另一个 agent 改 readme？」——**部分相关但不是根因**。README 编辑只影响旧代码的哈希；
+现行代码中 README 被排除在设计哈希外，编辑它不会制造漂移。根因是 server 进程陈旧（进程级缓存），
+重启后即恢复正常。

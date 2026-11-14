@@ -148,16 +148,25 @@ layer_states:
     status: baselined
   L4-编码实现:
     audit:
-      auto_fixable: 0
-      decision: auto_fixable
-      escalations: 0
+      auto_fixable:
+      - GAP-R13-001
+      - GAP-R13-002
+      - INC-R13-001
+      auto_fixable_count: 3
+      decision: auto_fix_pending
+      escalations: []
+      escalations_count: 0
       findings: 6
-      report_id: 67a552c3
+      report_id: 67a552c3-01
     baselined_at: '2026-11-14T05:25:53.231693+00:00'
     consistency:
       checked_at: '2026-11-14T05:25:53.225164+00:00'
-      code_fingerprint: b4c980f38c821e4ab09d59ed43aa6e31f3af10dda86448ead125cba71244ee68
+      code_fingerprint: 0df2cb87a6306f71aefcaca8417572f6f8378768453a25c70e2813f7f5e8e192
       descent: 15
+      design_hash: f19b3578aa165f5061289fef4524726679a8a0276fa34b02bb2baa4cba486791
+      llm_auditor: reviewer
+      llm_report_id: 67a552c3-01
+      llm_verdict: warning
       overall: passed
       report_id: a7b52cb1
     descent_count: 14
