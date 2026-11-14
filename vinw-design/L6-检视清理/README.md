@@ -5,7 +5,7 @@ descent_count: 0
 doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
-status: in_progress
+status: superseded
 todo_descent: 9
 ---
 

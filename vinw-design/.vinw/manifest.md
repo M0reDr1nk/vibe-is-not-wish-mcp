@@ -120,32 +120,46 @@ ascent_history:
   reason: 解决 backlog 3：se_init_project 新建工程不写注册表，导致 TUI 选择器看不到；需改设计后实现工程自动登记
   to_baseline: v016
   to_layer: L3-方案细化
+- created_at: '2026-11-14T05:42:16.411320+00:00'
+  descent_after: 16
+  descent_before: 15
+  from_layer: L7-终验
+  id: asc-015
+  reason: R30 进程陈旧防护 + R31 泛化歧义确认（带参考选项）+ R32 decision_bias 方案调研；需回 L1 拆解
+  to_baseline: v005
+  to_layer: L1-需求拆解
 code_root: ..
 completed_at: '2026-11-14T05:27:20.047447+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 15
-current_layer: L7-终验
-descent_started_at: '2026-11-14T05:07:28.906447+00:00'
+current_descent: 16
+current_layer: L1-需求拆解
+descent_started_at: '2026-11-14T05:42:16.413687+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
-    active_ascent: asc-011
+    active_ascent: asc-015
     baselined_at: '2026-11-13T18:08:17.439055+00:00'
-    descent_count: 5
+    descent_count: 6
     latest_baseline: v005
-    status: baselined
+    status: in_progress
   L2-参考文献与方案搜证汇总:
     active_ascent: asc-007
     baselined_at: '2026-11-13T18:08:28.269585+00:00'
     descent_count: 6
     latest_baseline: v006
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T05:42:16.413676+00:00'
+    superseded_by: asc-015
   L3-方案细化:
     active_ascent: asc-014
     baselined_at: '2026-11-14T05:25:43.019315+00:00'
     descent_count: 15
     latest_baseline: v017
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T05:42:16.413676+00:00'
+    superseded_by: asc-015
   L4-编码实现:
     audit:
       auto_fixable:
@@ -171,23 +185,34 @@ layer_states:
       report_id: a7b52cb1
     descent_count: 14
     latest_baseline: v014
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T05:42:16.413676+00:00'
+    superseded_by: asc-015
   L5-测试验证:
     abandoned_at: '2026-11-14T04:16:39.686081+00:00'
     baselined_at: '2026-11-14T05:26:36.551620+00:00'
     descent_count: 13
     latest_baseline: v012
     needs_redo: true
-    status: baselined
+    status: superseded
+    superseded_at: '2026-11-14T05:42:16.413676+00:00'
+    superseded_by: asc-015
   L6-检视清理:
     baselined_at: '2026-11-14T05:26:43.512490+00:00'
     descent_count: 13
     latest_baseline: v012
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T05:42:16.413676+00:00'
+    superseded_by: asc-015
   L7-终验:
     descent_count: 12
     latest_baseline: null
-    status: completed
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T05:42:16.413676+00:00'
+    superseded_by: asc-015
 name: vinw-self-design
 pending_confirmations:
 - blocking: true

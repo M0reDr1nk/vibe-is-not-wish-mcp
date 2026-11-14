@@ -1,14 +1,14 @@
 ---
-baseline_reason: descent-7 L1：多项目跟踪管理需求拆解 R1-R9 + 问题域 Q8-Q12（门控 cfm-...-003 为非阻塞供审阅）
+baseline_reason: descent-12 L1 v005：LLM 分级裁定需求 R22-R28
 baseline_version: v005
-baselined_at: '2026-11-13T18:08:17.439055+00:00'
+baselined_at: '2026-11-13T18:08:17.437539+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L1-需求拆解
-rolled_back_at: '2026-11-13T18:08:09.780381+00:00'
-rolled_back_from: v002
+rolled_back_at: '2026-11-14T05:42:16.413357+00:00'
+rolled_back_from: v005
 se_version: '2.0'
-status: baselined
+status: in_progress
 todo_descent: 12
 ---
 
