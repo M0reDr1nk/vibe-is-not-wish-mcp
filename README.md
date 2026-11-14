@@ -62,7 +62,7 @@ So the process is a directory tree, state transitions are tool calls, the change
    Project documents are Markdown: human-readable, git-friendly, reviewable. The global project registry is SQLite at `$VINW_HOME/registry.db`: machine state, concurrent writers, WAL, transactions. Forcing one medium to serve both jobs would weaken both.
 
 9. **Self-hosting is the acceptance test.**
-   VINW is built with VINW. [`vinw-design/`](vinw-design/) is its own process record: 16 descents, 15 ascents, and 88 audit findings, each triaged through the same reports and gates the tool enforces on its users.
+   VINW is built with VINW. [`vinw-design/`](vinw-design/) is its own process record: 20 descents, 19 ascents, and 137 audit findings, each triaged through the same reports and gates the tool enforces on its users.
 
 ### Non-goals
 
@@ -74,20 +74,20 @@ So the process is a directory tree, state transitions are tool calls, the change
 
 ## Self-hosting Record
 
-**Statistics snapshot: commit `2a90ed5`** (2026-11-14 15:20 +08:00). At this commit the test suite reports `303 passed` across 16 files, and the MCP surface exposes `38` tools.
+**Statistics snapshot: commit `5a888fe`** (2026-11-14 22:34 +08:00). At this commit the test suite reports `354 passed` across 16 files, and the MCP surface exposes `40` tools. Regenerate with `python scripts/readme_stats.py`.
 
-VINW's own implementation is its longest-running test case. As of this commit, **88 design/code deviations had been intercepted and recorded**:
+VINW's own implementation is its longest-running test case. As of this commit, **137 design/code deviations had been intercepted across 12 distinct LLM audits**:
 
 | Type | Count | Description | Representative example |
 |------|------:|-------------|------------------------|
-| `impl_bug` | 42 | Code contradicts or omits something the approved design already specifies. | `ensure()` re-anchored the audited fingerprint even when the text re-check failed, so a rejected transition could be retried successfully. |
-| `design_gap` | 18 | Code implements real behavior that the design never specified; the design has to catch up. | Drift detection and `heal_drift` were implemented and sitting in the gate path before L3 had any contract for them. |
-| `design_bug` | 19 | The design itself is wrong, internally inconsistent, or contradicts behavior the implementation needs. | The design described two mutually exclusive triage routes: append a triage section to PROMPT v3, or expose a separate `se_triage_prompt` tool. |
-| `ambiguous` | 2 | The design is silent and either reading is defensible; a human must choose the intended behavior. | The execution position of `heal_drift` (before or after the guards) was undefined; both readings were defensible. |
+| `impl_bug` | 72 | Code contradicts or omits something the approved design already specifies. | `ensure()` re-anchored the audited fingerprint even when the text re-check failed, so a rejected transition could be retried successfully. |
+| `design_gap` | 35 | Code implements real behavior that the design never specified; the design has to catch up. | Drift detection and `heal_drift` were implemented and sitting in the gate path before L3 had any contract for them. |
+| `design_bug` | 16 | The design itself is wrong, internally inconsistent, or contradicts behavior the implementation needs. | The design described two mutually exclusive triage routes: append a triage section to PROMPT v3, or expose a separate `se_triage_prompt` tool. |
+| `ambiguous` | 7 | The design is silent and either reading is defensible; a human must choose the intended behavior. | The execution position of `heal_drift` (before or after the guards) was undefined; both readings were defensible. |
 | unclassified | 7 | Reported before the audit contract required a classification field. | Early reviews that predate the triage workflow. |
-| **Total** | **88** | — | — |
+| **Total** | **137** | — | — |
 
-**Counting basis.** All 88 findings are machine-counted from the eight distinct LLM audit reports stored in `L4-编码实现/consistency-reports/` (identical re-stores of the same content are de-duplicated by content hash). Classification comes from the stored triage verdicts where present, otherwise from the report's own field. Seven early findings predate the classification contract and are counted as `unclassified` rather than guessed. Rounds are counted separately, so a conceptual issue re-found by a later reviewer can appear twice; this is an audit-record count, not a deduplicated defect count. Process-only violations and development-time self-checks are excluded.
+**Counting basis.** All 137 findings are machine-counted by `scripts/readme_stats.py` from the twelve distinct LLM audit reports stored in `L4-编码实现/consistency-reports/` (identical re-stores of the same content are de-duplicated by content hash). Classification comes from the stored triage verdicts where present, otherwise from the report's own field. Seven early findings predate the classification contract and are counted as `unclassified` rather than guessed. Rounds are counted separately, so a conceptual issue re-found by a later reviewer can appear twice; this is an audit-record count, not a deduplicated defect count (the same script recomputes it, so the numbers cannot drift silently). Process-only violations and development-time self-checks are excluded.
 
 The full evidence lives in [`vinw-design/L4-编码实现/consistency-reports/`](vinw-design/L4-编码实现/consistency-reports/) and the append-only [changelog](vinw-design/.vinw/changelog.md).
 
