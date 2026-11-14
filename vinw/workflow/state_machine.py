@@ -313,6 +313,18 @@ class WorkflowEngine:
 
     # ── Baseline ──────────────────────────────────────────────
 
+    def _clear_completion(self, manifest: dict[str, Any]) -> None:
+        """Leaving 'completed' must drop the completion stamps.
+
+        Otherwise the manifest claims both "project completed" and "L7 needs
+        redo" at the same time (reviewer19 INC-008).
+        """
+        if "completed_at" in manifest:
+            manifest.pop("completed_at", None)
+        l7 = manifest.get("layer_states", {}).get("L7-终验")
+        if isinstance(l7, dict):
+            l7.pop("completed_at", None)
+
     def _invalidate_above(self, layer: str, reason: str) -> list[str]:
         """A (re)baselined lower layer invalidates every layer above it.
 
@@ -323,10 +335,20 @@ class WorkflowEngine:
         idx = LAYERS.index(layer)
         manifest = self.project.read_manifest()
         states = manifest.get("layer_states", {})
+        current = manifest.get("current_layer")
         marked: list[str] = []
+        protected: list[str] = []
         for higher in LAYERS[idx + 1:]:
             state = states.get(higher)
             if state and state.get("status") in ("baselined", "completed"):
+                if higher == current:
+                    # 当前层必须是可推进的：保留 in_progress 并标记需重做，
+                    # 不能变成 superseded（否则就没有工作层了，INC-001）
+                    state["status"] = "in_progress"
+                    state["needs_redo"] = True
+                    state["superseded_by"] = f"baseline:{layer}"
+                    protected.append(higher)
+                    continue
                 state["status"] = "superseded"
                 state["superseded_at"] = datetime.now(timezone.utc).isoformat()
                 state["superseded_by"] = f"baseline:{layer}"
@@ -334,9 +356,22 @@ class WorkflowEngine:
                 marked.append(higher)
         if marked:
             manifest["layer_states"] = states
+            if "L7-终验" in marked:
+                self._clear_completion(manifest)
             self.project.write_manifest(manifest)
             for higher in marked:
                 self._sync_layer_status(higher, "superseded")
+            for higher in protected:
+                self._sync_layer_status(higher, "in_progress")
+            self._append_changelog(
+                change_type="repair",
+                scope=", ".join(marked),
+                reason=(
+                    f"{layer} 重新基线（{reason}），其上 {len(marked)} 层依据失效，"
+                    f"已置为待重做"
+                ),
+            )
+        self._last_invalidation = {"superseded": marked, "current_reset": protected}
         return marked
 
     def _assert_no_blocking_clarifications(self, action: str) -> None:
@@ -489,6 +524,11 @@ class WorkflowEngine:
             "version": version,
             "status": "baselined",
             "invalidated_above": invalidated,
+            "current_layer_reset": (
+                self._last_invalidation.get("current_reset", [])
+                if getattr(self, "_last_invalidation", None)
+                else []
+            ),
         }
 
     # ── Ascend ────────────────────────────────────────────────

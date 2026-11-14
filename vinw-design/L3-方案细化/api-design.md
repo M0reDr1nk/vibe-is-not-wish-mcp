@@ -1085,7 +1085,9 @@ se_clarification_brief(project) -> {
 
 ## 五、门控衔接
 
-- `blocking=true` 的澄清进入既有 `blocking_pending` 统计，阻断层转换（已实现）
+- `blocking=true` 的澄清进入既有 `blocking_pending` 统计，阻断 `baseline`（非 force）与 `descend`
+  - **豁免**：`force=true` 与 `ascend` 不受该门控约束（ascend 作为逃生阀，语义上要能先回上层修设计）
+  - `complete_project` 另有未决 blocking 门控守卫
 - `blocking=false` 的澄清**不阻断**，但出现在 `se_clarification_brief.queued`
 - 层转换时工具返回体附带 `pending_clarifications: {blocking: n, queued: n}`（提示但不改判定）
 
@@ -1125,8 +1127,9 @@ v0.16 只在 `se_init_project` / `se_use_project` 时登记。工具还接受 `p
 **颜色语义**：红 = 问题（需行动）；黄 = 待办/提醒；绿 = 已通过；`superseded/待重做` 属正常流程，
 用黄色而非红色。
 
-三栏构造均为**纯函数**（`build_issue_panel` / `build_mid_panel` / `build_bottom_panel`），
-便于渲染级测试。
+三栏构造收敛为**不依赖 Textual 的独立函数**（`build_issue_panel` / `build_mid_panel` /
+`build_bottom_panel`），其中 mid/bottom 仍需读工程文件（待办、changelog），
+`build_issue_panel` 为严格纯函数。三栏均可用 rich Console 直接渲染断言，便于测试。
 
 ## 三、状态可信度：下层变更必须作废上层依据
 
@@ -1152,6 +1155,11 @@ v0.16 只在 `se_init_project` / `se_use_project` 时登记。工具还接受 `p
 
 这 6 处热修都是在**完成态下直接改代码**产生的 `design_lag`。门控只存在于层转换，
 无法阻止直接写盘；能做的两件事已实现：①状态层作废上层依据；②TUI 用红色横幅明确要求 ascend。
+
+**已知取舍（评审 GAP-008）**：经 MCP 的写工具（`se_store_document` / `se_update_todo` /
+`se_log_change`）在完成态下仍会静默成功，`completed_dirty` 只在读侧可见。低成本改进
+（写入时返回 warning）被推迟：每次判定需一次 `detect_drift`（本工程约 1s），
+不宜加到每个写工具；后续可考虑缓存或增量指纹。
 
 ## 版本历史补记
 

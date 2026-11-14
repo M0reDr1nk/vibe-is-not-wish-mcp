@@ -181,8 +181,9 @@ def _project_or_error(project: str | None) -> tuple[Project | None, str | None]:
     """Resolve a tool's optional `project` argument.
 
     None  -> the active project (bootstrap/adopt behaviour, unchanged)
-    value -> registry resolution by path or registered name; _active_project
-             is left untouched so per-call addressing never has side effects.
+    value -> registry resolution by path or registered name; the resolved
+             project is registered (idempotent) so it becomes visible in the
+             TUI, and _active_project is left untouched.
     """
     if project:
         try:
@@ -282,6 +283,7 @@ def se_get_project(project: str | None = None) -> str:
 
     from . import __commit__, __dirty__
 
+    drift_payload = _drift_with_flag(proj, manifest)
     return json.dumps(
         {
             "name": manifest.get("name"),
@@ -293,8 +295,8 @@ def se_get_project(project: str | None = None) -> str:
             "blocking_pending": blocking_pending,
             "pending_review": pending_review,
             "consistency": _consistency_state(proj),
-            "drift": _drift_with_flag(proj, manifest),
-            "completed_dirty": _drift_with_flag(proj, manifest)["completed_dirty"],
+            "drift": drift_payload,
+            "completed_dirty": drift_payload["completed_dirty"],
             "pending_confirmations": manifest.get("pending_confirmations", []),
         },
         ensure_ascii=False,

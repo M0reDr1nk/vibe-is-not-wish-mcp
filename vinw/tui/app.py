@@ -133,7 +133,7 @@ _CHANGE_STYLE = {
     "assumption-taken": ("yellow", "按假设推进"),
     "repair": ("magenta", "状态修复"),
     "complete": ("bold green", "完成"),
-    "force-baseline": ("red", "强制基线"),
+    "purge-confirmations": ("dim", "门控结转"),
 }
 
 
@@ -185,7 +185,13 @@ def next_action(manifest, drift) -> tuple[str, str]:
     if state in ("drifted", "design_synced"):
         return ("yellow", "工作区已漂移 → 重跑 se_check_consistency 并提交审核")
     if blocking:
-        return ("red", f"{len(blocking)} 条阻塞澄清待裁决（按 1-9 选选项 / y 确认假设）")
+        clar = [c for c in blocking if c.get("item_type") == "clarification"]
+        gates = [c for c in blocking if c.get("item_type") != "clarification"]
+        if clar and not gates:
+            return ("red", f"{len(clar)} 条阻塞澄清待裁决（按 1-9 选选项 / y 确认假设）")
+        if gates:
+            return ("red", f"{len(gates)} 条阻塞门控待裁决 → se_resolve_confirmation")
+        return ("red", f"{len(blocking)} 条待裁决项")
     if layers.get(current, {}).get("status") == "in_progress":
         return ("yellow", f"当前层进行中 → 完成后 se_baseline({current})")
     if layers.get(current, {}).get("status") == "baselined":
@@ -253,7 +259,15 @@ def build_issue_panel(manifest, drift, detail: str = "") -> Panel | None:
         return None
 
     if detail:
-        lines.append(detail)
+        # 只保留指纹等明细行；处置建议与变更文件由本面板统一给出，避免重复
+        kept = [
+            ln for ln in detail.splitlines()
+            if ln.strip()
+            and not ln.strip().startswith(("处置", "建议", "变更文件"))
+            and "处置：" not in ln
+            and "建议：" not in ln
+        ]
+        lines.extend(kept)
     changed = (drift or {}).get("changed") or []
     if changed:
         lines.append("变更文件：" + ", ".join(changed[:4]) + ("…" if len(changed) > 4 else ""))
@@ -618,59 +632,10 @@ class SEApp(App):
         )
         self.query_one("#top-content", Static).update(top_content)
 
-        # ── Mid: Todo + Pending confirmations ───────────────────
-        todos = self.project.get_todos()
-        pending = manifest.get("pending_confirmations", [])
-
-        mid_content = build_mid_panel(self.project, manifest)
-        self.query_one("#mid-content", Static).update(mid_content)
-
-        # ── Bottom: Recent changelog + Action hints ─────────────
-        changelog_path = self.project.vinw_dir / "changelog.md"
-        recent = ""
-        if changelog_path.exists():
-            content = changelog_path.read_text(encoding="utf-8")
-            import re
-
-            entries = re.split(r"\n## (chg-\S+)", content)
-            parsed = []
-            for i in range(1, len(entries), 2):
-                body = entries[i + 1] if i + 1 < len(entries) else ""
-                parsed.append(f"## {entries[i]}{body[:300]}")
-            recent = "\n---\n".join(parsed[-3:]) if parsed else "无记录"
-
-        engine = WorkflowEngine(self.project)
-        can_desc, desc_msg, next_layer = engine.can_descend_to_next()
-
-        hints = [
-            Text.assemble(("当前轮次: ", "bold"), f"descent-{descent} @ {current}"),
-            Text.assemble(
-                ("可下降? ", "bold"),
-                ("✅ " if can_desc else "❌ ", "green" if can_desc else "red"),
-                desc_msg,
-            ),
-        ]
-        if can_desc and next_layer:
-            hints.append(
-                Text.assemble(
-                    ("建议: ", "bold"),
-                    f"完成当前层后调用 se_baseline({current}) → se_descend({next_layer})",
-                )
-            )
-        if current == "L5-测试验证":
-            hints.append(
-                Text.assemble(
-                    ("提示: ", "bold yellow"),
-                    "若发现设计缺陷，可 se_ascend(L5, L2/L1, baseline, reason) 上升回溯",
-                )
-            )
-        if current == "L2-参考文献与方案搜证汇总":
-            hints.append(
-                Text.assemble(
-                    ("提示: ", "bold yellow"),
-                    "若搜证发现需求偏差，可 se_ascend(L2→L1) 回溯修正需求",
-                )
-            )
+        # ── Mid: 待办 + 待确认（构造含读取，统一在纯函数里做）──────
+        self.query_one("#mid-content", Static).update(
+            build_mid_panel(self.project, manifest)
+        )
 
         bottom_content = build_bottom_panel(
             self.project, manifest, drift, descent, current

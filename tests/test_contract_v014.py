@@ -1346,3 +1346,124 @@ class TestHigherLayerInvalidation:
         proj.write_manifest(manifest)
         result = WorkflowEngine(proj).baseline("L1-需求拆解", "t", force=True)
         assert result["invalidated_above"] == []
+
+
+class TestReviewer19Fixes:
+    """Regression guards for the v0.19 review findings."""
+
+    def test_path_resolution_registers_project(self, proj, monkeypatch):
+        """GAP-001: project=<path> must make an unregistered project visible."""
+        import json
+
+        from vinw.store.registry import ProjectRegistry
+
+        # 从注册表清空，模拟未登记工程
+        reg = ProjectRegistry()
+        for entry in reg.list():
+            reg.remove(entry["path"])
+        assert ProjectRegistry().list() == []
+
+        import vinw.server as server
+
+        saved = server._active_project
+        server._active_project = None
+        try:
+            json.loads(server.se_get_project(project=str(proj.root)))
+        finally:
+            server._active_project = saved
+
+        names = [p["path"] for p in ProjectRegistry().list()]
+        assert str(proj.root) in names
+        # 幂等：再次调用不新增
+        saved = server._active_project
+        server._active_project = None
+        try:
+            json.loads(server.se_get_project(project=str(proj.root)))
+        finally:
+            server._active_project = saved
+        assert len([p for p in ProjectRegistry().list() if p["path"] == str(proj.root)]) == 1
+
+    def test_completed_dirty_flag(self, proj):
+        """GAP-002: server exposes completed_dirty when L7 completed + drift."""
+        import json
+
+        from vinw.workflow.consistency_gate import ConsistencyGate
+        import vinw.server as server
+
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        manifest = proj.read_manifest()
+        manifest["layer_states"]["L7-终验"] = {"status": "completed"}
+        proj.write_manifest(manifest)
+
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            clean = json.loads(server.se_get_project())
+            (proj.root / "main.py").write_text("def main():\n    return 42\n")
+            dirty = json.loads(server.se_get_project())
+        finally:
+            server._active_project = saved
+
+        assert clean["completed_dirty"] is False
+        assert dirty["completed_dirty"] is True
+
+    def test_issue_panel_single_and_prioritized(self, proj):
+        from vinw.tui.app import build_issue_panel
+
+        manifest = proj.read_manifest()
+        manifest["layer_states"]["L7-终验"] = {"status": "completed"}
+
+        clean = build_issue_panel(manifest, {"state": "clean"})
+        assert clean is None
+
+        # L7 未完成时，design_lag 才是最高优先级
+        manifest_l7_open = dict(manifest)
+        manifest_l7_open["layer_states"] = {
+            **manifest["layer_states"], "L7-终验": {"status": "in_progress"}
+        }
+        lag = build_issue_panel(manifest_l7_open, {"state": "design_lag"})
+        assert "实现先于设计" in str(lag.title)
+
+        dirty = build_issue_panel(
+            manifest, {"state": "design_lag", "reason": "code_changed_without_design_update"}
+        )
+        assert "完成态已被改动" in str(dirty.title)   # 优先级更高
+
+    def test_invalidate_above_keeps_current_layer_actionable(self, proj):
+        """INC-001: the current layer must never end up superseded."""
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        manifest = proj.read_manifest()
+        for layer in manifest["layer_states"]:
+            manifest["layer_states"][layer] = {"status": "baselined"}
+        manifest["layer_states"]["L7-终验"] = {"status": "completed"}
+        manifest["current_layer"] = "L5-测试验证"
+        proj.write_manifest(manifest)
+
+        result = WorkflowEngine(proj).baseline("L3-方案细化", "修复后重新基线", force=True)
+        states = proj.read_manifest()["layer_states"]
+
+        assert states["L5-测试验证"]["status"] == "in_progress"
+        assert states["L5-测试验证"]["needs_redo"] is True
+        assert result["current_layer_reset"] == ["L5-测试验证"]
+        assert states["L6-检视清理"]["status"] == "superseded"
+
+    def test_invalidate_above_clears_completion_stamp(self, proj):
+        """INC-008: leaving completed must drop completed_at."""
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        manifest = proj.read_manifest()
+        for layer in manifest["layer_states"]:
+            manifest["layer_states"][layer] = {"status": "baselined"}
+        manifest["layer_states"]["L7-终验"] = {
+            "status": "completed", "completed_at": "2026-11-14T00:00:00+00:00"
+        }
+        manifest["completed_at"] = "2026-11-14T00:00:00+00:00"
+        manifest["current_layer"] = "L1-需求拆解"
+        proj.write_manifest(manifest)
+
+        WorkflowEngine(proj).baseline("L1-需求拆解", "t", force=True)
+        after = proj.read_manifest()
+        assert "completed_at" not in after
+        assert "completed_at" not in after["layer_states"]["L7-终验"]
