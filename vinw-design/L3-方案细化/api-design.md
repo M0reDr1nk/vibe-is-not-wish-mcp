@@ -708,20 +708,27 @@ v0.14 只在 **L4→L5** 与 **项目完成前** 校验"审核结论是否匹配
 
 ### 执行顺序（v0.15 修订，回应 reviewer6）
 
-`baseline()` 的守卫顺序（v0.15 最终版）：
+`baseline()` 的守卫顺序（v0.15 最终版，与实现逐行对应）：
 
 ```
 占位符守卫（只读）
-  → strict 策略：LLM 结论校验 + triage 判定（只读）
-    → heal_drift：
+  → 【仅 L4 层】strict 策略：LLM 结论校验 + triage 判定（只读）
+    → heal_drift（L4 用 log=False）：
          detect_drift 快照
            → design_lag → DesignLagError
-             → 无代码文件 → config_error（放行）
+             → 无代码文件 → config_error（heal 内部直接返回，不锚定）
                → LLM 结论校验（不满足 → LLMAuditRequiredError）
-                 → text 复查（ensure）
-                   → 通过才：sync_audited_state() 锚定 + 写 auto-audit
-  → 写状态（freeze/descend）
+                 → text 复查（ensure；失败 → ConsistencyGateError，
+                               但已写失败报告 + last_failed_*）
+                   → 通过才：sync_audited_state() 锚定
+  → 【仅 L4 层】第二次 gate.ensure() 校验（此前 heal 已锚定，通常命中 FRESH）；
+      若返回 config_error → ConsistencyConfigError（**拒绝**）
+      若出现指纹冲突 → ToolingDiscrepancyError / ConsistencyGateError
+  → 【仅 L4 层】全部通过后补写 auto-audit
+  → 写状态（freeze / descend）
 ```
+
+**strict 的作用域**：仅在 `layer == L4` 且 `not force` 时执行；L1–L3、L5–L7 的 baseline 不要求 LLM 结论。
 
 **顺序取舍**：strict 校验在 heal 之前，因此「strict 缺结论」会先于「design_lag」报出。
 两者都是零状态写入的拒绝，优先级仅影响提示文案，不改变放行结果。
@@ -733,9 +740,12 @@ v0.14 只在 **L4→L5** 与 **项目完成前** 校验"审核结论是否匹配
 | 占位符 / strict / triage | 否 | 否 | 否 |
 | heal 内 design_lag / LLM 结论缺失 | 否 | 否 | 否 |
 | text 复查不通过 | **是**（失败报告 + `last_failed_*`，作为证据） | 否 | 否 |
-| heal 之后（`config_error`/`tooling_discrepancy`/二次 ensure） | 理论可达但实际不可达（heal 成功后 ensure 命中 FRESH） | 否 | 否 |
+| 二次 `ensure` 返回 `config_error`（L4 且无代码文件） | 否 | 否 | 否 → **抛 `ConsistencyConfigError` 拒绝** |
+| 二次 `ensure` 的冲突/不一致分支 | 否 | 否 | 否（仅当两次 ensure 之间文件变动，即 TOCTOU 窗口） |
 
 > 即：拒绝**不会移动审计锚点、不会写 auto-audit**；text 复查失败会留一份失败报告作证据。
+> 注意 `config_error` 的双重性：`heal_drift` 内部视为"无可审对象"放行，但 L4 的二次 `ensure`
+> 会把同样的情形判为配置错误并**拒绝基线**（提示检查 `code_root` / `code_extensions`）。
 > heal 与写状态之间仍存在理论上的 TOCTOU 窗口（两次 ensure 之间文件被改动），当前实现依赖
 > ensure 的 FRESH 短路，而非结构保证——记录为已知限制。
 
