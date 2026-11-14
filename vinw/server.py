@@ -25,6 +25,7 @@ from .workflow.state_machine import (
 )
 from .workflow.consistency_llm import LLMConsistencyAuditor, TextConsistencyChecker
 from .workflow.consistency_gate import ConsistencyGate
+from .workflow.drift import detect_drift
 from .workflow.triage import (
     CLASSIFICATIONS,
     DECISIONS,
@@ -228,6 +229,7 @@ def se_get_project(project: str | None = None) -> str:
             "blocking_pending": blocking_pending,
             "pending_review": pending_review,
             "consistency": _consistency_state(proj),
+            "drift": detect_drift(proj),
             "pending_confirmations": manifest.get("pending_confirmations", []),
         },
         ensure_ascii=False,
@@ -266,6 +268,7 @@ def se_baseline(layer: str, reason: str = "", force: bool = False, project: str 
                 "hint": "查看 L4-编码实现/consistency-reports/ 最新报告修复不一致；"
                         "若确认可跳过，传 force=true",
                 "consistency": _consistency_state(proj),
+            "drift": detect_drift(proj),
             },
             ensure_ascii=False,
             indent=2,
@@ -277,6 +280,7 @@ def se_baseline(layer: str, reason: str = "", force: bool = False, project: str 
                 "hint": "用独立 reviewer 执行 se_check_consistency(method=\"llm\") 的提示词，"
                         "再以 se_store_consistency_report 提交结论（auditor=reviewer）",
                 "consistency": _consistency_state(proj),
+            "drift": detect_drift(proj),
             },
             ensure_ascii=False,
             indent=2,
@@ -288,6 +292,7 @@ def se_baseline(layer: str, reason: str = "", force: bool = False, project: str 
                 "hint": "疑似提取器缺陷：核对 vinw/workflow/symbols.py 的规则，"
                         "修正后重跑；或显式 force=true",
                 "consistency": _consistency_state(proj),
+            "drift": detect_drift(proj),
             },
             ensure_ascii=False,
             indent=2,
@@ -309,6 +314,7 @@ def se_baseline(layer: str, reason: str = "", force: bool = False, project: str 
                 "error": str(e),
                 "hint": "检查 manifest 的 code_extensions / code_root 与 code_scope",
                 "consistency": _consistency_state(proj),
+            "drift": detect_drift(proj),
             },
             ensure_ascii=False,
             indent=2,
@@ -1117,6 +1123,7 @@ def se_get_next_steps(project: str | None = None) -> str:
             "special_instruction": s.get("special", ""),
             "awaiting_review": pending_review,
             "consistency": _consistency_state(proj),
+            "drift": detect_drift(proj),
         },
         ensure_ascii=False,
         indent=2,

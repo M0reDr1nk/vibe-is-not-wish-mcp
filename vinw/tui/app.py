@@ -17,6 +17,7 @@ from rich.text import Text
 
 from ..store.project import Project, LAYERS
 from ..store.registry import ProjectNotFound, ProjectRegistry, is_vinw_project
+from ..workflow.drift import detect_drift
 from ..workflow.state_machine import WorkflowEngine
 from .selector import ProjectSelector
 
@@ -94,7 +95,13 @@ class SEApp(App):
         except Exception:
             return
         if self.project is not None:
-            name = self.project.read_manifest().get("name") or self.project.root.name
+            try:
+                name = (
+                    self.project.read_manifest().get("name")
+                    or self.project.root.name
+                )
+            except Exception:
+                name = self.project.root.name
             current = f"当前工程: [b]{name}[/b] @ {self.project.root}"
         else:
             current = "当前工程: [i]未选择[/i]（按 p 选择）"
@@ -168,6 +175,7 @@ class SEApp(App):
         consistency = manifest.get("layer_states", {}).get("L4-编码实现", {}).get(
             "consistency"
         )
+        drift = detect_drift(self.project)
         current = manifest.get("current_layer")
         descent = manifest.get("current_descent", 1)
         layer_states = manifest.get("layer_states", {})
@@ -182,6 +190,9 @@ class SEApp(App):
             superseded_by = state.get("superseded_by", "")
             active_ascent = state.get("active_ascent", "")
 
+            # Base style by status; the current layer overrides it below so
+            # only one block is visually dominant (otherwise several layers
+            # look identically "green" during a transition).
             if status == "completed":
                 icon, color = "🏁", "bold green"
                 extra = ""
@@ -200,11 +211,29 @@ class SEApp(App):
                 icon, color = "○", "dim"
                 extra = ""
 
+            is_current_layer = layer == current
+            if is_current_layer:
+                # Current layer is always the brightest element
+                if status == "in_progress":
+                    icon, color = "▶", "bold yellow"
+                elif status == "completed":
+                    icon, color = "🏁", "bold green"
+                elif status == "baselined":
+                    icon, color = "◆", "bold cyan"
+                else:
+                    color = "bold"
+            elif status in ("baselined", "completed"):
+                # Passed baselines recede so they don't compete with the current
+                color = "dim green"
+
             # Auditor state is only meaningful on the L4 block
             if layer == "L4-编码实现" and consistency:
                 extra += self._consistency_suffix(consistency)
+            if layer == "L4-编码实现" and drift.get("detected"):
+                extra += " ⚠漂移"
+                color = "bold red"
 
-            is_current = " [当前]" if layer == current else ""
+            is_current = " [当前]" if is_current_layer else ""
             text = Text(f"{icon} {layer}{extra}{is_current}", style=color)
             layers_render.append(Panel(text, border_style=color))
 
@@ -221,14 +250,35 @@ class SEApp(App):
             else Text("无上升记录", style="dim")
         )
 
+        children = [
+            Columns(layers_render, equal=True),
+            Text(""),
+        ]
+        if drift.get("detected"):
+            children.append(
+                Panel(
+                    Text(
+                        "⚠ 工作区已偏离审计基线（下方绿标仅代表历史基线，不代表当前代码）\n"
+                        f"   审计指纹 {str(drift.get('baseline_fingerprint'))[:16]}… → "
+                        f"当前 {str(drift.get('current_fingerprint'))[:16]}…\n"
+                        "   建议：重跑 se_check_consistency 并按流程补齐审核",
+                        style="bold red",
+                    ),
+                    border_style="red",
+                    title="⚠ 漂移告警",
+                )
+            )
+            children.append(Text(""))
+        children.append(Panel(arrows, title="↩️ 上升回溯历史", border_style="cyan"))
+
         top_content = Panel(
-            Group(
-                Columns(layers_render, equal=True),
-                Text(""),
-                Panel(arrows, title="↩️ 上升回溯历史", border_style="cyan"),
+            Group(*children),
+            title=(
+                f"🌀 层状态图 | 当前: descent-{descent} @ {current}"
+                f"  (◆=当前层 · ✅已基线 · 暗绿=已过)"
+                + ("  ⚠漂移" if drift.get("detected") else "")
             ),
-            title=f"🌀 层状态图 | 当前: descent-{descent} @ {current}",
-            border_style="green",
+            border_style="red" if drift.get("detected") else "green",
         )
         self.query_one("#top-content", Static).update(top_content)
 

@@ -95,7 +95,7 @@ ascent_history:
   to_baseline: v002
   to_layer: L1-需求拆解
 code_root: ..
-completed_at: '2026-11-13T17:22:28.121911+00:00'
+completed_at: '2026-11-14T02:44:39.234701+00:00'
 created_at: '2026-11-13T10:02:18.532679'
 current_descent: 12
 current_layer: L7-终验
@@ -150,7 +150,7 @@ layer_states:
   L7-终验:
     descent_count: 10
     latest_baseline: null
-    status: in_progress
+    status: completed
 name: vinw-self-design
 pending_confirmations:
 - blocking: true

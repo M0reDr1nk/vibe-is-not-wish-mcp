@@ -220,3 +220,73 @@ def test_consistency_marker_on_l4_block(registry_home, monkeypatch):
         assert "✓" in suffix
 
     _run(app, scenario)
+
+
+def test_only_current_layer_is_visually_dominant(registry_home, monkeypatch):
+    """Regression: during layer transitions several blocks looked identically green."""
+    from rich.console import Console
+
+    reg, roots = registry_home
+    proj = roots[0]
+    manifest = proj.read_manifest()
+    manifest["current_layer"] = "L5-测试验证"
+    manifest["layer_states"] = {
+        layer: {"status": "baselined", "latest_baseline": "v001"}
+        for layer in (
+            "L1-需求拆解",
+            "L2-参考文献与方案搜证汇总",
+            "L3-方案细化",
+            "L4-编码实现",
+            "L5-测试验证",
+        )
+    }
+    proj.write_manifest(manifest)
+
+    app = SEApp(str(proj.root), registry=reg)
+
+    async def scenario(pilot):
+        await pilot.pause()
+        console = Console(width=100, record=True)
+        console.print(app.query_one("#top-content").content)
+        text = console.export_text()
+
+        # exactly one dominant block (the legend also prints the glyph)
+        blocks = [line for line in text.splitlines() if "│ │ ◆" in line]
+        assert len(blocks) == 1, text
+        assert "L5-测试验证" in blocks[0]
+        # passed baselines keep the ✅ icon (the legend also shows one)
+        body = "\n".join(
+            line for line in text.splitlines() if "层状态图" not in line
+        )
+        assert body.count("✅") == 4
+        assert "▶ L5-测试验证" not in text
+
+    _run(app, scenario)
+
+
+def test_drift_warning_is_visible(registry_home):
+    """A completed-looking project must not read as all-green after code drift."""
+    from rich.console import Console
+
+    from vinw.workflow.consistency_gate import ConsistencyGate
+
+    reg, roots = registry_home
+    proj = roots[0]
+    (proj.root / "main.py").write_text("def main():\n    return 0\n")
+    ConsistencyGate(proj).ensure()
+
+    # change the code after the audit
+    (proj.root / "main.py").write_text("def main():\n    return 99\n")
+
+    app = SEApp(str(proj.root), registry=reg)
+
+    async def scenario(pilot):
+        await pilot.pause()
+        console = Console(width=110, record=True)
+        console.print(app.query_one("#top-content").content)
+        text = console.export_text()
+        assert "漂移告警" in text
+        assert "偏离审计基线" in text
+        assert "⚠漂移" in text
+
+    _run(app, scenario)

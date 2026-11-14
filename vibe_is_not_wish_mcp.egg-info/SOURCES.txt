@@ -5,6 +5,7 @@ tests/test_audit_policy.py
 tests/test_bootstrap.py
 tests/test_consistency_gate.py
 tests/test_consistency_llm.py
+tests/test_drift.py
 tests/test_project.py
 tests/test_registry.py
 tests/test_search.py
@@ -37,6 +38,7 @@ vinw/utils/validators.py
 vinw/workflow/__init__.py
 vinw/workflow/consistency_gate.py
 vinw/workflow/consistency_llm.py
+vinw/workflow/drift.py
 vinw/workflow/search.py
 vinw/workflow/state_machine.py
 vinw/workflow/symbols.py

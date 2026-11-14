@@ -87,14 +87,14 @@ LANGUAGE_RULES: dict[str, list[re.Pattern[str]]] = {
     ".c": [
         re.compile(r"^#\s*define\s+(\w+)", re.M),
         # definition only: name(...) {   (prototypes belong to headers)
-        re.compile(r"\b([A-Za-z_]\w*)\s*\([^;{}\n]*\)\s*\{", re.M),
+        re.compile(r"\b([A-Za-z_]\w*)\s*\([^;{}#()]{0,300}\)\s*\{", re.S),
         re.compile(r"\b(?:struct|union|enum)\s+(\w+)\s*\{", re.M),
         re.compile(r"\btypedef\b[^;]*?\b(\w+)\s*;", re.M),
     ],
     ".h": [
         re.compile(r"^#\s*define\s+(\w+)", re.M),
         # declaration: name(...);  (headers usually only declare)
-        re.compile(r"\b([A-Za-z_]\w*)\s*\([^;{}\n]*\)\s*;", re.M),
+        re.compile(r"\b([A-Za-z_]\w*)\s*\([^;{}#()]{0,300}\)\s*;", re.S),
         re.compile(r"\b(?:struct|union|enum)\s+(\w+)\s*\{", re.M),
         re.compile(r"\btypedef\b[^;]*?\b(\w+)\s*;", re.M),
     ],
