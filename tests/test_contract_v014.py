@@ -953,13 +953,14 @@ class TestClarificationFlow:
                 "options": [], "recommendation": None,
             },
         )
-        r2 = engine.resolve_confirmation(cfm_id2, "x")
+        r2 = engine.resolve_confirmation(cfm_id2, "6x16" if False else "x")
         assert r2["corrected"] is True
         changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
         assert "alignment" in changelog
 
     def test_other_requires_feedback(self, proj):
         from vinw.workflow.state_machine import WorkflowEngine
+        import pytest
 
         engine = WorkflowEngine(proj)
         cfm_id = engine.require_confirmation(

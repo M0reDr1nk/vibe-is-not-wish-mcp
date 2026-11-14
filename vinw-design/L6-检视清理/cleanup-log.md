@@ -175,7 +175,7 @@ status: "completed"
 |----|------|
 | 未使用导入 | AST 全量扫描：0 处 |
 | 调试残留 | `breakpoint()` / `pdb` / DBG 打印：0 处 |
-| 测试 hack | 移除 `"6x16" if False else "x"` 与函数内重复 `import pytest` |
+| 测试 hack | **清理被门控拦下并已回退**：改测试等于改代码，在 L6（设计已冻结）会触发 design_lag。两处 hack（`if False` 死代码、函数内重复 import）无害，留待下一轮 L4 随代码改动一并清理 |
 | 工具清单 | `scripts/gen_tool_catalog.py` 重新生成（38 个工具，含 2 个新澄清工具） |
 | 文档同步 | v0.17 设计（reviewer14 定稿版）、README 3.5 重启规则、R33 backlog 登记 |
 | 进程卫生 | 安装后重启 MCP server（R30 教训实践） |
