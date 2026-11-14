@@ -1,26 +1,27 @@
 ---
 baseline_reason: descent-17 L3 v019：v0.18 澄清 harness 契约定稿（分级/自动阻塞/呈报/升级/门控）
-baseline_version: v019
-baselined_at: '2026-11-14T09:45:31.582568+00:00'
+baseline_version: v020
+baselined_at: '2026-11-14T10:47:36.465909+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
 rolled_back_at: '2026-11-14T10:24:11.724021+00:00'
 rolled_back_from: v019
 se_version: '2.0'
-status: in_progress
-todo_descent: 17
+status: baselined
+todo_descent: 18
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [x] 定义 impact×reversibility 分级与自动阻塞规则
-- [x] 定义 assumption-taken 留痕字段与复查点
-- [x] 定义 se_clarification_brief 契约与分组
-- [x] 定义队列升级与优先级顺序
-- [x] 定义门控衔接（AC4）
+- [x] 工程可见性契约（路径解析登记）
+- [x] TUI 三栏契约与颜色语义
+- [x] 下层变更作废上层 + current 层保护
+- [x] completed_dirty 与完成戳清理
+- [x] R33-1 就地裁决键位契约
+- [x] 门控豁免与已知取舍记录
 ## 阶段小结
 
 （阶段完成时填写）

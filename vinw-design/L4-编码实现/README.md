@@ -1,25 +1,25 @@
 ---
-baseline_version: v016
-baselined_at: '2026-11-14T09:45:40.818787+00:00'
+baseline_version: v017
+baselined_at: '2026-11-14T10:47:51.907317+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L4-编码实现
 se_version: '2.0'
 started_at: '2026-11-13T10:15:00Z'
-status: superseded
-todo_descent: 17
+status: baselined
+todo_descent: 18
 ---
 
 # L4-编码实现
 
 ## 当前待办
 
-- [x] 实现 impact/reversibility 与自动阻塞推导
-- [x] 实现 assumption-taken 留痕（含 deviation）
-- [x] 实现 se_clarification_brief（读 manifest）
-- [x] 引擎层阻塞澄清守卫（baseline/descend）
-- [x] 转换返回体注入 pending_clarifications
-- [x] reviewer18 11 项发现处置
+- [x] 路径解析登记（幂等）
+- [x] _invalidate_above + current 层保护
+- [x] 完成戳清理
+- [x] se_get_project 单次 detect_drift
+- [x] TUI 三栏重构与澄清就地裁决
+- [x] reviewer19 17 项处置
 
 ## 阶段小结
 

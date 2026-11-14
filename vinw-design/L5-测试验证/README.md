@@ -1,22 +1,21 @@
 ---
-baseline_version: v014
-baselined_at: '2026-11-14T09:45:47.887859+00:00'
+baseline_version: v015
+baselined_at: '2026-11-14T10:48:02.216261+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
-status: superseded
-todo_descent: 17
+status: baselined
+todo_descent: 18
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
-- [x] AC1-AC6 逐条用例覆盖
-- [x] 真值表四组合验证
-- [x] 门控集成（blocking 阻断 baseline/descend）
-- [x] 316/316 全绿
+- [x] 17 项评审发现逐一补用例
+- [x] 333/333 全绿
+- [x] TUI 渲染级断言（不依赖源码 grep）
 
 ## 阶段小结
 

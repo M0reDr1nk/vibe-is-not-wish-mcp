@@ -1,22 +1,22 @@
 ---
-baseline_version: v014
-baselined_at: '2026-11-14T09:45:55.329131+00:00'
+baseline_version: v015
+baselined_at: '2026-11-14T10:48:12.140355+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
-status: superseded
-todo_descent: 17
+status: baselined
+todo_descent: 18
 ---
 
 # L6-检视清理
 
 ## 当前待办
 
-- [x] 移除 changelog 文本解析（改读 manifest）
-- [x] 修复 markdown 表格分隔符
-- [x] README 工具数与工具表同步
-- [x] 316/316 复验
+- [x] 删除 _refresh_ui 死代码
+- [x] 删除重复登记与重复 detect_drift
+- [x] 问题块去重、标签补齐
+- [x] 333/333 复验
 
 ## 阶段小结
 
