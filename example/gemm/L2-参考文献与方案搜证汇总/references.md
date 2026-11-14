@@ -34,3 +34,22 @@ created_at: "2026-11-14T01:35:00+08:00"
 3. **行主序（RowMajor）**：C 与 A 按行连续；B 需要打包成列式小块才能让微内核顺序访问。
 4. **OpenMP 并行维度选 M**：按 M 分块并行，各线程写各自 C 行块，无写冲突、无锁。
 5. **浮点误差**：分块改变累加顺序，误差随 K 增大；相对容差 1e-3 对 1e3 量级 K 足够。
+
+
+## descent-3 新增参考：Apple AMX
+
+| 来源 | 用途 | 链接 |
+|------|------|------|
+| corsix/amx | AMX 指令集逆向文档（Instructions.md / RegisterFile.md / fma.md / ldst.md / setclr.md）+ 参考实现与模拟器 | https://github.com/corsix/amx |
+| corsix.org: Contrasting Intel AMX and Apple AMX | 与 Intel AMX 的区分 | https://www.corsix.org/content/contrasting-intel-amx-and-apple-amx |
+| US20180074824A1 | 32×32 计算网格的专利图（AMX 结构说明） | https://patents.google.com/patent/US20180074824A1/en |
+| acpu (Rust) | 另一份 AMX 编码参考（raw word 内联汇编） | https://crates.io/crates/acpu |
+
+**采用的具体规格**
+
+- `fma32`（op=12）矩阵模式：`z[j*4 + (z_row&3)][i] += x[i] * y[j]`，f32 16 通道
+- `ldx/ldy`（op=0/1）：64B 单寄存器或 128B pair（bit62=1）
+- `stz`（op=5）：bits56-61 指定 Z 行，写 64B
+- `set`/`clr`（op=17，imm 0/1）：AMX 状态非重入，函数返回前必须 `clr`
+
+**风险记录**：Apple 不支持、不文档化；跨芯片/系统版本行为不保证（M2 加 bf16、M3 加 ldx/ldy/matint 模式、M4 引入 SME）。

@@ -1,14 +1,14 @@
 ---
 baseline_reason: L1 需求拆解 v001：R1-R7 + 非目标 + Q1-Q6，用户批准
-baseline_version: v001
-baselined_at: '2026-11-13T17:32:39.992319+00:00'
+baseline_version: v002
+baselined_at: '2026-11-14T08:26:54.271764+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L1-需求拆解
 rolled_back_at: '2026-11-14T07:24:46.154677+00:00'
 rolled_back_from: v001
 se_version: '2.0'
-status: in_progress
+status: baselined
 todo_descent: 1
 ---
 

@@ -1,9 +1,11 @@
 ---
+baseline_version: v002
+baselined_at: '2026-11-14T08:27:04.922050+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L2-参考文献与方案搜证汇总
 se_version: '2.0'
-status: superseded
+status: baselined
 todo_descent: 1
 ---
 

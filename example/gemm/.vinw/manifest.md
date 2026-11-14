@@ -20,58 +20,60 @@ ascent_history:
   to_layer: L1-需求拆解
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 3
-current_layer: L1-需求拆解
+current_layer: L6-检视清理
 descent_started_at: '2026-11-14T07:24:46.155098+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
   L1-需求拆解:
     active_ascent: asc-002
-    baselined_at: '2026-11-13T17:32:39.993347+00:00'
-    descent_count: 2
-    latest_baseline: v001
-    status: in_progress
-  L2-参考文献与方案搜证汇总:
-    baselined_at: '2026-11-13T17:33:42.323870+00:00'
-    descent_count: 1
-    latest_baseline: v001
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T07:24:46.155086+00:00'
-    superseded_by: asc-002
-  L3-方案细化:
-    active_ascent: asc-001
-    baselined_at: '2026-11-13T17:36:40.807803+00:00'
+    baselined_at: '2026-11-14T08:26:54.271764+00:00'
     descent_count: 2
     latest_baseline: v002
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T07:24:46.155086+00:00'
-    superseded_by: asc-002
-  L4-编码实现:
-    consistency:
-      checked_at: '2026-11-13T18:05:56.170574+00:00'
-      code_fingerprint: e408575ea67aab34ca560b291b9bf65cf8a52d7b16c369203d97961d9e273d93
-      descent: 2
-      overall: warning
-      report_id: 378340bc
+    status: baselined
+  L2-参考文献与方案搜证汇总:
+    baselined_at: '2026-11-14T08:27:04.922050+00:00'
     descent_count: 2
-    latest_baseline: null
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T07:24:46.155086+00:00'
-    superseded_by: asc-002
+    latest_baseline: v002
+    status: baselined
+  L3-方案细化:
+    active_ascent: asc-001
+    baselined_at: '2026-11-14T08:27:10.872478+00:00'
+    descent_count: 3
+    latest_baseline: v003
+    status: baselined
+  L4-编码实现:
+    audit:
+      auto_fixable: []
+      auto_fixable_count: 0
+      decision: resolved
+      escalations: []
+      escalations_count: 0
+      findings: 11
+      report_id: c108df92-01
+    baselined_at: '2026-11-14T08:27:17.685640+00:00'
+    consistency:
+      checked_at: '2026-11-14T08:27:17.680909+00:00'
+      code_fingerprint: 799a90fc7e581bbc12bcbbf205c42065289edea32f7447094acab130e82a15de
+      descent: 3
+      design_hash: 69fb7430a986d9c513aff4762ed411cca89fd253583f64707c8018fb94bec8a2
+      design_hash_algo: layer-v1
+      llm_auditor: reviewer
+      llm_report_id: c108df92-01
+      llm_verdict: warning
+      overall: passed
+      report_id: 98889932-01
+    descent_count: 3
+    latest_baseline: v001
+    status: baselined
   L5-测试验证:
-    descent_count: 0
-    latest_baseline: null
-    status: superseded
-    superseded_at: '2026-11-13T17:36:31.069844+00:00'
-    superseded_by: asc-001
+    baselined_at: '2026-11-14T08:27:33.890092+00:00'
+    descent_count: 1
+    latest_baseline: v001
+    status: baselined
   L6-检视清理:
-    descent_count: 0
+    descent_count: 1
     latest_baseline: null
-    status: superseded
-    superseded_at: '2026-11-13T17:36:31.069848+00:00'
-    superseded_by: asc-001
+    status: in_progress
   L7-终验:
     descent_count: 0
     latest_baseline: null

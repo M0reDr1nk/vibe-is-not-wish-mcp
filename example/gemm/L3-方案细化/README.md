@@ -1,14 +1,14 @@
 ---
 baseline_reason: L3 v001：五层循环 + 4x8 微内核 + 打包布局 + OpenMP 并行 + 接口冻结，用户批准
-baseline_version: v001
-baselined_at: '2026-11-13T17:35:08.242622+00:00'
+baseline_version: v003
+baselined_at: '2026-11-14T08:27:10.872478+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
 rolled_back_at: '2026-11-13T17:36:31.069455+00:00'
 rolled_back_from: v001
 se_version: '2.0'
-status: superseded
+status: baselined
 todo_descent: 1
 ---
 
