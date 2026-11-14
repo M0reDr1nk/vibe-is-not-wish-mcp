@@ -1270,18 +1270,24 @@ workflow_exceptions:
 ## 三、门控（engine 层，`baseline`/`descend`/`complete` 共用）
 
 ```
-def _exception_state(manifest) -> "none" | "active" | "expired":
+def exception_state(manifest) -> ("none"|"pending"|"active"|"expired", exc):
     for exc in workflow_exceptions (newest first):
         if status == approved:
-            return "active" if current_descent <= deadline_descent else "expired"
+            expired = (current_descent > deadline_descent
+                       or tolerated_uses >= max_uses)   # max_uses 默认 3
+            return "expired" if expired else "active"
+    if any(status == "pending"):
+        return "pending"      # 未批准 → 硬停（force 亦不能绕过）
     return "none"
 ```
 
 | 漂移状态 | 特例状态 | 行为 |
 |----------|---------|------|
-| clean | any | 正常转换 |
+| clean | none/regularized/rejected | 正常转换 |
+| **clean/unknown** | **pending** | **硬停**：必须先由用户 approve/reject（force 不能绕过） |
+| **clean/unknown** | **expired** | **硬停**：必须先 se_ascend 正规化 |
 | 非 clean | none | **拒绝**，提示先 `se_ascend`，或如需特例先 `se_request_workflow_exception` |
-| 非 clean | active | **允许**，返回体带 `tolerated_violation: {exception_id, deadline_descent}`，并写 `violation-tolerated` changelog |
+| 非 clean | active | **允许**，`heal_drift` 返回体带 `tolerated: {exception 记录}`（含 tolerated_uses），并写 `violation-tolerated` changelog |
 | 非 clean | expired | **拒绝**，提示「特例已过期（descent-X），必须先 se_ascend 正规化」 |
 
 ## 四、完成态约束

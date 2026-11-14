@@ -226,14 +226,15 @@ def build_issue_panel(manifest, drift, detail: str = "") -> Panel | None:
     pending_exc = [e for e in exceptions if e.get("status") == "pending"]
     active_exc = [
         e for e in exceptions
-        if e.get("status") == "approved"
-        and descent_now <= int(e.get("deadline_descent", descent_now))
+        if e.get("status") == "approved" and not _expired(e)
     ]
-    expired_exc = [
-        e for e in exceptions
-        if e.get("status") == "approved"
-        and descent_now > int(e.get("deadline_descent", descent_now))
-    ]
+    def _expired(e) -> bool:
+        return e.get("status") == "approved" and (
+            descent_now > int(e.get("deadline_descent", descent_now))
+            or int(e.get("tolerated_uses", 0)) >= int(e.get("max_uses", 3))
+        )
+
+    expired_exc = [e for e in exceptions if _expired(e)]
     if expired_exc:
         return Panel(
             Text(
