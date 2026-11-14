@@ -38,24 +38,21 @@ ascent_history:
 completed_at: '2026-11-14T09:31:25.298593+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 5
-current_layer: L1-需求拆解
+current_layer: L2-参考文献与方案搜证汇总
 descent_started_at: '2026-11-14T09:53:31.804508+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
   L1-需求拆解:
     active_ascent: asc-004
-    baselined_at: '2026-11-14T08:26:54.271764+00:00'
+    baselined_at: '2026-11-14T12:42:10.648617+00:00'
+    descent_count: 3
+    latest_baseline: v003
+    status: baselined
+  L2-参考文献与方案搜证汇总:
+    baselined_at: '2026-11-14T08:27:04.922050+00:00'
     descent_count: 3
     latest_baseline: v002
     status: in_progress
-  L2-参考文献与方案搜证汇总:
-    baselined_at: '2026-11-14T08:27:04.922050+00:00'
-    descent_count: 2
-    latest_baseline: v002
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T09:53:31.804481+00:00'
-    superseded_by: asc-004
   L3-方案细化:
     active_ascent: asc-003
     baselined_at: '2026-11-14T09:30:54.479228+00:00'
@@ -72,17 +69,17 @@ layer_states:
       decision: resolved
       escalations: []
       escalations_count: 0
-      findings: 9
-      report_id: 5dffb92d-01
+      findings: 2
+      report_id: 9b7b63cf-01
     baselined_at: '2026-11-14T09:30:59.021288+00:00'
     consistency:
       checked_at: '2026-11-14T09:30:59.015940+00:00'
-      code_fingerprint: 8ff363515627b6726b344f88611a3f1034b32954b0bad3209b724d5c779ed8bc
-      descent: 4
-      design_hash: 936c049147d721b1a2e2c1b863c371e17e85f7444ea05f2d27f58cfef53b30bc
+      code_fingerprint: 119f123f5db7debecf790334095b0b4b7401edd8d3985b8f9600859b4565bc14
+      descent: 5
+      design_hash: fe3b082b7f3c1231de88b66701357cb099827356bc52af7c1fb74d8cec7ec9b8
       design_hash_algo: layer-v1
-      llm_auditor: reviewer
-      llm_report_id: 5dffb92d-01
+      llm_auditor: self
+      llm_report_id: 9b7b63cf-01
       llm_verdict: warning
       overall: passed
       report_id: 9a884b54-01
