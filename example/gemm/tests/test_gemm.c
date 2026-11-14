@@ -81,7 +81,13 @@ int main(void) {
     ++total; passed += check_case(300, 300, 300); /* 27M > 阈值 16.7M */
     ++total; passed += check_case(257, 129, 65);  /* 2.1M < 阈值 → 简化路径 */
 
-    printf("\n[5] AMX 后端（USE_AMX=1 时）\n");
+    printf("\n[5] 分块分配覆盖性（加权路径）\n");
+    /* nb=32 > nt=8：触发加权分配；若区间有重叠/遗漏，结果必错。
+     * 这是 parallel_for_m 的端到端覆盖性验证（评审 GAP-002）。 */
+    ++total; passed += check_case(4096, 64, 32);
+    ++total; passed += check_case(2048, 48, 64);   /* nb=16, 非方阵 */
+
+    printf("\n[6] AMX 后端（USE_AMX=1 时）\n");
     if (gemm_amx_available()) {
         int shapes_amx[][3] = {{64, 16, 8}, {128, 64, 96}, {192, 48, 40}, {70, 20, 8}, {64, 16, 33}};
         for (unsigned i = 0; i < sizeof(shapes_amx) / sizeof(shapes_amx[0]); ++i) {

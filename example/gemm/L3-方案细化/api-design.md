@@ -50,7 +50,7 @@ int gemm_nr(void);                  /* 8 */
 | `macro_kernel` | `void macro_kernel(int KC,const float*Ap,const float*Bp,float*C,int ldc)` | 4×8×KC，C 累加器在寄存器 |
 | `gemm_blocked_1t` | `void gemm_blocked_1t(int M,int N,int K,const float*A,const float*B,float*C)` | 单线程全流程 |
 | `gemm_blocked_par` | 同上，pthreads 并行（`USE_OPENMP` 时切 omp） | 主入口 `gemm_f32` 调用它 |
-| `parallel_for_m` | `void parallel_for_m(int T, ...)` | M 块区间均分，无线程池复用（每次调用创建/回收） |
+| `parallel_for_m` | `void parallel_for_m(int T, ...)` | 按核心权重分配（nblocks>nt 时加权；否则等分）；保底每线程 1 块，无线程池复用（每次调用创建/回收） |
 
 ## 构建产物
 

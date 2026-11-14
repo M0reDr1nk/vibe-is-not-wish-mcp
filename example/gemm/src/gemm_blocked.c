@@ -165,29 +165,33 @@ static void *m_worker(void *raw) {
 }
 
 /* 核心权重：P 核 2.0，E 核 1.0（探测失败则全部等权 1.0）
- * 设计见 L3 v004 D2：按算力分配工作量以消除 E 核尾延迟 */
+ * 设计见 L3 v004 D2。平台守卫：sysctl 为 macOS 专有，其他平台走等权回退
+ * （评审 INC-006：无守卫会使非 Apple 平台编译失败，与 R6 可移植性冲突）。 */
+#if defined(__APPLE__)
 #include <sys/sysctl.h>
+#define GEMM_HAVE_PERFLEVEL 1
+#else
+#define GEMM_HAVE_PERFLEVEL 0
+#endif
 
 static void core_weights(int nt, double *w) {
-    int np = 0, ne = 0;
-    size_t len = sizeof(np);
     for (int i = 0; i < nt; ++i) w[i] = 1.0;
+#if GEMM_HAVE_PERFLEVEL
+    int np = 0;
+    size_t len = sizeof(np);
     if (sysctlbyname("hw.perflevel0.logicalcpu", &np, &len, NULL, 0) != 0 || np <= 0) {
-        return;
+        return;                     /* 探测失败 → 等权回退 */
     }
-    len = sizeof(ne);
-    if (sysctlbyname("hw.perflevel1.logicalcpu", &ne, &len, NULL, 0) != 0 || ne < 0) {
-        ne = 0;
+    /* 只有线程数多于 P 核数时，多出的线程才按 E 核权重计 */
+    if (nt <= np) {
+        return;                     /* 全是 P 核 → 等权（等价等分） */
     }
-    /* perflevel0 = 高性能核；若线程数 ≤ P 核数，则全为 P 核 */
     for (int i = 0; i < nt; ++i) {
         w[i] = (i < np) ? 2.0 : 1.0;
     }
-    /* 线程数少于 P 核数时全部按 P 核权重（等价于等分） */
-    if (nt <= np) {
-        for (int i = 0; i < nt; ++i) w[i] = 1.0;
-    }
-    (void)ne;
+#else
+    (void)nt;
+#endif
 }
 
 /* 供 gemm_blocked_par 使用的区间划分（设计文档中的 parallel_for_m 契约）
@@ -204,50 +208,33 @@ static void parallel_for_m(int nblocks, int nt, int worker,
     double w[32];
     core_weights(nt, w);
 
-    /* 1) 每线程保底 1 块 */
+    /* 1) 按权重算理想块数（评审 INC-002：原先"保底 1 块 + 余数"在 nb=16/nt=8
+     *    时恰好退化为等分，加权从未生效）。改为先按理想值分配，再做最大余数补齐。 */
     int share[32];
+    double total_w = 0.0;
+    for (int i = 0; i < nt; ++i) total_w += w[i];
+    if (total_w <= 0.0) total_w = (double)nt;
     int assigned = 0;
     for (int i = 0; i < nt; ++i) {
-        share[i] = (nblocks >= nt) ? 1 : 0;
+        share[i] = (nblocks >= nt) ? 1 : 0;   /* 保底 1 块（块足够时） */
         assigned += share[i];
     }
-    /* 2) 余下按权重 + 最大余数分配 */
-    int left = nblocks - assigned;
-    if (left > 0) {
-        double total = 0.0;
-        for (int i = 0; i < nt; ++i) total += w[i];
-        if (total <= 0.0) {
-            int idx = 0;
-            while (left > 0) { share[idx % nt]++; left--; idx++; }
-        } else {
-            double frac[32];
-            int used = 0;
-            for (int i = 0; i < nt; ++i) {
-                double ideal = (double)left * w[i] / total;
-                int base = (int)ideal;
-                share[i] += base;
-                used += base;
-                frac[i] = ideal - (double)base;
-            }
-            int rest = left - used;
-            while (rest > 0) {
-                int best = -1;
-                for (int i = 0; i < nt; ++i) {
-                    if (best < 0 || frac[i] > frac[best]) best = i;
-                }
-                if (best < 0) break;
-                share[best]++;
-                frac[best] = -1.0;   /* 每线程至多再补一块，保证均匀 */
-                rest--;
-                if (rest > 0) {
-                    int any = 0;
-                    for (int i = 0; i < nt; ++i) if (frac[i] >= 0.0) any = 1;
-                    if (!any) {
-                        for (int i = 0; i < nt && rest > 0; ++i) { share[i]++; rest--; }
-                    }
-                }
-            }
+    if (nblocks > assigned) {
+        /* 先按权重比例分配剩余，再修正 */
+        int extra_total = nblocks - assigned;
+        double extra_w = 0.0;
+        for (int i = 0; i < nt; ++i) extra_w += w[i];
+        int used = 0;
+        for (int i = 0; i < nt; ++i) {
+            int add = (int)((double)extra_total * w[i] / extra_w);
+            share[i] += add;
+            used += add;
         }
+        int rest = extra_total - used;
+        for (int i = 0; i < nt && rest > 0; ++i) {
+            if (w[i] > 1.0) { share[i]++; rest--; }
+        }
+        for (int i = 0; i < nt && rest > 0; ++i) { share[i]++; rest--; }
     }
     /* 3) 前缀和求区间 */
     int cum = 0;
