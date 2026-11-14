@@ -310,3 +310,30 @@ updated_at: "2026-11-13T12:00:00Z"
 
 ### 端到端实战（本项目自身）
 reviewer 独立审出 15 项 → 裁定 14 项（10 项 impl_bug/high 自动修复、2 项 design_gap 经用户批准改设计、1 项命名经用户裁决改名、1 项 TUI 标记经批准实现）→ `se_get_escalations` 归零 → 门控放行。
+
+## descent-14 round 1（asc-013 全阶段审计契约，2026-11-14）
+
+| 指标 | 值 |
+|------|-----|
+| 测试轮次 | descent-14 round 1 |
+| 总用例数 | 275 |
+| 通过 | 275 |
+| 失败 | 0 |
+
+### 本轮覆盖的关键回归（均来自 11 轮独立评审发现的绕过路径）
+
+| 绕过路径 | 回归用例 |
+|---------|---------|
+| 被拒后直接重试即通过 | `TestNoRetryBypass::test_retry_without_verdict_still_blocked` |
+| L4 基线是盲区 | `TestNoRetryBypass::test_l4_baseline_also_requires_verdict` |
+| 失败的 text 重查仍锚定指纹 | `TestFailedRecheckDoesNotAnchor`（2 例） |
+| 被拒基线仍写 auto-audit | `TestAuditLogDiscipline`、`TestL4DeferredAuditLog` |
+| 被拒基线仍改锚点 | `TestRejectedBaselineIsFullySideEffectFree`（2 例） |
+| strict/triage 拒绝在 heal 之后 | `TestStrictRejectionIsSideEffectFree` |
+| 报告缺 design_hash 时 fail-open | `TestNoRetryBypass::test_report_without_design_hash_fails_closed` |
+| 设计变更不使旧结论失效 | `TestVerdictInvalidatedByDesignChange`（3 例） |
+| force 无可辨识痕迹 | `TestForceIsVisible` |
+
+### 评审轮次统计（本项目自身）
+
+descent-13/14 共进行 11 轮独立 reviewer 审计，累计发现 70+ 项问题；其中**门控绕过类 7 项**全部为独立评审发现，text 门控与自审均未捕获。

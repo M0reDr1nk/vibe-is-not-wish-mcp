@@ -113,10 +113,10 @@ ascent_history:
   to_baseline: v015
   to_layer: L3-方案细化
 code_root: ..
-completed_at: '2026-11-14T02:44:39.234701+00:00'
+completed_at: '2026-11-14T04:55:20.041586+00:00'
 created_at: '2026-11-13T10:02:18.532679'
 current_descent: 14
-current_layer: L4-编码实现
+current_layer: L7-终验
 descent_started_at: '2026-11-14T04:17:58.990213+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
@@ -143,41 +143,34 @@ layer_states:
       auto_fixable: 0
       decision: auto_fixable
       escalations: 0
-      findings: 11
-      report_id: 954217cd
-    baselined_at: '2026-11-14T04:04:50.343394+00:00'
+      findings: 6
+      report_id: 65ded222
+    baselined_at: '2026-11-14T04:54:06.768357+00:00'
     consistency:
-      checked_at: '2026-11-14T04:19:36.144593+00:00'
-      code_fingerprint: 039e090a697085d01c6a2d04956aa864dbc549b3697e4b3f5e7641cfbbccc2cf
+      checked_at: '2026-11-14T04:54:06.762458+00:00'
+      code_fingerprint: c09508d828bb04f4e7664713904be5948356971e58becd6e6da268c3a4cd77dd
       descent: 14
-      design_hash: 9992632018b5a32fc66c7f13966134d852fb299d8e1ba4009f21ab03abdebf23
       overall: passed
-      report_id: cb9cda22-01
+      report_id: 1fc249d1
     descent_count: 13
-    latest_baseline: v012
-    status: in_progress
+    latest_baseline: v013
+    status: baselined
   L5-测试验证:
     abandoned_at: '2026-11-14T04:16:39.686081+00:00'
-    baselined_at: '2026-11-14T02:43:01.655609+00:00'
-    descent_count: 11
-    latest_baseline: v010
+    baselined_at: '2026-11-14T04:54:39.954097+00:00'
+    descent_count: 12
+    latest_baseline: v011
     needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T04:17:58.990205+00:00'
-    superseded_by: asc-013
+    status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-14T02:43:51.413339+00:00'
-    descent_count: 11
-    latest_baseline: v010
-    status: superseded
-    superseded_at: '2026-11-14T04:17:58.990209+00:00'
-    superseded_by: asc-013
+    baselined_at: '2026-11-14T04:54:52.641531+00:00'
+    descent_count: 12
+    latest_baseline: v011
+    status: baselined
   L7-终验:
-    descent_count: 10
+    descent_count: 11
     latest_baseline: null
-    status: superseded
-    superseded_at: '2026-11-14T04:17:58.990211+00:00'
-    superseded_by: asc-013
+    status: completed
 name: vinw-self-design
 pending_confirmations:
 - blocking: true

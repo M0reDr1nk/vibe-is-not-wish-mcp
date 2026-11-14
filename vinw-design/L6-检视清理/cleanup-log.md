@@ -140,3 +140,13 @@ status: "completed"
 | 旧报告兼容 | 历史报告无 kind/descent 时按 text 处理 | `latest_passing(kind=...)` 使用 `meta.get("kind") or "text"` |
 | 设计同步 | api-design v0.13 补 required/advisory 规则与 .tsx/.js 默认扩展名 | 对应裁定 INC-005 / INC-007（用户批准 fix_design） |
 | 测试复验 | 184/184 通过 ✅ | 清理后重跑全绿 |
+
+## descent-14 清理（asc-013 全阶段审计契约，2026-11-14）
+
+| 类别 | 操作 | 说明 |
+|------|------|------|
+| 未使用导入 | AST 全量扫描 | 0 处 |
+| 陈旧断言 | 将退化为 `pytest.raises(Exception)` 的用例收紧为精确异常 | 该退化为 reviewer9 指出，曾掩盖顺序缺陷 |
+| 文档纠偏 | 流程图补第二次 ensure、strict 作用域、config_error 双重语义、测试数快照 | 对应 reviewer11 的 4 项文档发现 |
+| 构建产物 | 清理 `build/`、`__pycache__` | — |
+| 测试复验 | 275/275 通过 ✅ | — |
