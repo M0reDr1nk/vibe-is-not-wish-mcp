@@ -31,6 +31,19 @@ static void set_threads(int n) {
     setenv("GEMM_THREADS", buf, 1);
 }
 
+static int blocks_for(int M) {
+    const int MC = 128;
+    int nb = (M + MC - 1) / MC;
+    return nb > 0 ? nb : 1;
+}
+
+static int effective_threads_for(int M) {
+    int nt = effective_threads();
+    if (nt > 32) nt = 32;
+    int nb = blocks_for(M);
+    return (nt > nb) ? nb : nt;
+}
+
 static int effective_threads(void) {
     const char *v = getenv("GEMM_THREADS");
     if (v && *v) {
@@ -153,7 +166,7 @@ static void bench_shape(int M, int N, int K, int threads) {
         const double g1 = gflops(M, N, K, best1);
         restore_threads();
 
-        const int mt = effective_threads();
+        const int mt = effective_threads_for(M);
         const double g_mt = blocked_g;
         const double r_st = g1 / base_ijk;          /* R3：blocked-1T / naive-ijk-1T */
         const double r_mt = g_mt / base_ijk;        /* 参考：MT 相对单线程基线 */
