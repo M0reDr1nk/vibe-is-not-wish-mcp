@@ -461,7 +461,7 @@ DSH 插件的 `vinw server` 进程 10:42 启动后持续运行 3 小时；期间
 - 不做"agent 自动推断答案"——歧义必须经用户确认（这是本工具的存在意义）
 - 选项由发起方（agent）负责给出，工具只负责承载与呈现
 
-# R32（descent-16）：decision_bias 决策倾向——方案调研（P2，仅调研不实现）
+# R32（descent-16）：decision_bias 决策倾向——方案调研（**已延期，见 ROADMAP.md**）
 
 ## 需求
 
