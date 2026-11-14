@@ -26,30 +26,45 @@ ascent_history:
   reason: R4 扩展性实测 3.22× 未达 4× 门槛：需改设计为 MC=64 细粒度 + 按 perflevel 加权分块，消除 E 核尾延迟
   to_baseline: v003
   to_layer: L3-方案细化
+- created_at: '2026-11-14T09:53:31.801599+00:00'
+  descent_after: 5
+  descent_before: 4
+  from_layer: L7-终验
+  id: asc-004
+  reason: 用户裁定：R4 改用 AMX 当主力（复杂度受控，不追求极限性能，仅验证 VINW 实效）——需把交付路径从 pthreads-NEON 改为
+    AMX 单线程，并重定义 R4 指标
+  to_baseline: v002
+  to_layer: L1-需求拆解
 completed_at: '2026-11-14T09:31:25.298593+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
-current_descent: 4
-current_layer: L7-终验
-descent_started_at: '2026-11-14T08:53:37.128569+00:00'
+current_descent: 5
+current_layer: L1-需求拆解
+descent_started_at: '2026-11-14T09:53:31.804508+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
   L1-需求拆解:
-    active_ascent: asc-002
+    active_ascent: asc-004
     baselined_at: '2026-11-14T08:26:54.271764+00:00'
-    descent_count: 2
+    descent_count: 3
     latest_baseline: v002
-    status: baselined
+    status: in_progress
   L2-参考文献与方案搜证汇总:
     baselined_at: '2026-11-14T08:27:04.922050+00:00'
     descent_count: 2
     latest_baseline: v002
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T09:53:31.804481+00:00'
+    superseded_by: asc-004
   L3-方案细化:
     active_ascent: asc-003
     baselined_at: '2026-11-14T09:30:54.479228+00:00'
     descent_count: 4
     latest_baseline: v004
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T09:53:31.804481+00:00'
+    superseded_by: asc-004
   L4-编码实现:
     audit:
       auto_fixable: []
@@ -73,22 +88,34 @@ layer_states:
       report_id: 9a884b54-01
     descent_count: 4
     latest_baseline: v002
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T09:53:31.804481+00:00'
+    superseded_by: asc-004
   L5-测试验证:
     baselined_at: '2026-11-14T09:31:08.009653+00:00'
     descent_count: 2
     latest_baseline: v002
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T09:53:31.804481+00:00'
+    superseded_by: asc-004
   L6-检视清理:
     baselined_at: '2026-11-14T09:31:12.319181+00:00'
     descent_count: 2
     latest_baseline: v002
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T09:53:31.804481+00:00'
+    superseded_by: asc-004
   L7-终验:
     completed_at: '2026-11-14T09:31:25.298593+00:00'
     descent_count: 2
     latest_baseline: null
-    status: completed
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T09:53:31.804481+00:00'
+    superseded_by: asc-004
 name: gemm
 pending_confirmations:
 - blocking: true
