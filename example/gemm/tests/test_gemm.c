@@ -81,6 +81,35 @@ int main(void) {
     ++total; passed += check_case(300, 300, 300); /* 27M > 阈值 16.7M */
     ++total; passed += check_case(257, 129, 65);  /* 2.1M < 阈值 → 简化路径 */
 
+    printf("\n[5] AMX 后端（USE_AMX=1 时）\n");
+    if (gemm_amx_available()) {
+        int shapes_amx[][3] = {{64, 16, 8}, {128, 64, 96}, {192, 48, 40}, {70, 20, 8}, {64, 16, 33}};
+        for (unsigned i = 0; i < sizeof(shapes_amx) / sizeof(shapes_amx[0]); ++i) {
+            int M = shapes_amx[i][0], N = shapes_amx[i][1], K = shapes_amx[i][2];
+            size_t n = (size_t)M * N;
+            float *A = malloc((size_t)M * K * sizeof(float));
+            float *B = malloc((size_t)K * N * sizeof(float));
+            float *C = calloc(n, sizeof(float));
+            float *R = calloc(n, sizeof(float));
+            for (size_t j = 0; j < (size_t)M * K; ++j) A[j] = (float)(j % 13) * 0.07f - 0.4f;
+            for (size_t j = 0; j < (size_t)K * N; ++j) B[j] = (float)(j % 11) * 0.05f - 0.25f;
+            gemm_f32_naive_ijk(M, N, K, A, B, R);
+            gemm_status st = gemm_amx(M, N, K, A, B, C);
+            int ok = (st == GEMM_OK);
+            double md = 0;
+            for (size_t j = 0; j < n; ++j) {
+                double d = fabs((double)C[j] - R[j]);
+                if (d > md) md = d;
+            }
+            if (!(md < 1e-3)) ok = 0;
+            printf("  AMX %dx%dx%d: max|diff|=%.3g %s\n", M, N, K, md, ok ? "PASS" : "FAIL");
+            ++total; passed += ok;
+            free(A); free(B); free(C); free(R);
+        }
+    } else {
+        printf("  未编译 AMX 后端（make USE_AMX=1 启用），跳过\n");
+    }
+
     printf("\n==== %d/%d 通过 ====\n", passed, total);
     return passed == total ? 0 : 1;
 }

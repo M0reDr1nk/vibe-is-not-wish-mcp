@@ -74,15 +74,19 @@ static void pack_b(int kc, int nc, const float *B, int ldb, float *Bp) {
     }
 }
 
-/* 4x8xkc 微内核：acc[4][8] 常驻寄存器；内层按 j 向量化（8 f32 = 2×NEON） */
+/* 4x8xkc 微内核：acc[4][8] 常驻寄存器；指针提升 + k 方向 2 路展开
+ * 设计见 L3 v003：去掉每步的 size_t 乘法，p 与 p+1 复用 b 装载 */
 static void macro_kernel(int mc, int nc, int kc,
                          const float *Ap, const float *Bp,
                          float *C, int ldc) {
     const int mp = (mc + MR - 1) / MR;
     const int np = (nc + NR - 1) / NR;
+    const size_t a_panel = (size_t)kc * MR;   /* 一个 4 行面板的跨度 */
+    const size_t b_step = (size_t)np * NR;    /* 一个 p 层的跨度 */
 
     for (int i = 0; i < mp; ++i) {
         const int rows = (mc - i * MR < MR) ? (mc - i * MR) : MR;
+        const float *a_base = Ap + (size_t)i * a_panel;
         for (int j = 0; j < np; ++j) {
             const int cols = (nc - j * NR < NR) ? (nc - j * NR) : NR;
 
@@ -90,21 +94,41 @@ static void macro_kernel(int mc, int nc, int kc,
             for (int r = 0; r < MR; ++r)
                 for (int c = 0; c < NR; ++c) acc[r][c] = 0.0f;
 
-            for (int p = 0; p < kc; ++p) {
-                const float *a = Ap + ((size_t)i * kc + p) * MR;
-                const float *b = Bp + ((size_t)p * np + j) * NR;
-                /* NR 为编译期常量 → clang 可整段向量化 */
+            const float *a = a_base;
+            const float *b = Bp + (size_t)j * NR;
+
+            int p = 0;
+            for (; p + 1 < kc; p += 2) {
+                const float *a0 = a;
+                const float *a1 = a + MR;
+                const float *b0 = b;
+                const float *b1 = b + b_step;
                 for (int c = 0; c < NR; ++c) {
-                    const float bv = b[c];
-                    acc[0][c] += a[0] * bv;
-                    acc[1][c] += a[1] * bv;
-                    acc[2][c] += a[2] * bv;
-                    acc[3][c] += a[3] * bv;
+                    const float v0 = b0[c];
+                    const float v1 = b1[c];
+                    acc[0][c] += a0[0] * v0 + a1[0] * v1;
+                    acc[1][c] += a0[1] * v0 + a1[1] * v1;
+                    acc[2][c] += a0[2] * v0 + a1[2] * v1;
+                    acc[3][c] += a0[3] * v0 + a1[3] * v1;
                 }
+                a += 2 * MR;
+                b += 2 * b_step;
+            }
+            for (; p < kc; ++p) {
+                const float *b0 = b;
+                for (int c = 0; c < NR; ++c) {
+                    const float v = b0[c];
+                    acc[0][c] += a[0] * v;
+                    acc[1][c] += a[1] * v;
+                    acc[2][c] += a[2] * v;
+                    acc[3][c] += a[3] * v;
+                }
+                a += MR;
+                b += b_step;
             }
 
             for (int r = 0; r < rows; ++r) {
-                float *crow = C + (size_t)(i * MR + r) * ldc + j * NR;
+                float *crow = C + (size_t)(i * MR + r) * ldc + (size_t)j * NR;
                 for (int c = 0; c < cols; ++c) crow[c] += acc[r][c];
             }
         }

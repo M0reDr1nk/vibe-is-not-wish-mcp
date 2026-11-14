@@ -161,5 +161,54 @@ pending_confirmations:
   topic_normalized: 性能验收基线口径
   uncertainty: R3 写「相对 naive ikj ≥8×」，但 bench 里的 naive-ikj 实测 23.64 GFLOPS 已达单核峰值，按此口径
     8×=189 GFLOPS 超出纯 C 可达范围；需求作者本意可能是经典朴素 ijk（3.56 GFLOPS）而非向量化的 ikj。
+- assumption: 当前 R1/R6 约束为「手写实现、依赖编译器自动向量化、不写 intrinsic、无第三方运行时依赖」，AMX 仅通过 bench 里的
+    Accelerate 作为上界参照。若要在代码里使能 AMX，就等于修改这条技术选型约束。
+  blocking: true
+  context: 事实：M1–M4 均有 undocumented AMX 矩阵协处理器，纯 NEON 单核峰值实测 38.5 GFLOPS，Accelerate
+    借 AMX 达 1597 GFLOPS。用户代码访问 AMX 有两条路：官方 Accelerate（间接、稳定）或逆向内联汇编（corsix/amx，直接、未文档化、平台锁定、与
+    Accelerate 混用有状态冲突风险）。当前双基线验收已可通过（vs 朴素 ijk 8T=30.6×、1T=7.2×）。
+  corrected: true
+  descent: 3
+  description: 是否要在 GEMM 实现里使能 AMX？如要，走官方 Accelerate 还是手写逆向内联汇编？
+  deviation: 若不改约束：交付保持纯 C 可移植实现，AMX 只出现在参照行，验收按已裁定的双基线。若改约束：需明确 AMX 是「可选加速后端」还是「交付主体」，并重新定义
+    R6 可移植性与 R1 手写实现的范围。
+  feedback: 选择手写 AMX 内联汇编后端（实验性，编译开关控制，默认纯 C）；实测不通过则如实标注失败并回退
+  id: cfm-20261114-072925-004
+  item_type: clarification
+  layer: L1-需求拆解
+  options:
+  - description: R1/R6 不变，AMX 仅作参照行。验收按已裁定的双基线
+    id: pure-c-only
+    impact: 最快收尾；交付可移植、可审计；性能上限停在 ~109 GFLOPS（8T）
+    label: 保持纯 C，拒绝 AMX
+  - description: 新增 USE_ACCELERATE 开关，开启时 gemm_f32 走 cblas_sgemm（间接用上 AMX）；默认仍是纯 C
+    id: accel-backend
+    impact: 工作量小（~1 小时）、稳定拿到 AMX 性能；但该路径不算"我们的内核"，需在验收里单列
+    label: 可选 Accelerate 后端（编译开关）
+  - description: 按 corsix/amx 的编码直接驱动 AMX（ldx/stx/fma），编译开关控制，默认纯 C
+    id: amx-asm
+    impact: 技术最具证明力（真·自研 AMX 内核）；但未文档化、平台锁定 M1–M3、与 Accelerate 同进程有状态风险，需实测验证并标注为实验性
+    label: 手写 AMX 内联汇编后端
+  - description: 默认纯 C，两个可选后端都做，bench 四方对比（纯 C / AMX-asm / Accelerate / 朴素基线）
+    id: both-optional
+    impact: 最完整的技术验证案例，但工作量最大（估计 3-4 小时），且 AMX-asm 的稳定性风险仍需实测确认
+    label: 双后端：Accelerate + 手写 AMX 均作可选
+  - description: 按 assumption 继续
+    id: assume-ok
+    label: 确认当前假设
+  - id: other
+    label: 其他（请说明）
+  proposed_at: '2026-11-14T07:29:25.390387+00:00'
+  question: 是否要在 GEMM 实现里使能 AMX？如要，走官方 Accelerate 还是手写逆向内联汇编？
+  recommendation:
+    id: amx-asm
+    reason: 若目标是技术验证与上限突破，手写 AMX 后端最能证明「我们真的驱动了矩阵单元」；Accelerate 后端几乎等于调库，验证价值低。建议
+      amx-asm 作实验性可选后端、默认纯 C，实测不通过就如实标注失败并回退
+  repeat_warning: null
+  resolution: amx-asm
+  resolved_at: '2026-11-14T07:30:02.721175+00:00'
+  topic_normalized: AMX 技术选型
+  uncertainty: AMX 未文档化：raw word 编码依赖逆向资料、不同 macOS/芯片可能失效、与 Accelerate 混用有 AMX 状态冲突风险、违背
+    R6 可移植约束；而官方 Accelerate 路径稳定但不属于自研内核。两种价值取向（技术证明 vs 工程稳妥）需要用户定夺。
 se_version: '2.0'
 ---
