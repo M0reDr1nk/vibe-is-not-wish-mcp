@@ -894,117 +894,134 @@ TUI 选择器的数据源是「注册表 + 当前工作目录工程」，因此*
 
 ---
 
-# v0.17 澄清选项与进程防护（descent-16 / asc-015）
+# v0.17 澄清选项与进程防护（descent-16 / asc-015，reviewer14 定稿版）
 
-## 〇、R31 定位修正（用户澄清）：LLM 驱动的需求对齐机制
+## 〇、R31 定位：LLM 驱动的需求对齐机制（只在歧义时发起）
 
-R31 不是孤立的问答工具，而是**"发现假设 → 显性化 → 用户对齐 → 消除偏离"的闭环**，
-结合 LLM 能力贯穿三个环节：
+R31 是**"发现假设 → 显性化 → 用户对齐 → 消除偏离"的闭环**，结合 LLM 能力贯穿三个环节：
 
-1. **发现**：LLM 审计/实现过程中识别歧义点、隐含假设、与用户已有设计/需求的潜在偏离
-   （复用 triage 的 `ambiguous` 分类作为发现入口之一）
-2. **显性化**：每个澄清请求必须携带 `assumption`（当前理解/默认假设）与 `deviation`
-   （假设错误时会偏离什么）——用户不是在回答问题，而是在**纠正或确认 agent 的心智模型**
+1. **发现**：LLM 在审计/实现中识别歧义点、隐含假设、与用户已有设计/需求的潜在偏离
+   （triage `ambiguous` 分类是发现入口之一）
+2. **显性化**：每个澄清请求必须携带 `assumption`（当前理解）与 `deviation`（假设错误会偏离什么）——
+   用户不是在回答问题，而是在**纠正或确认 agent 的心智模型**
 3. **对齐闭环**：裁决记录 `assumption → confirmed/corrected`；changelog 写 alignment 条目；
-   同一主题反复出现歧义时升级为"设计表述缺陷"（该改文档而不是反复问）
+   同一主题反复歧义时升级为"设计表述缺陷"（该改文档而不是反复问）
 
-### 发起门槛（重要边界，防止过度打扰）
-
-**只在模糊/歧义时发起澄清；高置信度/无歧义时禁止打扰用户。** 具体：
+### 发起门槛（LLM 行为准则，工具层不强制校验"是否歧义"）
 
 | 情形 | 行为 |
 |------|------|
-| 唯一合理解读、或置信度高的决策 | **自主执行**，不发起澄清（可写入 changelog 留痕） |
+| 唯一合理解读、或置信度高的决策 | **自主执行**，不发起澄清（写入 changelog 留痕） |
 | ≥2 种合理解读且影响产物方向 | 发起澄清（LLM 生成选项与参考分析） |
-| 与已有设计/需求文本存在表面冲突、或实现约束可能迫使你背离初衷 | 发起澄清 |
+| 与已有设计/需求文本表面冲突、或实现约束可能迫使背离初衷 | 发起澄清 |
 | 影响微小且可逆的执行细节 | 自主执行 |
 
-- 工具层约束：`se_request_clarification` 要求 `uncertainty` 字段（为什么不确定：多解/冲突/约束），
-  填写不出 uncertainty 的请求应被发起方拒绝生成——这是制度化的自检
-- LLM 职责：审计/实现时给每个决策标注置信度；**低置信 ambiguous 才走澄清**，高置信走自主+留痕
-- 参考选项与参考分析（difference/impact）由 **LLM 生成**，不是让用户做填空题
+> 本表是发起方（LLM）的自律准则；工具层唯一的强制校验是 `uncertainty` 非空。
 
-## 一、R31：带参考选项的澄清请求
+## 一、选项结构扩展（兼容性红线）
 
-### 选项结构扩展（兼容性红线）
+`options` 参数为 JSON 字符串，解析后**必须全字符串或全对象，拒绝混合**：
 
-`se_require_confirmation` 的 `options` 参数向后兼容：仍接受 `["approve","reject","modify"]` 字符串数组；
-新增支持对象数组，每项：
+- 字符串项：`{"id": s, "label": s}`
+- 对象项：`{"id", "label", "description"?, "impact"?}`
+- **保留 id 禁止作为选项 id**：`approve` / `reject` / `modify` / `other` / `assume-ok`（工具层校验拒绝）
 
-```json
-{"id": "opt-perf", "label": "性能优先", "description": "接受宏内核复杂度", "impact": "可读性下降，1024³ 预计 +40%"}
-```
-
-- `id`：稳定标识（resolution 用）
-- `label`：短标签（TUI 按钮文字）
-- `description`：参考方向说明（可选）
-- `impact`：取舍影响（可选）
-
-### 新工具：`se_request_clarification`
+## 二、`se_request_clarification`
 
 ```
 se_request_clarification(
-  question: str,            # 歧义点描述（必填）
-  layer: str,               # 所在层级（必填，如 "L3-方案细化"）
-  assumption: str = "",     # 当前理解/默认假设（对齐核心：用户确认或纠正的对象）
-  deviation: str = "",      # 若假设错误会偏离什么（用户意图/已有设计）
-  context: str = "",        # 背景/为什么需要确认
-  options: str = "[]",      # 参考选项 JSON 数组（≥2，结构如上；自动追加 {"id":"other","label":"其他（请说明）"}）
-  blocking: bool = false,   # 是否阻塞当前层推进（默认否）
-  recommendation: str = ""  # 发起方的推荐选项 id 与理由（可选）
-) -> {confirmation_id, status: "pending"}
-
-# 从审计歧义一键发起（LLM 驱动入口）：
-se_request_clarification_from_finding(finding_id: str, layer: str, ...) -> {confirmation_id}
-# 将 triage 中 classification=ambiguous 的发现的 difference/analysis 预填为
-# assumption/deviation，agent 只需补 question 与 options。
+  question: str,                 # 必填：歧义点描述
+  layer: str,                    # 必填：所在层级
+  uncertainty: str,              # 必填：为什么不确定（多解/冲突/约束）；空串拒绝
+  assumption: str,               # 必填：当前理解/默认假设（对齐核心）
+  deviation: str,                # 必填：假设错误会偏离什么
+  topic: str = "",               # 可选：主题聚类键；缺省取 question 前 32 字归一化
+  context: str = "",             # 可选：背景
+  options: str = "[]",           # 必填 ≥2 项；工具自动追加两个保留项（见下）
+  recommendation: str = "",      # 可选 JSON：{"id": "...", "reason": "..."}；id 必须是 options 之一
+  blocking: bool = false
+) -> {confirmation_id, status: "pending", auto_options: ["assume-ok", "other"]}
 ```
 
-- item_type 固定为 `"clarification"`，写入 manifest.pending_confirmations（复用既有存储、purge、changelog 语义）
-- blocking=true 时参与既有一致性门控的 blocking_pending 统计
-- **对齐语义**：resolution 为选项 id 或 modify 文本时，changelog 写 `alignment` 条目：
-  `{question, assumption, resolution, corrected: bool}`——corrected=true 表示用户纠正了假设
-- 同一 `layer+question主题`（按 id 前缀聚类）第 3 次发起时，工具返回 warning：
-  「该主题已反复澄清 N 次，建议改为修订设计文档」
+**自动追加的保留选项**（发起方不可自定义同 id 项）：
 
-### 裁决扩展：`se_resolve_confirmation`
+- `{"id": "assume-ok", "label": "确认当前假设", "description": "按 assumption 继续"}`
+  —— 选中即 confirmed；选任何其他项即 corrected
+- `{"id": "other", "label": "其他（请说明）"}` —— 选中时 feedback 必填
 
-`resolution` 允许直接填**选项 id**（如 `"opt-perf"`）；选择选项时 `feedback` 可选（补充说明），
-选择 `"other"` 时 `feedback` 必填。裁决记录写入 changelog：`{question, chosen_option, feedback}`。
+**存储**：item_type="clarification"，记录含 question/layer/uncertainty/assumption/deviation/topic/
+options（含保留项）/recommendation/blocking；复用 manifest.pending_confirmations 与 purge 语义。
+`topic` 缺省归一化规则：去空白取前 32 字；聚类键 = (layer, topic)。
 
-### TUI 呈现
+**反复澄清升级**：同一 (layer, topic) 已有 2 条 resolved clarification 时，第 3 次发起返回
+warning：「该主题已澄清 2 次仍重复出现，建议修订设计文档消除歧义源」——请求仍创建，不阻断。
 
-确认面板中 clarification 类型的问题展开显示：**assumption（当前假设，高亮）**、deviation（偏离风险）、
-context、各选项的 label+description+impact、推荐项标记（★推荐）。
-键盘：数字键选择选项 / a拒绝 / m修改。选中后写入 resolution。
+## 三、裁决：`se_resolve_confirmation` 扩展
 
-## 一之二、与 LLM 审计的衔接
+- `resolution` 允许选项 id（含 `assume-ok` / `other`）或既有 `approve`/`reject`/`modify`
+- 选 `other` 时 feedback 必填；选 `assume-ok` 时 feedback 可选
+- **corrected 判定规则**（机械）：`corrected = (resolution != "assume-ok")`——选任何参考选项都视为
+  对默认假设的纠正/替换；用户确认假设必须显式选 assume-ok
+- **changelog 统一条目**（change_type="alignment"）：
+  `{question, assumption, chosen_option, feedback, corrected}`——clarification 类型的裁决只写这一条；
+  非 clarification 类型保持既有行为
 
-- triage 输出中 `classification=ambiguous` 的发现，其 escalation 呈现时附带提示
-  「可转为澄清请求」；转换后该 finding 标记 `clarification_id`，裁定决策引用用户答案
-- LLM 审核 prompt（PROMPT_TEMPLATE）不变——ambiguous 归类已是 v2 语义；衔接发生在工具层
+## 四、TUI 呈现与裁决路径
 
-## 二、R30：进程陈旧防护
+- 呈现：assumption（高亮）/deviation/context/各选项 label+description+impact/★推荐标记（推荐项）；
+  键盘：数字键选选项 / a拒绝 / m修改
+- **裁决路径**：TUI 与 server 同一进程时直接调用 `WorkflowEngine.resolve_confirmation`；
+  跨进程（DSH MCP 场景）调 `se_resolve_confirmation`。**裁决逻辑下沉在引擎层**（含 alignment
+  changelog 写入），两条路径副作用一致
 
-### server_version（AC1）
+## 五、`se_request_clarification_from_finding`
 
-- `vinw/__init__.py` 暴露 `__commit__`：构建/启动时取 `git rev-parse HEAD`（失败则为 `"unknown"`）
-- `se_get_project` 响应与 server 启动日志均带 `server_version`
-- TUI（AC2）：启动时读仓库 HEAD 与 `se_get_project.server_version` 对比，不符则 header 显示
-  `⚠ server 代码陈旧（启动于旧版本）——请重启 MCP server`
+```
+se_request_clarification_from_finding(
+  finding_id: str,        # 最新报告中 classification=ambiguous 的 finding
+  layer: str,
+  question: str,          # 仍必填
+  uncertainty: str,       # 仍必填（可引用 finding 的 confidence/analysis）
+  options: str,           # 必填
+  topic/recommendation/blocking 同主工具
+) -> {confirmation_id, ...}
+```
+
+- assumption/deviation 从 finding 的 difference/analysis 预填（仍写入记录，agent 可覆盖）
+- 转换后 finding 标记 `clarification_id`；escalation 呈现时附「已转澄清」
+
+## 六、R30：进程陈旧防护
+
+### server_version（AC1/AC2）
+
+- `vinw/__init__.py` 暴露 `__commit__`：启动时 `git rev-parse HEAD`（+ `--short`），失败为 `"unknown"`；
+  附加 `__dirty__`（`git status --porcelain` 非空）
+- `se_get_project` 响应带 `server_version: {commit, dirty}`；server 启动日志同样打印
+- TUI 对比策略（显式声明适用边界）：
+  - 仅当能定位 vinw 源码目录（包内 `__source_repo__` 记录安装时仓库路径，存在才比对）时做对比
+  - `commit == "unknown"` → header 显示灰色 `server 版本未知`（**不显示陈旧警告**，防误报）
+  - 比对不符或 dirty → 黄色警告条 `⚠ server 代码陈旧——请重启 MCP server`
+  - pip 安装脱离源码仓库的用户场景：无源码可比 → 只显示版本未知行，防护静默降级（已声明边界）
 
 ### design_hash_algo（AC4）
 
-- 报告 frontmatter 与 manifest consistency 均写 `design_hash_algo: "layer-v1"`（当前算法）
-- `freshness` / `llm_matches_current`：报告缺该字段或值不符 → 视为 stale（fail-closed，同 design_hash 缺失语义）
-- 算法升级时递增版本号，旧报告自然失效
+- 报告 frontmatter 与 manifest consistency 均写 `design_hash_algo: "layer-v1"`
+- **fail-closed 且无例外**：报告缺该字段或值不符 → freshness 与 llm_matches_current 一律视为 stale
+  （注意：这是对既有"design_hash 缺失在 freshness 中 fail-open"语义的**有意收紧**——升级当日
+  所有旧报告自然失效、需重跑一次审计，属预期行为）
+- 算法升级时递增版本号（layer-v2…）
 
-## 三、R32 边界
+### README（AC3）
 
-decision_bias 本轮**不进设计**（L2 调研已定结论：混合形态、问卷 v1、规则映射）；实现另行立项。
+- v0.17 实施清单包含：README 开发章节增加「`pip install` 后必须重启 MCP server
+  （长驻进程不热加载已安装包）」说明
+
+## 七、R32 边界
+
+decision_bias 本轮不进设计（L2 调研已定结论）；实现另行立项。
 
 ## 版本历史补记
 
 | 版本 | 下降轮 | 内容 |
 |------|--------|------|
-| v0.17 | descent-16 | 澄清选项结构、se_request_clarification、server_version、design_hash_algo |
+| v0.17 | descent-16 | 澄清对齐闭环（门槛/uncertainty/assumption/deviation/topic）、选项结构、R30 防护（server_version/design_hash_algo） |
