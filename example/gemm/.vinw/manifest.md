@@ -18,6 +18,7 @@ ascent_history:
     峰值(25.6)，8×=189 GFLOPS≈整机峰值；而真·朴素 ijk 仅 3.56 GFLOPS（相对可达 30×）。需回 L1 重新定义性能基线口径
   to_baseline: v001
   to_layer: L1-需求拆解
+completed_at: '2026-11-14T08:28:30.729820+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 3
 current_layer: L7-终验
@@ -76,9 +77,10 @@ layer_states:
     latest_baseline: v001
     status: baselined
   L7-终验:
+    completed_at: '2026-11-14T08:28:30.729820+00:00'
     descent_count: 1
     latest_baseline: null
-    status: in_progress
+    status: completed
 name: gemm
 pending_confirmations:
 - blocking: true
