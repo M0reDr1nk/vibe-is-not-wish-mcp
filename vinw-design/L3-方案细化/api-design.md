@@ -708,15 +708,36 @@ v0.14 只在 **L4→L5** 与 **项目完成前** 校验"审核结论是否匹配
 
 ### 执行顺序（v0.15 修订，回应 reviewer6）
 
-`heal_drift` 内部顺序**必须是**：
+`baseline()` 的守卫顺序（v0.15 最终版）：
 
-1. `detect_drift` 取漂移快照（判定不依赖后续写盘）
-2. `design_lag` → `DesignLagError`（**先于** config_error：代码整体消失时更可能是设计/实现脱节，
-   hint 同时提示检查 `code_root` / `code_extensions`）
-3. 无代码文件 → `config_error` 放行（不写报告）
-4. **LLM 结论校验**（策略要求且不满足 → `LLMAuditRequiredError`）
-5. 才执行 `gate.ensure()` 的 text 复查
-6. 全部通过后才 `sync_audited_state()` 重新锚定 + 写 `auto-audit`
+```
+占位符守卫（只读）
+  → strict 策略：LLM 结论校验 + triage 判定（只读）
+    → heal_drift：
+         detect_drift 快照
+           → design_lag → DesignLagError
+             → 无代码文件 → config_error（放行）
+               → LLM 结论校验（不满足 → LLMAuditRequiredError）
+                 → text 复查（ensure）
+                   → 通过才：sync_audited_state() 锚定 + 写 auto-audit
+  → 写状态（freeze/descend）
+```
+
+**顺序取舍**：strict 校验在 heal 之前，因此「strict 缺结论」会先于「design_lag」报出。
+两者都是零状态写入的拒绝，优先级仅影响提示文案，不改变放行结果。
+
+### 「被拒零写入」的准确含义
+
+| 拒绝点 | 是否写报告 | 是否改锚点 | 是否写 auto-audit |
+|--------|-----------|-----------|------------------|
+| 占位符 / strict / triage | 否 | 否 | 否 |
+| heal 内 design_lag / LLM 结论缺失 | 否 | 否 | 否 |
+| text 复查不通过 | **是**（失败报告 + `last_failed_*`，作为证据） | 否 | 否 |
+| heal 之后（`config_error`/`tooling_discrepancy`/二次 ensure） | 理论可达但实际不可达（heal 成功后 ensure 命中 FRESH） | 否 | 否 |
+
+> 即：拒绝**不会移动审计锚点、不会写 auto-audit**；text 复查失败会留一份失败报告作证据。
+> heal 与写状态之间仍存在理论上的 TOCTOU 窗口（两次 ensure 之间文件被改动），当前实现依赖
+> ensure 的 FRESH 短路，而非结构保证——记录为已知限制。
 
 > 早期实现把第 6 步放在第 4 步之前，导致"被拒一次后重试即通过"的绕过（reviewer6 GAP-001）；`L4` 基线处 `ensure()` 抢在 heal 之前也会同样洗掉漂移（GAP-002），现已在 L4 分支先 heal。
 
