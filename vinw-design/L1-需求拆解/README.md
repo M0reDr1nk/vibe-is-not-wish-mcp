@@ -8,7 +8,7 @@ layer: L1-需求拆解
 rolled_back_at: '2026-11-13T18:08:09.780381+00:00'
 rolled_back_from: v002
 se_version: '2.0'
-status: in_progress
+status: baselined
 todo_descent: 12
 ---
 

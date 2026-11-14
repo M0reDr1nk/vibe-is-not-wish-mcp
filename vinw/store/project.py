@@ -332,7 +332,10 @@ class Project:
             if not readme_path.exists():
                 continue
             post = frontmatter.load(readme_path)
-            if post.metadata.get("status") == "superseded":
+            # manifest is the authoritative state machine; a README mirror can
+            # lag, so superseded layers are filtered by the manifest status.
+            layer_state = manifest.get("layer_states", {}).get(layer, {})
+            if layer_state.get("status") == "superseded":
                 continue
             # Prefer the descent at which this todo list was written
             todo_descent = post.metadata.get(

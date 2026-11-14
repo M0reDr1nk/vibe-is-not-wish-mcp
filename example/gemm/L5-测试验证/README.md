@@ -1,9 +1,9 @@
 ---
-se_version: "2.0"
-layer: "L5-测试验证"
-doc_type: "layer-readme"
-status: "pending"
 descent_count: 0
+doc_type: layer-readme
+layer: L5-测试验证
+se_version: '2.0'
+status: superseded
 ---
 
 # L5-测试验证

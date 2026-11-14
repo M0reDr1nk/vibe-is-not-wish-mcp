@@ -211,3 +211,23 @@ updated_at: "2026-11-13T10:02:19.675591"
 
 ### LLM 报告结论与门控的关系（重要语义修正）
 `overall=warning` 的 LLM 报告**不再直接拒绝**：它代表"审核已完成且发现问题"，由裁定环节决定放行/升级。仅"缺失 LLM 报告"才抛 `LLMAuditRequiredError`。
+
+## descent-13 实现记录（asc-012：审计契约补全）
+
+### 按 v0.14 设计落实的改动
+
+| 设计条目 | 实现 |
+|---|---|
+| 漂移四态 + changed 列表 | `drift.py` 输出 `state` ∈ clean/drifted/design_lag/design_synced/unknown，`changed` 为 `added|removed|modified:<路径>`；`unknown` 在 TUI 显示黄牌，不再等同 clean |
+| heal 契约 | `heal_drift` 移到 baseline/descend 的**前置校验之后**；`force=true` 跳过；`config_error` 放行且不写报告；仅成功重审写 `auto-audit` |
+| LLM 指纹前置 | `llm_status.satisfied = not required or (present and matches_current)`；三处门控改用 satisfied，并在错误信息区分"未提供/报告针对旧代码/结论未过" |
+| triage 覆盖性 | `store()` 在写入前比对报告全部 inconsistencies+gaps，缺项抛 `TriageError` 且不落盘 |
+| 决策五态 | 新增 `resolved`（全部已裁定且含 design_*），未裁定项归入 `escalate` 并在输出列 `untriaged` |
+| 裁定单流程 | 删除 PROMPT v3 表述，裁定只走 `se_triage_prompt` → `se_store_triage` |
+| 工具清单 | 设计总表由 `server.py` 生成（34 项），`test_tool_catalog.py` 断言两侧一致 |
+| 设计-实现同步 | 新增第 9 节契约；`consistency.design_hash` 入库供漂移判定 |
+
+### 开发期发现的自身缺陷
+1. `llm_status.satisfied` 初版把 `overall=="passed"` 写进条件，与设计第 3 节不符，导致 warning 结论被误判为"未提供审核" → 按设计修正
+2. `drift` 判定 design_hash 时依赖"当前轮 LLM 报告"，跨轮时取不到会误判 design_lag → 改为 manifest 优先、报告回退、缺失降级为 drifted
+3. TUI 内局部的 `from ..workflow.drift import drift_lines` 造成整函数作用域遮蔽，页面渲染报错 → 提为模块级导入

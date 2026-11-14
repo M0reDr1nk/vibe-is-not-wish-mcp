@@ -3,7 +3,7 @@ descent_count: 0
 doc_type: layer-readme
 layer: L1-需求拆解
 se_version: '2.0'
-status: pending
+status: baselined
 todo_descent: 1
 ---
 

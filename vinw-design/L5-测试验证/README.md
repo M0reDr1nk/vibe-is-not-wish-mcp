@@ -3,7 +3,7 @@ descent_count: 1
 doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
-status: in_progress
+status: superseded
 todo_descent: 12
 ---
 

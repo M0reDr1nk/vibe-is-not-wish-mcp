@@ -8,7 +8,7 @@ layer: L3-方案细化
 rolled_back_at: '2026-11-13T17:36:31.069455+00:00'
 rolled_back_from: v001
 se_version: '2.0'
-status: in_progress
+status: baselined
 todo_descent: 1
 ---
 

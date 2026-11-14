@@ -174,3 +174,41 @@ pending_confirmations: []
 | chg-002 | 2026-11-13 | 线性状态机 → 螺旋上升 | 需求：显式回溯-再下降循环 |
 | chg-003 | 2026-11-13 | 一致性检查：LLM 文本审计 + tree-sitter 预留 | 用户决策 |
 | chg-004 | 2026-11-13 | 向量检索：TF-IDF + ripgrep，faiss 降级为远期备选 | 用户决策 |
+---
+
+# descent-13 状态机合理性审查与状态同步契约
+
+## 审查结论：状态机设计总体成立，但缺"状态归属"契约
+
+### 状态词汇与转移（审查后的完整定义）
+
+| 状态 | 含义 | 可进入来源 | 可离开去向 |
+|------|------|-----------|-----------|
+| `pending` | 从未开工 | 初始化 | `in_progress`（descend/ascend 进入） |
+| `in_progress` | 当前正在做 | descend / ascend 进入；baseline 后重入 | `baselined`（冻结）、`superseded`（上升） |
+| `baselined` | 已冻结可回溯 | baseline | `in_progress`（重做）、`superseded`（上升） |
+| `superseded` | 本轮作废、需重做 | ascend 使然 | `in_progress`（descend 重入）、`baselined`（重做后冻结） |
+| `completed` | 项目终验完成（仅 L7） | complete_project | `in_progress`（ascend 回到 L7？实际 L7 被 superseded） |
+
+不变量（已加入测试）：
+1. 任意时刻**恰好一层**为 `in_progress`，且等于 `current_layer`
+2. `completed` 只允许出现在 L7
+3. `superseded` 必带 `superseded_by`（上升 id）
+4. 进入/重做某层时，`needs_redo` / `superseded_by` / `superseded_at` 必须清除
+
+### 发现的缺陷（本轮已修）
+
+| 缺陷 | 影响 | 修复 |
+|------|------|------|
+| **状态双写不同步**：manifest 与各层 README frontmatter 各自维护 status，实测 7 层里 6 层不一致 | 人读 README 得到过期状态；`get_todos` 用 README 状态过滤 superseded，导致该过滤是死代码 | 明确 **manifest 为唯一状态机**，README 为镜像；新增 `_sync_layer_status()` 在所有转移处同步，`sync_all_layer_readmes()` 修历史分歧 |
+| `descend` 未清除 `needs_redo`/`superseded_by` | 重做后仍显示"设计滞后/待重做" | 进入层时清除三个残留键 |
+| `baseline` 未清除 supersede 标记 | 重新冻结的层仍留着旧的 superseded 痕迹 | baseline 时清除 |
+| `layer_design_hash` 把 L3/README.md 算入设计哈希 | 同步状态 = "设计变了"，制造假漂移 | 设计哈希排除 README.md（状态载体，非设计文档） |
+| `repair_ascend_state` 首版把当前层也标记为 superseded | 当前层消失，流程无法继续 | 修复后保留 current 层为 in_progress |
+| `get_todos` 过滤依据错误 | 已作废层的待办仍出现在列表 | 改按 manifest 的 status 过滤 |
+
+### 设计层面的结论
+
+- 状态机**语义**合理（螺旋上升需要 superseded/needs_redo 承载"作废待重做"）
+- 缺失的是**状态归属契约**：谁写、写几处、如何镜像。本版补齐为"manifest 唯一 + README 镜像 + 转移处强制同步"
+- `repair_ascend_state()` 作为**状态修复能力**保留：历史上已产生过错误状态（旧版本 ascend 范围不全），需要可重复修复而非一次性脚本

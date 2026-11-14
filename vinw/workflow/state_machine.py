@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
+import frontmatter
 from typing import Any
 
 from ..store.project import (
@@ -85,6 +87,115 @@ class WorkflowEngine:
             before=before,
             after=after,
         )
+
+    # ── State synchronisation ─────────────────────────────────
+
+    def _sync_layer_status(
+        self,
+        layer: str,
+        status: str,
+        *,
+        clear_supersede: bool = False,
+        clear_redo: bool = False,
+        mirror: bool = True,
+    ) -> None:
+        """Write a layer status to the manifest and mirror it to README.
+
+        manifest.md is the state machine (design doc §Manifest 状态机); the
+        README frontmatter is a human-facing mirror. Writing only one of them
+        left the two disagreeing on nearly every layer.
+        """
+        if mirror:
+            readme = self.project.get_layer_dir(layer) / "README.md"
+            if readme.exists():
+                post = frontmatter.load(readme)
+                post.metadata["status"] = status
+                if clear_supersede:
+                    for key in ("superseded_at", "superseded_by"):
+                        post.metadata.pop(key, None)
+                if clear_redo:
+                    post.metadata.pop("needs_redo", None)
+                readme.write_text(frontmatter.dumps(post), encoding="utf-8")
+
+    def sync_all_layer_readmes(self) -> dict[str, str]:
+        """Bring every layer README status in line with the manifest."""
+        manifest = self.project.read_manifest()
+        states = manifest.get("layer_states", {})
+        synced: dict[str, str] = {}
+        for layer in LAYERS:
+            status = states.get(layer, {}).get("status")
+            if not status:
+                continue
+            self._sync_layer_status(layer, status)
+            synced[layer] = status
+        return synced
+
+    # ── Layer invalidation ────────────────────────────────────
+
+    @staticmethod
+    def _invalidate_below(
+        layer_states: dict[str, Any], to_idx: int, ascent_id: str
+    ) -> list[str]:
+        """Mark every layer below `to_idx` as needing redo. Returns the ids."""
+        now = datetime.now(timezone.utc).isoformat()
+        marked: list[str] = []
+        for i in range(to_idx + 1, len(LAYERS)):
+            layer = LAYERS[i]
+            state = layer_states.get(layer)
+            if not state:
+                continue
+            if state.get("status") in ("baselined", "completed", "in_progress"):
+                state["status"] = "superseded"
+                state["superseded_at"] = now
+                state["superseded_by"] = ascent_id
+                state["needs_redo"] = True
+                marked.append(layer)
+        return marked
+
+    def repair_ascend_state(self, ascent_id: str | None = None) -> dict[str, Any]:
+        """Re-apply invalidation for the latest ascent.
+
+        Repairs state written by older builds that only superseded the layer
+        the ascent started from, leaving lower layers looking completed.
+        """
+        manifest = self.project.read_manifest()
+        history = manifest.get("ascent_history", [])
+        if not history:
+            return {"repaired": [], "ascent_id": None, "reason": "no ascent history"}
+
+        record = history[-1]
+        if ascent_id and record.get("id") != ascent_id:
+            record = next(
+                (h for h in history if h.get("id") == ascent_id), record
+            )
+
+        to_layer = record["to_layer"]
+        to_idx = self._layer_index(to_layer)
+        layer_states = manifest.get("layer_states", {})
+        marked = self._invalidate_below(layer_states, to_idx, record["id"])
+
+        # The current layer is where work resumes: it stays in_progress, not
+        # superseded (invalidation applies to layers below it).
+        current = manifest.get("current_layer")
+        if current and current in layer_states and layer_states[current].get("status") == "superseded":
+            layer_states[current]["status"] = "in_progress"
+            layer_states[current].pop("needs_redo", None)
+            if current in marked:
+                marked.remove(current)
+
+        manifest["layer_states"] = layer_states
+        self.project.write_manifest(manifest)
+
+        if marked:
+            self._append_changelog(
+                change_type="repair",
+                scope=", ".join(marked),
+                reason=(
+                    f"修复 {record['id']} 的失效范围：这些层属于本轮需重做的层，"
+                    f"此前误留为已完成状态"
+                ),
+            )
+        return {"ascent_id": record["id"], "repaired": marked}
 
     # ── Stage-end drift healing ───────────────────────────────
 
@@ -198,9 +309,13 @@ class WorkflowEngine:
         layer_states[layer]["status"] = "baselined"
         layer_states[layer]["latest_baseline"] = version
         layer_states[layer]["baselined_at"] = datetime.now(timezone.utc).isoformat()
+        # A (re)baselined layer is done: stale supersede/redo markers must go
+        for key in ("superseded_at", "superseded_by", "needs_redo"):
+            layer_states[layer].pop(key, None)
 
         manifest["layer_states"] = layer_states
         self.project.write_manifest(manifest)
+        self._sync_layer_status(layer, "baselined", clear_supersede=True, clear_redo=True)
 
         self._append_changelog(
             change_type="baseline",
@@ -254,21 +369,9 @@ class WorkflowEngine:
         self.project.rollback_to_baseline(to_layer, to_baseline)
 
         # 3. Everything below the ascent target must be redone in the new
-        #    round — not just the layer we left. Layers between to_layer and
-        #    from_layer keep their baseline for reference but are no longer
-        #    "done": leaving them green made a stale state look complete.
+        #    round — not just the layer we left.
         layer_states = manifest.get("layer_states", {})
-        now = datetime.now(timezone.utc).isoformat()
-        for i in range(to_idx + 1, len(LAYERS)):
-            l = LAYERS[i]
-            state = layer_states.get(l)
-            if not state:
-                continue
-            if state.get("status") in ("baselined", "completed", "in_progress"):
-                state["status"] = "superseded"
-                state["superseded_at"] = now
-                state["superseded_by"] = ascent_id
-                state["needs_redo"] = True
+        self._invalidate_below(layer_states, to_idx, ascent_id)
 
         # 4. Update target layer state
         if to_layer not in layer_states:
@@ -286,6 +389,15 @@ class WorkflowEngine:
         manifest["layer_states"] = layer_states
 
         self.project.write_manifest(manifest)
+
+        # Mirror to READMEs so the human-facing docs match the state machine
+        self._sync_layer_status(
+            to_layer, "in_progress", clear_supersede=True, clear_redo=True
+        )
+        for layer in LAYERS[to_idx + 1:]:
+            state = layer_states.get(layer, {})
+            if state.get("status") == "superseded":
+                self._sync_layer_status(layer, "superseded")
 
         # 6. Append to ascensions.md
         self.project.append_ascent_record(ascent_record)
@@ -399,12 +511,16 @@ class WorkflowEngine:
             )
             layer_states[to_layer].pop("superseded_at", None)
             layer_states[to_layer].pop("superseded_by", None)
+            layer_states[to_layer].pop("needs_redo", None)
         else:
             layer_states[to_layer] = {"status": "in_progress", "descent_count": 1}
 
         manifest["current_layer"] = to_layer
         manifest["layer_states"] = layer_states
         self.project.write_manifest(manifest)
+        self._sync_layer_status(
+            to_layer, "in_progress", clear_supersede=True, clear_redo=True
+        )
 
         self._append_changelog(
             change_type="descend",

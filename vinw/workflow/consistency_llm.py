@@ -95,15 +95,17 @@ def design_hash(design_path: Path) -> str:
 
 
 def layer_design_hash(layer_dir: Path) -> str:
-    """Digest over every design document in a layer.
+    """Digest over the layer's *design* documents.
 
-    Hashing one file is not enough: the text/LLM checks read api-design.md
-    separately, so a change there must also invalidate a cached verdict.
+    README.md carries workflow state (status, todos, baseline table), so it is
+    excluded: mirroring a status must not look like a design change.
     """
     if not layer_dir.exists():
         return ""
     digest = hashlib.sha256()
     for path in sorted(layer_dir.glob("*.md")):
+        if path.name == "README.md":
+            continue
         digest.update(path.name.encode())
         try:
             digest.update(path.read_bytes())

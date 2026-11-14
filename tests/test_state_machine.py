@@ -118,3 +118,119 @@ class TestConfirmations:
         ok, msg, _ = engine.can_descend_to_next()
         assert not ok
         assert "unresolved" in msg.lower() or "blocking" in msg.lower()
+
+
+class TestAscendRepair:
+    """State written by older builds left lower layers looking completed."""
+
+    def test_repair_invalidates_layers_below_ascent_target(self, engine):
+        engine.baseline("L1-需求拆解", "t", force=True)
+        engine.descend("L2-参考文献与方案搜证汇总")
+        engine.baseline("L2-参考文献与方案搜证汇总", "t", force=True)
+        engine.descend("L3-方案细化")
+        engine.ascend("L3-方案细化", "L1-需求拆解", "v001", "t")
+
+        # simulate the old (buggy) behaviour: lower layers left baselined
+        manifest = engine.project.read_manifest()
+        manifest["layer_states"]["L2-参考文献与方案搜证汇总"]["status"] = "baselined"
+        manifest["layer_states"]["L3-方案细化"]["status"] = "baselined"
+        manifest["current_layer"] = "L2-参考文献与方案搜证汇总"
+        engine.project.write_manifest(manifest)
+
+        result = engine.repair_ascend_state()
+        assert "L3-方案细化" in result["repaired"]
+
+        states = engine.project.read_manifest()["layer_states"]
+        # the current layer stays in_progress; deeper layers need redo
+        assert states["L2-参考文献与方案搜证汇总"]["status"] == "in_progress"
+        assert states["L3-方案细化"]["status"] == "superseded"
+        assert states["L3-方案细化"].get("needs_redo") is True
+
+    def test_repair_logs_a_changelog_entry(self, engine):
+        engine.baseline("L1-需求拆解", "t", force=True)
+        engine.descend("L2-参考文献与方案搜证汇总")
+        engine.baseline("L2-参考文献与方案搜证汇总", "t", force=True)
+        engine.ascend("L2-参考文献与方案搜证汇总", "L1-需求拆解", "v001", "t")
+
+        manifest = engine.project.read_manifest()
+        manifest["layer_states"]["L2-参考文献与方案搜证汇总"]["status"] = "baselined"
+        manifest["current_layer"] = "L1-需求拆解"
+        engine.project.write_manifest(manifest)
+
+        engine.repair_ascend_state()
+        changelog = (engine.project.vinw_dir / "changelog.md").read_text(encoding="utf-8")
+        assert "修复" in changelog and "失效范围" in changelog
+
+    def test_repair_without_history_is_noop(self, engine):
+        result = engine.repair_ascend_state()
+        assert result["repaired"] == []
+
+
+class TestStateSync:
+    """manifest is the state machine; README must mirror it, never diverge."""
+
+    def _readme_status(self, engine, layer):
+        import frontmatter
+
+        path = engine.project.get_layer_dir(layer) / "README.md"
+        return frontmatter.load(path).metadata.get("status")
+
+    def test_baseline_mirrors_status_to_readme(self, engine):
+        engine.baseline("L1-需求拆解", "t", force=True)
+        assert self._readme_status(engine, "L1-需求拆解") == "baselined"
+
+    def test_descend_mirrors_status_to_readme(self, engine):
+        engine.baseline("L1-需求拆解", "t", force=True)
+        engine.descend("L2-参考文献与方案搜证汇总")
+        assert self._readme_status(engine, "L2-参考文献与方案搜证汇总") == "in_progress"
+
+    def test_ascend_mirrors_superseded_to_readme(self, engine):
+        engine.baseline("L1-需求拆解", "t", force=True)
+        engine.descend("L2-参考文献与方案搜证汇总")
+        engine.baseline("L2-参考文献与方案搜证汇总", "t", force=True)
+        engine.ascend("L2-参考文献与方案搜证汇总", "L1-需求拆解", "v001", "t")
+
+        assert self._readme_status(engine, "L1-需求拆解") == "in_progress"
+        assert self._readme_status(engine, "L2-参考文献与方案搜证汇总") == "superseded"
+
+    def test_sync_all_readmes_closes_historical_divergence(self, engine):
+        import frontmatter
+
+        engine.baseline("L1-需求拆解", "t", force=True)
+        path = engine.project.get_layer_dir("L1-需求拆解") / "README.md"
+        post = frontmatter.load(path)
+        post.metadata["status"] = "in_progress"  # simulate an old divergence
+        path.write_text(frontmatter.dumps(post), encoding="utf-8")
+
+        engine.sync_all_layer_readmes()
+        assert self._readme_status(engine, "L1-需求拆解") == "baselined"
+
+    def test_rebaseline_clears_supersede_markers(self, engine):
+        engine.baseline("L1-需求拆解", "t", force=True)
+        engine.descend("L2-参考文献与方案搜证汇总")
+        engine.baseline("L2-参考文献与方案搜证汇总", "t", force=True)
+        engine.ascend("L2-参考文献与方案搜证汇总", "L1-需求拆解", "v001", "t")
+        engine.descend("L2-参考文献与方案搜证汇总")
+
+        state = engine.project.read_manifest()["layer_states"]["L2-参考文献与方案搜证汇总"]
+        assert state["status"] == "in_progress"
+        assert "needs_redo" not in state
+        assert "superseded_by" not in state
+
+    def test_superseded_layer_todos_are_excluded(self, engine):
+        """get_todos used to filter on the README mirror, which lagged."""
+        from vinw.store.project import replace_todo_section
+
+        readme = engine.project.read_layer_readme("L2-参考文献与方案搜证汇总")
+        engine.project.write_layer_readme(
+            "L2-参考文献与方案搜证汇总",
+            {**readme, "todo_descent": 1},
+            replace_todo_section(readme["content"], "## 当前待办\n\n- [ ] 待重做的任务"),
+        )
+        engine.baseline("L1-需求拆解", "t", force=True)
+        engine.descend("L2-参考文献与方案搜证汇总")
+        engine.baseline("L2-参考文献与方案搜证汇总", "t", force=True)
+        engine.ascend("L2-参考文献与方案搜证汇总", "L1-需求拆解", "v001", "t")
+
+        texts = [t["text"] for t in engine.project.get_todos()]
+        assert "待重做的任务" not in texts
