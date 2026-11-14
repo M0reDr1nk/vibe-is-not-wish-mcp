@@ -327,3 +327,17 @@ updated_at: "2026-11-13T10:02:19.675591"
 
 评审：reviewer19 共 17 项（9 impl_bug / 5 design_gap / 3 design_bug），
 15 项已修复、2 项记录为已知取舍（写侧完成态守卫、三处谓词抽公共）。
+
+## descent-19 实现：结构化 changelog（v0.20 / R33-2）
+
+| 改动 | 内容 |
+|------|------|
+| `append_changelog_entry` | 新增 `extra` 参数，渲染为额外表格行；`_cell` 归一所有行分隔符、转义 `\|`，`change_type` 也转义 |
+| `read_changelog_entries`（新） | 行级状态机解析：**围栏优先**（Before/After 内的标题/表格不参与），code 字段才剥反引号，布尔字段类型化 |
+| `resolve_confirmation` | alignment 条目改为 9 个结构化字段（question/assumption/deviation/chosen_option/feedback/corrected/impact/reversibility/layer），不截断 |
+| `se_get_changelog` | 改用共享解析器，返回结构化条目 |
+| TUI | `build_recent_changes` 改用共享解析器 |
+
+评审 r23 发现 8 项（6 impl_bug / 2 design_gap），全部修复：
+围栏盲解析、CRLF 静默截断、change_type 未转义、反引号不对称剥离、
+`corrected` 返回字符串 `"False"`（真值判断出错）、MCP 侧双解析器、兼容性弱覆盖、死导入。

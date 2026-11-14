@@ -433,3 +433,21 @@ descent-16 进行 2 轮独立评审（reviewer14 设计定稿前、reviewer15 �
 | INC-001 current 保护 | `test_invalidate_above_keeps_current_layer_actionable` |
 | INC-008 完成戳 | `test_invalidate_above_clears_completion_stamp` |
 | TUI 三栏 | `TestTodoStaleness` / `TestBottomPanelContent` / `TestClarificationTui` |
+
+## descent-19 round 1（R33-2 结构化 changelog，2026-11-14）
+
+| 指标 | 值 |
+|------|-----|
+| 总用例数 | 342 |
+| 通过 | 342 |
+| 增量 | +6（336 → 342 鲁棒性用例；另有 3 例结构化对齐用例在前一步加入） |
+
+| 用例 | 覆盖 |
+|------|------|
+| `test_fenced_table_lines_are_not_parsed_as_fields` | 围栏内表格行/伪条目不污染 |
+| `test_crlf_and_carriage_return_do_not_truncate` | CRLF/U+2028 归一 |
+| `test_backticks_are_preserved_in_free_text` | 自由文本反引号保真 |
+| `test_legacy_entry_without_extra_parses` | 旧格式兼容（含裸 `\|`） |
+| `test_change_type_pipe_is_escaped` | 类型字段转义 |
+| `test_mcp_changelog_returns_structured_entries` | MCP 面机读 |
+| `TestStructuredAlignmentEntry`（3 例） | 结构化字段往返、assume-ok、布尔类型 |

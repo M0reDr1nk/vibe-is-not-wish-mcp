@@ -202,3 +202,12 @@ status: "completed"
 | 重复文案 | 问题块不再重复 drift_lines 的处置/变更文件 |
 | 死键 | `_CHANGE_STYLE.force-baseline` 删除，补 `purge-confirmations` |
 | 测试复验 | 333/333 ✅ |
+
+## descent-19 清理（R33-2）
+
+| 项 | 说明 |
+|----|------|
+| 死导入 | 删除 `read_changelog_entries` 内的 `import frontmatter` 与误导弹注释 |
+| 双解析器 | TUI + MCP 统一到 `read_changelog_entries` |
+| 弱测试 | 兼容性用例补 6 条鲁棒性路径 |
+| 测试复验 | 342/342 ✅ |
