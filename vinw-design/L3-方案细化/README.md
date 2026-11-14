@@ -1,27 +1,25 @@
 ---
 baseline_reason: descent-18 L3 v019：可见性与状态可信度定稿（路径登记、三栏 IA、下层作废上层 + current 保护、completed_dirty、R33-1）
-baseline_version: v020
-baselined_at: '2026-11-14T10:47:36.457000+00:00'
+baseline_version: v021
+baselined_at: '2026-11-14T13:51:56.541388+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
 rolled_back_at: '2026-11-14T13:40:10.784204+00:00'
 rolled_back_from: v020
 se_version: '2.0'
-status: in_progress
-todo_descent: 18
+status: baselined
+todo_descent: 19
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [x] 工程可见性契约（路径解析登记）
-- [x] TUI 三栏契约与颜色语义
-- [x] 下层变更作废上层 + current 层保护
-- [x] completed_dirty 与完成戳清理
-- [x] R33-1 就地裁决键位契约
-- [x] 门控豁免与已知取舍记录
+- [x] changelog extra 字段与转义规则
+- [x] 共享解析器契约（围栏/反引号/分隔符/类型）
+- [x] alignment 9 字段定义
+- [x] 向后兼容与边界
 ## 阶段小结
 
 （阶段完成时填写）

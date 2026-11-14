@@ -4,18 +4,17 @@ descent_count: 1
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
-status: superseded
-todo_descent: 18
+status: in_progress
+todo_descent: 19
 ---
 
 # L7-终验
 
 ## 当前待办
 
-- [x] 用户四个 TUI 问题逐条核实与修复
-- [x] 「为什么高层假绿/为什么能放过去」两问答落地为代码
-- [x] reviewer19 17 项处置
-- [x] 333/333 复验
+- [x] R33-2 验收（写入/读取/alignment/统一）
+- [x] r23 8 项发现处置
+- [x] 342/342 复验
 
 ## 阶段小结
 

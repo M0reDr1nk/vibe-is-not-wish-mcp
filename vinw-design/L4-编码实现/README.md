@@ -1,25 +1,24 @@
 ---
-baseline_version: v017
-baselined_at: '2026-11-14T10:47:51.907317+00:00'
+baseline_version: v018
+baselined_at: '2026-11-14T13:52:03.009924+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L4-编码实现
 se_version: '2.0'
 started_at: '2026-11-13T10:15:00Z'
-status: superseded
-todo_descent: 18
+status: baselined
+todo_descent: 19
 ---
 
 # L4-编码实现
 
 ## 当前待办
 
-- [x] 路径解析登记（幂等）
-- [x] _invalidate_above + current 层保护
-- [x] 完成戳清理
-- [x] se_get_project 单次 detect_drift
-- [x] TUI 三栏重构与澄清就地裁决
-- [x] reviewer19 17 项处置
+- [x] extra 写入 + 转义 + 行分隔符归一
+- [x] 行级状态机解析器（围栏优先）
+- [x] alignment 9 字段 + 布尔类型化
+- [x] se_get_changelog / TUI 共享解析器
+- [x] r23 8 项发现全部处置
 
 ## 阶段小结
 

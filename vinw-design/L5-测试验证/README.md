@@ -1,21 +1,20 @@
 ---
-baseline_version: v015
-baselined_at: '2026-11-14T10:48:02.216261+00:00'
+baseline_version: v016
+baselined_at: '2026-11-14T13:52:09.827219+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
-status: superseded
-todo_descent: 18
+status: baselined
+todo_descent: 19
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
-- [x] 17 项评审发现逐一补用例
-- [x] 333/333 全绿
-- [x] TUI 渲染级断言（不依赖源码 grep）
+- [x] 342/342 全绿
+- [x] 围栏/CRLF/反引号/旧格式/MCP 机读 6 类鲁棒性用例
 
 ## 阶段小结
 

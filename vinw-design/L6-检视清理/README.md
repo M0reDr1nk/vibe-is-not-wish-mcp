@@ -1,22 +1,21 @@
 ---
-baseline_version: v015
-baselined_at: '2026-11-14T10:48:12.140355+00:00'
+baseline_version: v016
+baselined_at: '2026-11-14T13:52:14.642734+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
-status: superseded
-todo_descent: 18
+status: baselined
+todo_descent: 19
 ---
 
 # L6-检视清理
 
 ## 当前待办
 
-- [x] 删除 _refresh_ui 死代码
-- [x] 删除重复登记与重复 detect_drift
-- [x] 问题块去重、标签补齐
-- [x] 333/333 复验
+- [x] 死导入与误导弹注释清除
+- [x] 双解析器统一
+- [x] 342/342 复验
 
 ## 阶段小结
 
