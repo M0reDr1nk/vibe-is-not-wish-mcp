@@ -29,7 +29,7 @@ ascent_history:
 completed_at: '2026-11-14T08:28:30.729820+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 4
-current_layer: L5-测试验证
+current_layer: L7-终验
 descent_started_at: '2026-11-14T08:53:37.128569+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
@@ -75,26 +75,20 @@ layer_states:
     latest_baseline: v002
     status: baselined
   L5-测试验证:
-    baselined_at: '2026-11-14T08:27:33.890092+00:00'
+    baselined_at: '2026-11-14T09:31:08.009653+00:00'
     descent_count: 2
-    latest_baseline: v001
-    status: in_progress
+    latest_baseline: v002
+    status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-14T08:27:58.938156+00:00'
-    descent_count: 1
-    latest_baseline: v001
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T08:53:37.128561+00:00'
-    superseded_by: asc-003
+    baselined_at: '2026-11-14T09:31:12.319181+00:00'
+    descent_count: 2
+    latest_baseline: v002
+    status: baselined
   L7-终验:
     completed_at: '2026-11-14T08:28:30.729820+00:00'
-    descent_count: 1
+    descent_count: 2
     latest_baseline: null
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T08:53:37.128561+00:00'
-    superseded_by: asc-003
+    status: in_progress
 name: gemm
 pending_confirmations:
 - blocking: true

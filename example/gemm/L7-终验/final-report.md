@@ -3,7 +3,7 @@
 | 项 | 值 |
 |----|-----|
 | 项目 | GEMM 本机 CPU 加速（VINW 第二个实战工程） |
-| 轮次 | descent-1 ~ descent-3（2 次上升） |
+| 轮次 | descent-1 ~ descent-4（3 次上升） |
 | 日期 | 2026-11-14 |
 | 平台 | Apple M3（4P + 4E），Apple clang，-O3 -march=native |
 
@@ -16,7 +16,7 @@
 | `src/gemm_amx.c` | **AMX 实验后端**（`make USE_AMX=1`），64×16 tile + fma32 四相位 |
 | `src/amx_asm.h` | AMX 指令封装（出处：corsix/amx，已注明） |
 | `bench/bench_gemm.c` | 双基线 + 三条门槛（R3/R4/ext）+ Accelerate 上界 |
-| `tests/test_gemm.c` | 586 例（默认）/ 591 例（AMX） |
+| `tests/test_gemm.c` | 588 例（默认）/ 593 例（AMX） |
 
 ## 2. 验收结论（逐条）
 
@@ -25,7 +25,7 @@
 | R1 C 接口 | 头文件 ABI 稳定 | `gemm.h` 10 个公共符号 | ✅ |
 | R2 正确性 | max\|diff\| ≤ 1e-3 | NEON 1.1e-5 / AMX **0** | ✅ |
 | R3 单线程性能 | blocked-1T / naive-ijk-1T ≥ 8× | **19.9× ~ 24.8×** | ✅ PASS |
-| R4 多线程扩展性 | blocked-8T / blocked-1T ≥ 4× | **3.22×** | ❌ **FAIL** |
+| R4 多线程扩展性 | blocked-8T / blocked-1T ≥ 4× | **2.53×~3.30×** | ❌ **FAIL**（descent-4 尝试三种优化仍未达标） |
 | R5 bench 工具 | 双基线 + 门槛输出 | gate-st / gate-mt / gate-ext | ✅ |
 | R6 可移植 | arm64/x86_64 可编译 | 纯 C + 自动向量化（AMX 仅 arm64 可选） | ✅ |
 | R7 构建 | `make` 一条命令 | `make` / `make test` / `make bench` / `make USE_AMX=1` | ✅ |
@@ -67,3 +67,22 @@ M3 为 4P+4E，E 核约 P 核一半吞吐，静态等分块使 E 核成为尾延
 - R4 扩展性优化（MC=64 + 按算力加权分块）
 - AMX 覆盖补充：回退分支、偶尾 K、大 K 正确性、EINVAL 断言、并发
 - AMX 多线程（核簇共享 AMX 单元，理论上可再提速）
+
+
+## descent-4 补记（R4 优化尝试与结论）
+
+三种方案均未达标，已回退到最优配置并如实记录：
+
+| 方案 | 8T/1T | 结论 |
+|------|------:|------|
+| MC=64 细粒度 + 加权 | 2.2~2.6× | 更差（B 面板重读翻倍） |
+| MC=64 + 修分配 bug | 2.45× | 仍差 |
+| MC=128 + NC=512 | 2.79× | 比值略升、绝对性能降 |
+| 回退基线 | 2.53~3.30× | FAIL |
+
+**关键更正**：先前"加权假设被证伪"表述不准确——真实原因是**加权只有在 MC=64（nb>nt）时才生效，
+而 MC=64 的缓存代价大于收益**；MC=128 时 nb==nt，加权必然退化为等分。
+评审还纠正了两处我的错误结论（pair-load 必需、-O3 必崩均不成立）。
+
+**R4 仍然 FAIL，门槛未改。** 下一步可行方向：减少 B 面板流量（NC=256 多级阻塞）、
+或用 AMX 后端承担主算力（单线程已 866+ GFLOPS，R4 的 pthreads 扩展性对交付已不关键）。
