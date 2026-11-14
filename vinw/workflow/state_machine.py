@@ -251,14 +251,22 @@ class WorkflowEngine:
         # 2. Rollback target layer to baseline
         self.project.rollback_to_baseline(to_layer, to_baseline)
 
-        # 3. Mark from_layer through L7 as superseded
+        # 3. Everything below the ascent target must be redone in the new
+        #    round — not just the layer we left. Layers between to_layer and
+        #    from_layer keep their baseline for reference but are no longer
+        #    "done": leaving them green made a stale state look complete.
         layer_states = manifest.get("layer_states", {})
-        for i in range(from_idx, len(LAYERS)):
+        now = datetime.now(timezone.utc).isoformat()
+        for i in range(to_idx + 1, len(LAYERS)):
             l = LAYERS[i]
-            if l in layer_states:
-                layer_states[l]["status"] = "superseded"
-                layer_states[l]["superseded_at"] = datetime.now(timezone.utc).isoformat()
-                layer_states[l]["superseded_by"] = ascent_id
+            state = layer_states.get(l)
+            if not state:
+                continue
+            if state.get("status") in ("baselined", "completed", "in_progress"):
+                state["status"] = "superseded"
+                state["superseded_at"] = now
+                state["superseded_by"] = ascent_id
+                state["needs_redo"] = True
 
         # 4. Update target layer state
         if to_layer not in layer_states:

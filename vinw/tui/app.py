@@ -205,8 +205,12 @@ class SEApp(App):
                 if active_ascent:
                     extra += f" ↑{active_ascent}"
             elif status == "superseded":
-                icon, color = "❌", "red"
-                extra = f" [{baseline}] ↑{superseded_by}" if superseded_by else ""
+                icon, color = "↻", "red"
+                extra = " [待重做]"
+                if baseline:
+                    extra += f" [{baseline}]"
+                if superseded_by:
+                    extra += f" ↑{superseded_by}"
             else:
                 icon, color = "○", "dim"
                 extra = ""
@@ -275,7 +279,7 @@ class SEApp(App):
             Group(*children),
             title=(
                 f"🌀 层状态图 | 当前: descent-{descent} @ {current}"
-                f"  (◆=当前层 · ✅已基线 · 暗绿=已过)"
+                f"  (◆=当前层 · ✅已基线 · 暗绿=已过 · ↻=待重做)"
                 + ("  ⚠漂移" if drift.get("detected") else "")
             ),
             border_style="red" if drift.get("detected") else "green",

@@ -129,3 +129,33 @@ class TestLlmMatching:
         result = WorkflowEngine(proj).heal_drift("baseline:test")
         assert result["healed"] is True
         assert result.get("needs_llm") is True
+
+
+class TestAscendStateReset:
+    """User-reported: layers below the ascent target kept showing as done."""
+
+    def test_ascend_from_l7_resets_middle_layers(self, tmp_path):
+        root = tmp_path / "reset-proj"
+        proj = Project.init(root, "reset-proj", "")
+        engine = WorkflowEngine(proj)
+
+        for layer in ("L1-需求拆解", "L2-参考文献与方案搜证汇总", "L3-方案细化"):
+            engine.descend(layer) if layer != "L1-需求拆解" else None
+            engine.baseline(layer, "t", force=True)
+
+        manifest = proj.read_manifest()
+        manifest["current_layer"] = "L7-终验"
+        manifest["layer_states"]["L4-编码实现"] = {"status": "baselined", "latest_baseline": "v001"}
+        manifest["layer_states"]["L5-测试验证"] = {"status": "baselined", "latest_baseline": "v001"}
+        manifest["layer_states"]["L6-检视清理"] = {"status": "baselined", "latest_baseline": "v001"}
+        manifest["layer_states"]["L7-终验"] = {"status": "completed"}
+        proj.write_manifest(manifest)
+
+        engine.ascend("L7-终验", "L3-方案细化", "v001", "back to design")
+
+        states = proj.read_manifest()["layer_states"]
+        assert states["L3-方案细化"]["status"] == "in_progress"
+        for layer in ("L4-编码实现", "L5-测试验证", "L6-检视清理", "L7-终验"):
+            assert states[layer]["status"] == "superseded", layer
+        # reference baselines survive
+        assert states["L4-编码实现"]["latest_baseline"] == "v001"

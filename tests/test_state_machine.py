@@ -56,17 +56,35 @@ class TestAscend:
         assert result["new_descent"] == 2
         assert result["previous_descent"] == 1
 
-    def test_ascent_marks_lower_superseded(self, engine):
+    def test_ascent_invalidates_every_layer_below_target(self, engine):
+        """Ascending to L1 means L2 must be redone: it must not stay green."""
         engine.baseline("L1-需求拆解", "test", force=True)
         engine.descend("L2-参考文献与方案搜证汇总")
         engine.baseline("L2-参考文献与方案搜证汇总", "test", force=True)
         engine.descend("L3-方案细化")
+        engine.baseline("L3-方案细化", "test", force=True)
         engine.ascend("L3-方案细化", "L1-需求拆解", "v001", "test")
+
         manifest = engine.project.read_manifest()
-        # from_layer (L3) and below (L4-L7) should be superseded
-        assert manifest["layer_states"]["L3-方案细化"]["status"] == "superseded"
-        # L2 is ABOVE L3 (not in the superseded range), remains baselined
-        assert manifest["layer_states"]["L2-参考文献与方案搜证汇总"]["status"] == "baselined"
+        states = manifest["layer_states"]
+        # target layer becomes the working layer again
+        assert states["L1-需求拆解"]["status"] == "in_progress"
+        # layers that had work are marked superseded (needs redo) ...
+        for layer in ("L2-参考文献与方案搜证汇总", "L3-方案细化"):
+            assert states[layer]["status"] == "superseded", layer
+            assert states[layer].get("needs_redo") is True
+        # ... and nothing below the target may still look done
+        for layer in (
+            "L2-参考文献与方案搜证汇总",
+            "L3-方案细化",
+            "L4-编码实现",
+            "L5-测试验证",
+            "L6-检视清理",
+            "L7-终验",
+        ):
+            assert states[layer]["status"] not in ("baselined", "completed"), layer
+        # baselines are kept as reference material
+        assert states["L2-参考文献与方案搜证汇总"]["latest_baseline"] == "v001"
 
     def test_ascent_to_same_or_lower_fails(self, engine):
         engine.baseline("L1-需求拆解", "test", force=True)
