@@ -332,3 +332,41 @@ GEMM 实战（C 工程）暴露：一致性检查器只扫 `*.py`、只认 Pytho
 ## 状态
 
 Backlog — 待下一轮上升（asc）时纳入 L1 正式需求与 L3 设计。与「模糊需求反向提问」「新建工程 TUI 不可见」并列。
+
+---
+
+# descent-14 缺陷记录：审计锚点的 design_hash 会被写成 None（backlog，2026-11-14）
+
+## 现象（本轮终验后发现）
+
+项目已完成（descent-14，L7 completed），但 `detect_drift` 返回 `drifted / design_changed_since_audit`：
+
+```
+anchor design_hash: None
+current design    : 1a53c08d049fb358
+anchor report     : 1fc249d1（该报告的 design_hash = 7bb0ca74d50c4f45）
+```
+
+即：锚点 `consistency.design_hash` 为 `None`，而它所指向的报告明明带着正确的 design_hash。
+
+## 影响
+
+- 项目状态是 completed，但漂移检测永远判为 `design_changed_since_audit`
+- 若继续在此工程上工作，任何转换都会要求重新审核（保守方向，不会误放行），但 TUI 会长期显示告警，且"漂移是否真的发生"无法从数据判断
+
+## 初步定位（待修）
+
+写入 `design_hash` 的路径有三处：`_record_state`、`record_llm_state`、`sync_audited_state`。
+其中 `record_llm_state` 写作 `meta.get("design_hash") or consistency.get("design_hash")`——
+若某次写入时报告 meta 缺该键且既有值为 None，会把锚点固化为 None；随后 `detect_drift`
+按"设计未知"降级，但 reason 走了 design_changed 分支而非 unknown，语义也不一致。
+
+## 修复建议
+
+1. 三处写入统一走一个 `_anchor(meta)` 助手：缺 `design_hash`/`code_fingerprint` 时**不覆盖**既有值
+2. `detect_drift`：锚点缺 design_hash 时明确落 `drifted/design_unknown`（与 §1 一致）
+3. 补测试：锚点为 None 且报告有 design_hash 时，`sync_audited_state()` 应补全而非保持 None
+
+## 状态
+
+Backlog — 下一轮 asc 时修复（与「决策倾向性配置」「模糊需求反向提问」「新建工程 TUI 不可见」并列）
