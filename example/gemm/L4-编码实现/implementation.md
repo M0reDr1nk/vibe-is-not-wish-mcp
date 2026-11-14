@@ -97,3 +97,14 @@ AMX 单线程即达 NEON 8 线程的 7.3 倍、Accelerate 的 65%——验证了
 - 8 块 8 线程时退化为等分（与 v003 等价），无回归
 - 块数 > 线程数时按算力加权，为后续更大规模留下空间
 - 修复了 round(累计比例) 导致末线程分 0 块的 bug
+
+## descent-5 实现：AMX 作为交付主力
+
+| 改动 | 内容 |
+|------|------|
+| `gemm_f32` 路由 | 小矩阵 → small；`gemm_amx_available()` → `gemm_amx`（失败回退）；否则 NEON 路径 |
+| `gemm_f32_neon` | 新增公开入口，强制 NEON，供 bench 对照与用户强制 |
+| bench | 行改为 `vinw-neon`(强制 NEON) / `vinw-delivery`(交付路径)；新增 `gate-delivery`（交付路径/naive-ijk ≥4×）；`gate-ext` 标注为参考（R4 已降级） |
+| 线程标签 | `gate-mt`/`gate-st` 用 `effective_threads_for(M)`，按实际生效线程数输出 |
+
+**复杂度控制**（用户明确要求）：不做多线程 AMX、不做 fp16/bf16、不做多级阻塞重写——本项目用于验证 VINW 实效。
