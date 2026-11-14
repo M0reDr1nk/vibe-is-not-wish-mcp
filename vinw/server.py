@@ -83,6 +83,19 @@ def _get_registry() -> ProjectRegistry:
     return _registry
 
 
+def _clarification_counts(proj) -> dict[str, int]:
+    pending = proj.read_manifest().get("pending_confirmations", [])
+    blocking = queued = 0
+    for c in pending:
+        if c.get("item_type") != "clarification" or c.get("resolved_at"):
+            continue
+        if c.get("blocking"):
+            blocking += 1
+        else:
+            queued += 1
+    return {"blocking": blocking, "queued": queued}
+
+
 def _register_quietly(root: Path, register: bool) -> dict[str, Any]:
     """Register a project without letting registration failure break creation.
 
@@ -369,7 +382,9 @@ def se_baseline(layer: str, reason: str = "", force: bool = False, project: str 
             ensure_ascii=False,
             indent=2,
         )
-    return json.dumps(result, ensure_ascii=False)
+    if isinstance(result, dict):
+        result["pending_clarifications"] = _clarification_counts(proj)
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
@@ -413,6 +428,8 @@ def se_descend(to_layer: str, reason: str = "", project: str | None = None) -> s
     engine = WorkflowEngine(proj)
     try:
         result = engine.descend(to_layer, reason)
+        if isinstance(result, dict):
+            result["pending_clarifications"] = _clarification_counts(proj)
         return json.dumps(result, ensure_ascii=False, indent=2)
     except DesignLagError as e:
         return json.dumps(
@@ -1387,13 +1404,16 @@ def se_request_clarification(
         "impact": impact,
         "reversibility": reversibility,
     }
+    warnings: list[str] = []
     if escalated:
         result["escalated"] = True
-        result["warning"] = (
+        warnings.append(
             f"该主题已有 {queue_depth} 条未裁决澄清，本条升级为阻塞（必须正面裁决）"
         )
     if record["repeat_warning"]:
-        result["warning"] = record["repeat_warning"]
+        warnings.append(record["repeat_warning"])
+    if warnings:
+        result["warning"] = " / ".join(warnings)
 
     # v0.18：非阻塞 → 记录「带假设推进」，承诺本层结束时复查
     if not blocking:
@@ -1407,8 +1427,9 @@ def se_request_clarification(
                 descent=proj.read_manifest().get("current_descent", 1),
                 scope=cfm_id,
                 reason=(
-                    f"按假设推进：{question[:60]} | 假设：{assumption[:60]} | "
-                    f"影响={impact} 可逆={reversibility} 复查点=本层结束"
+                    f"按假设推进：{question}；假设：{assumption}；"
+                    f"偏离：{deviation}；影响={impact}；可逆={reversibility}；"
+                    f"复查点=本层结束（结构化字段见 manifest 待确认项 {cfm_id}）"
                 ),
             )
         except Exception as e:  # 留痕失败不应阻断澄清创建
@@ -1427,7 +1448,9 @@ def se_request_clarification_from_finding(
     topic: str = "",
     context: str = "",
     recommendation: str = "",
-    blocking: bool = False,
+    impact: str = "medium",
+    reversibility: str = "reversible",
+    blocking: bool | None = None,
     project: str | None = None,
 ) -> str:
     """Convert an ambiguous audit finding into a clarification request.
@@ -1458,7 +1481,9 @@ def se_request_clarification_from_finding(
         "question": question, "layer": layer, "uncertainty": uncertainty,
         "assumption": finding.get("difference", ""), "deviation": finding.get("analysis", ""),
         "options": options, "topic": topic, "context": context,
-        "recommendation": recommendation, "blocking": blocking, "project": project,
+        "recommendation": recommendation, "impact": impact,
+        "reversibility": reversibility, "blocking": blocking,
+        "project": project,
     }
     result_raw = se_request_clarification(**payload)
     try:
@@ -1495,6 +1520,37 @@ def se_request_clarification_from_finding(
     return result_raw
 
 
+def _assumption_entries(proj) -> list[dict[str, Any]]:
+    """Clarifications we are currently proceeding on (unresolved, non-blocking).
+
+    Read from the manifest (structured) rather than parsing changelog text: the
+    changelog is a markdown table and a naive substring scan double-counted
+    entries and could not represent the fields (reviewer18 GAP-001/002).
+    """
+    descent_now = proj.read_manifest().get("current_descent", 1)
+    entries: list[dict[str, Any]] = []
+    for c in proj.read_manifest().get("pending_confirmations", []):
+        if c.get("item_type") != "clarification":
+            continue
+        if c.get("resolved_at") or c.get("blocking"):
+            continue
+        entries.append(
+            {
+                "id": c.get("id"),
+                "layer": c.get("layer"),
+                "descent": c.get("descent"),
+                "recorded_at": c.get("proposed_at"),
+                "question": c.get("question"),
+                "assumption": c.get("assumption"),
+                "deviation": c.get("deviation"),
+                "impact": c.get("impact"),
+                "reversibility": c.get("reversibility"),
+                "review_by": "layer-exit",
+            }
+        )
+    return entries
+
+
 @mcp.tool()
 def se_clarification_brief(project: str | None = None) -> str:
     """One-shot digest of pending clarifications + assumptions taken (v0.18).
@@ -1522,17 +1578,12 @@ def se_clarification_brief(project: str | None = None) -> str:
         }
         (blocking_items if c.get("blocking") else queued_items).append(item)
 
-    assumptions = []
-    changelog = proj.vinw_dir / "changelog.md"
-    if changelog.exists():
-        for line in changelog.read_text(encoding="utf-8").splitlines():
-            if "assumption-taken" in line or line.startswith("| **原因** | 按假设推进"):
-                assumptions.append(line.strip()[:200])
+    assumptions = _assumption_entries(proj)
     return json.dumps(
         {
             "blocking": blocking_items,
             "queued": queued_items,
-            "assumptions_taken": assumptions[-20:],
+            "assumptions_taken": assumptions,
             "summary": {
                 "blocking": len(blocking_items),
                 "queued": len(queued_items),

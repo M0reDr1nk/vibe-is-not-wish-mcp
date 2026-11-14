@@ -1051,6 +1051,9 @@ blocking := (impact == "high" and reversibility == "irreversible")
 
 显式传 `blocking` 时以参数为准（保留人工覆盖能力）。
 
+**优先级**（v0.18 评审澄清）：自动推导 < 显式 `blocking` < **队列升级强制**。
+即第 3 条同主题澄清即使显式传 `blocking=false` 也会被强制为阻塞，并通过 `escalated=true` 告知。
+
 ## 二、带假设推进（assumption-taken）
 
 非阻塞澄清创建时自动写 changelog 条目 `assumption-taken`：

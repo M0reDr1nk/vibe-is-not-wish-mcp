@@ -1218,3 +1218,90 @@ class TestClarificationHarness:
     def test_invalid_impact_rejected(self, proj):
         r = self._req(proj, impact="critical")
         assert "error" in r
+
+
+class TestClarificationHarnessGates:
+    """reviewer18: brief structure, truth table, and AC4 gate integration."""
+
+    def _req(self, proj, **over):
+        import vinw.server as server
+
+        base = {
+            "question": "问题", "layer": "L3-方案细化", "uncertainty": "不确定",
+            "assumption": "假设 A", "deviation": "偏离 B", "options": '["x","y"]',
+        }
+        base.update(over)
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            return json.loads(server.se_request_clarification(**base))
+        finally:
+            server._active_project = saved
+
+    def test_truth_table(self, proj):
+        cases = [
+            ("high", "irreversible", True),
+            ("high", "reversible", False),
+            ("medium", "irreversible", False),
+            ("low", "reversible", False),
+        ]
+        for idx, (impact, rev, expected) in enumerate(cases):
+            r = self._req(
+                proj, impact=impact, reversibility=rev, topic=f"tt-{idx}"
+            )
+            assert r["blocking"] is expected, (impact, rev)
+
+    def test_invalid_reversibility_rejected(self, proj):
+        assert "error" in self._req(proj, reversibility="sometimes")
+
+    def test_explicit_false_overrides_auto(self, proj):
+        r = self._req(proj, impact="high", reversibility="irreversible", blocking=False)
+        assert r["blocking"] is False
+
+    def test_brief_returns_structured_entries(self, proj):
+        import vinw.server as server
+
+        self._req(proj, impact="low", question="低影响问题",
+                  assumption="假设X", topic="brief-topic")
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            brief = json.loads(server.se_clarification_brief())
+        finally:
+            server._active_project = saved
+        assert brief["summary"]["assumptions"] == len(brief["assumptions_taken"])
+        entry = brief["assumptions_taken"][0]
+        assert entry["question"] == "低影响问题"
+        assert entry["assumption"] == "假设X"
+        assert entry["deviation"] == "偏离 B"
+        assert entry["recorded_at"]
+
+    def test_blocking_clarification_blocks_baseline_and_descend(self, proj):
+        from vinw.workflow.state_machine import AuditEscalationError, WorkflowEngine
+
+        self._req(proj, impact="high", reversibility="irreversible")
+        engine = WorkflowEngine(proj)
+        with pytest.raises(AuditEscalationError):
+            engine.baseline("L1-需求拆解", "blocked", force=False)
+        with pytest.raises(AuditEscalationError):
+            engine.descend("L2-参考文献与方案搜证汇总", "blocked")
+
+    def test_non_blocking_does_not_block(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        self._req(proj, impact="low", topic="nb-topic")
+        # force 跳过占位符守卫（本用例只验证"非阻塞澄清不阻断"）
+        result = WorkflowEngine(proj).baseline("L1-需求拆解", "ok", force=True)
+        assert result.get("status") == "baselined"
+
+    def test_transitions_report_pending_clarifications(self, proj):
+        import vinw.server as server
+
+        self._req(proj, impact="low", topic="trans-topic")
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            payload = json.loads(server.se_baseline("L1-需求拆解", "ok", force=True))
+        finally:
+            server._active_project = saved
+        assert payload.get("pending_clarifications", {}).get("queued", 0) >= 1

@@ -313,10 +313,33 @@ class WorkflowEngine:
 
     # ── Baseline ──────────────────────────────────────────────
 
+    def _assert_no_blocking_clarifications(self, action: str) -> None:
+        """Blocking clarifications must stop layer transitions (design v0.18 AC4).
+
+        Only item_type=clarification is considered; design-review gates keep
+        their existing (advisory for baseline/descend) semantics.
+        """
+        pending = self.project.read_manifest().get("pending_confirmations", [])
+        blocking = [
+            c for c in pending
+            if c.get("item_type") == "clarification"
+            and c.get("blocking")
+            and not c.get("resolved_at")
+        ]
+        if blocking:
+            first = blocking[0].get("question") or blocking[0].get("id")
+            raise AuditEscalationError(
+                f"存在 {len(blocking)} 条阻塞性澄清未裁决，不能{action}：{first}。"
+                f"请先用 se_clarification_brief 查看并用 se_resolve_confirmation 裁决"
+            )
+
     def baseline(self, layer: str, reason: str = "", force: bool = False) -> dict[str, Any]:
         # Guards run first and have no side effects; healing (which anchors
         # state) happens only after them, so a rejected baseline writes nothing.
         l4_heal: dict[str, Any] | None = None
+
+        if not force:
+            self._assert_no_blocking_clarifications("基线化")
 
         # The placeholder guard has no side effects, so it runs before anything
         # that writes state: a rejected baseline must leave no trace at all.
@@ -601,6 +624,8 @@ class WorkflowEngine:
                     f"{len(triage.get('auto_fixable', []))} 条高置信实现缺陷待修正；"
                     f"修正后调用 se_record_triage_decision(decision=fix_impl)"
                 )
+
+        self._assert_no_blocking_clarifications("下降")
 
         # Verify intermediate layers are baselined or in_progress
         for i in range(from_idx + 1, to_idx):
