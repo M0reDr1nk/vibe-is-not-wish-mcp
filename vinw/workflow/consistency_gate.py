@@ -109,13 +109,15 @@ class ConsistencyGate:
         scope: list[str] | None = None,
         design_doc: str = "design-doc.md",
         descent: int | None = None,
+        kind: str = "text",
     ) -> dict[str, Any]:
         """Classify the current state against the last passing report."""
         if descent is None:
             descent = self.project.read_manifest().get("current_descent", 1)
 
         current = self.current_fingerprint(scope, design_doc)
-        report = self.latest_passing(descent)
+        # Only a report of the same kind may justify skipping that check
+        report = self.latest_passing(descent, kind=kind)
 
         if report is None:
             return {"state": MISSING, "fingerprint": current, "report": None}
@@ -243,8 +245,10 @@ class ConsistencyGate:
         if report.get("code_fingerprint") != current["code_fingerprint"]:
             return False
         stored_design = report.get("design_hash")
-        # A verdict produced against older design text is stale as well
-        return not stored_design or stored_design == current["design_hash"]
+        # A verdict produced against older design text is stale as well; a
+        # report without a design hash cannot prove it reviewed the current
+        # design, so it fails closed.
+        return bool(stored_design) and stored_design == current["design_hash"]
 
     def llm_status(self, descent: int | None = None) -> dict[str, Any]:
         """Whether an LLM audit is required, provided, and its raw verdict."""
@@ -376,6 +380,12 @@ class ConsistencyGate:
                 "llm_verdict": meta.get("overall_status"),
                 "llm_auditor": meta.get("auditor"),
                 "descent": meta.get("descent"),
+                # anchor the audited baseline so drift detection has a
+                # reference even before the first text report exists
+                "code_fingerprint": meta.get("code_fingerprint")
+                or consistency.get("code_fingerprint"),
+                "design_hash": meta.get("design_hash")
+                or consistency.get("design_hash"),
             }
         )
         entry["consistency"] = consistency

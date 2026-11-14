@@ -309,7 +309,7 @@ CREATE INDEX IF NOT EXISTS idx_events_path ON project_events(path, id DESC);
 | `scope` | 扫描范围（`["vinw"]` 等） |
 | `design_hash` | 设计文档内容 sha256 |
 | `file_hashes` | `{相对路径: sha256}`，逐文件 |
-| `code_fingerprint` | `sha256(sorted(file_hashes) + design_hash)` 聚合值 |
+| `code_fingerprint` | `sha256(sorted(file_hashes))` —— **v0.15 起仅含代码**；设计摘要独立在 `design_hash`，两者不再混算 |
 
 ## 新鲜度判定（增量，避免重复检查）
 
@@ -602,7 +602,7 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 | 字段 | 定义 |
 |------|------|
 | `present` | 本轮存在 kind=llm 报告 |
-| `matches_current` | 该报告的 `code_fingerprint` == 当前指纹 |
+| `matches_current` | 报告的 `code_fingerprint` == 当前代码指纹 **且** 报告的 `design_hash` == 当前设计哈希（v0.15）。报告缺 `design_hash` 时 **fail-closed**（视为不匹配） |
 | `satisfied` | `not required` 或 (`present` 且 `matches_current`) |
 
 **三处门控（baseline-strict / descend-L4→L5 / complete）一律以 `matches_current` 为硬前置**：代码在审计后变动过，旧结论不再有效，必须重审。
@@ -705,6 +705,24 @@ v0.14 只在 **L4→L5** 与 **项目完成前** 校验"审核结论是否匹配
    - `llm_status().satisfied == False` → 抛 `LLMAuditRequiredError`
    - 即：**漂移后的第一次转换必须出示新的审核结论**，不接受"旧结论 + text 重查"过关
 3. 无漂移（`clean`）时不做额外要求：现有结论仍然匹配，直接放行
+
+### 执行顺序（v0.15 修订，回应 reviewer6）
+
+`heal_drift` 内部顺序**必须是**：
+
+1. `detect_drift` 取漂移快照（判定不依赖后续写盘）
+2. 无代码文件 → `config_error` 放行（不写报告）
+3. `design_lag` → `DesignLagError`
+4. **LLM 结论校验**（策略要求且不满足 → `LLMAuditRequiredError`）
+5. 才执行 `gate.ensure()` 的 text 复查
+6. 全部通过后才 `sync_audited_state()` 重新锚定 + 写 `auto-audit`
+
+> 早期实现把第 6 步放在第 4 步之前，导致"被拒一次后重试即通过"的绕过（reviewer6 GAP-001）；`L4` 基线处 `ensure()` 抢在 heal 之前也会同样洗掉漂移（GAP-002），现已在 L4 分支先 heal。
+
+### force 与已知限制
+
+- `force=true` **跳过 heal**（含 v0.15 结论要求），与 v0.14 §2 一致；该路径会在 `changelog` 的 baseline 条目保留原因文本，事后可辨
+- 「结论指纹取入库时刻」（GAP-006）：审核 prompt 不含 nonce，若先改代码后补存结论，指纹仍会匹配。**声明式绑定，不可密码学验证**；缓解：先审核再改动，或改动后重审
 
 ### 与既有门控的关系
 

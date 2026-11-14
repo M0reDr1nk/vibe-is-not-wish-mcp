@@ -155,7 +155,9 @@ class TestHealOrdering:
         changelog_path = proj.vinw_dir / "changelog.md"
         before = changelog_path.read_text(encoding="utf-8")
 
-        with pytest.raises(ConsistencyGateError):
+        from vinw.workflow.state_machine import DesignLagError, LLMAuditRequiredError
+
+        with pytest.raises((ConsistencyGateError, LLMAuditRequiredError, DesignLagError)):
             WorkflowEngine(proj).baseline("L4-编码实现", "should be rejected")
 
         after = changelog_path.read_text(encoding="utf-8")
@@ -460,7 +462,8 @@ class TestReviewer5Regressions:
             kind="llm",
             auditor="reviewer",
         )
-        assert gate.freshness()["state"] == "fresh"
+        # the LLM verdict is fresh for the llm path ...
+        assert gate.freshness(kind="llm")["state"] == "fresh"
 
         WorkflowEngine(proj).heal_drift("test")
 
@@ -613,3 +616,86 @@ class TestVerdictInvalidatedByDesignChange:
         from vinw.workflow.drift import detect_drift
 
         assert detect_drift(proj)["state"] == "drifted"
+
+
+class TestNoRetryBypass:
+    """reviewer6: a rejected transition must not pass on a plain retry."""
+
+    def _drift(self, proj):
+        ConsistencyGate(proj).ensure()
+        gate = ConsistencyGate(proj)
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        (proj.root / "main.py").write_text("def main():\n    return 4\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n改\n")
+
+    def test_retry_without_verdict_still_blocked(self, proj):
+        from vinw.workflow.state_machine import LLMAuditRequiredError
+
+        self._drift(proj)
+        for _ in range(2):
+            with pytest.raises(LLMAuditRequiredError):
+                WorkflowEngine(proj).baseline("L5-测试验证", "retry")
+
+    def test_l4_baseline_also_requires_verdict(self, proj):
+        from vinw.workflow.state_machine import LLMAuditRequiredError
+
+        self._drift(proj)
+        with pytest.raises(LLMAuditRequiredError):
+            WorkflowEngine(proj).baseline("L4-编码实现", "L4 blind spot")
+
+    def test_rejected_attempt_writes_no_auto_audit(self, proj):
+        from vinw.workflow.state_machine import LLMAuditRequiredError
+
+        changelog = proj.vinw_dir / "changelog.md"
+        before = changelog.read_text(encoding="utf-8").count("auto-audit")
+
+        self._drift(proj)
+        before = changelog.read_text(encoding="utf-8").count("auto-audit")
+        with pytest.raises(LLMAuditRequiredError):
+            WorkflowEngine(proj).baseline("L5-测试验证", "rejected")
+
+        assert changelog.read_text(encoding="utf-8").count("auto-audit") == before
+
+    def test_report_without_design_hash_fails_closed(self, proj):
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest="",  # no design hash recorded
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        assert gate.llm_status()["matches_current"] is False
+
+    def test_llm_report_anchors_fingerprint_without_manifest_state(self, proj):
+        """GAP-004: review-then-record flows must still be drift-checked."""
+        from vinw.workflow.drift import detect_drift
+
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        fp = gate.current_fingerprint()
+        path = LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        import frontmatter
+
+        gate.record_llm_state(frontmatter.load(path).metadata)
+        consistency = proj.read_manifest()["layer_states"]["L4-编码实现"]["consistency"]
+        assert consistency.get("code_fingerprint")
+        assert consistency.get("design_hash")

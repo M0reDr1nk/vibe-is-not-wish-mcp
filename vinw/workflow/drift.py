@@ -71,8 +71,21 @@ def detect_drift(project: Project) -> dict[str, Any]:
             or {}
         )
         audited = state.get("code_fingerprint")
+        audited_design_state = state.get("design_hash")
 
         current = gate.current_fingerprint()
+
+        # A project may have audit reports before the manifest was anchored
+        # (e.g. review-then-record flows). Use the newest report as baseline
+        # instead of declaring "unknown" and waving the transition through.
+        if not audited:
+            for candidate in (gate.latest_llm(), gate.latest_passing()):
+                if candidate and candidate.get("code_fingerprint"):
+                    audited = candidate.get("code_fingerprint")
+                    audited_design_state = (
+                        audited_design_state or candidate.get("design_hash")
+                    )
+                    break
         current_fp = current["code_fingerprint"]
 
         if not audited:
@@ -83,7 +96,7 @@ def detect_drift(project: Project) -> dict[str, Any]:
                 current=current_fp,
             )
 
-        audited_design = state.get("design_hash")
+        audited_design = audited_design_state
         code_same = audited == current_fp
         design_same = (not audited_design) or audited_design == current["design_hash"]
         if code_same and design_same:

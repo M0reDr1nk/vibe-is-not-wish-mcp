@@ -234,22 +234,18 @@ class WorkflowEngine:
     # ── Stage-end drift healing ───────────────────────────────
 
     def heal_drift(self, stage: str, log: bool = True) -> dict[str, Any] | None:
-        """Re-audit when the code drifted since the last passing check.
+        """Verify a drifted worktree before it crosses a stage boundary.
 
-        Called at the end of every stage transition: if the audited fingerprint
-        no longer matches the working tree, the check is re-run immediately so
-        a stale "passed" never survives a stage boundary. A failing re-check
-        blocks the transition; a passing one is recorded as an automatic repair.
+        Order matters: nothing is written and no audit record is produced
+        until the stage is allowed to proceed. Otherwise a rejected attempt
+        would re-anchor the baseline and a plain retry would slip through.
         """
         drift = detect_drift(self.project)
         state = drift.get("state")
 
         if state in ("clean", "unknown", None):
-            # unknown means we cannot fingerprint: nothing actionable here
             return None
 
-        # Implementation must not run ahead of the design (L3 §9): a code
-        # change with no design change has to go through an ascent first.
         if state == "design_lag":
             raise DesignLagError(
                 "检测到实现先于设计：代码已改动但 L3 设计未同步。"
@@ -257,6 +253,27 @@ class WorkflowEngine:
             )
 
         gate = ConsistencyGate(self.project)
+
+        # Nothing to audit (no code files): a configuration issue, not drift.
+        if not gate.current_fingerprint()["file_hashes"]:
+            return {"stage": stage, "drift": drift, "overall": "config_error"}
+
+        # v0.15: a drifted tree needs a verdict that matches the *current*
+        # code and design, checked before any state is re-anchored.
+        llm = gate.llm_status()
+        if llm["required"] and not llm["satisfied"]:
+            if not llm["present"]:
+                detail = "尚未提供"
+            elif not llm.get("matches_current"):
+                detail = "报告针对旧代码/旧设计"
+            else:
+                detail = f"结论为 {llm.get('overall')}"
+            raise LLMAuditRequiredError(
+                f"工作区已偏离审计基线（{drift.get('reason')}），且没有匹配当前"
+                f"设计与代码的 LLM 审核结论（{detail}）。请重新审核后调用 "
+                f"se_store_consistency_report，再重试本次转换"
+            )
+
         status = gate.ensure()
         overall = status.get("overall")
 
@@ -271,11 +288,8 @@ class WorkflowEngine:
                 f"请修复后重试"
             )
 
-        # Re-anchor the audited fingerprint even when ensure() reused a fresh
-        # report; otherwise drift never converges to clean.
+        # Stage is allowed to proceed: re-anchor and record the audit trail
         gate.sync_audited_state()
-
-        # Only a successful re-audit may leave an audit-trail entry
         if log:
             self._append_changelog(
                 change_type="auto-audit",
@@ -288,18 +302,13 @@ class WorkflowEngine:
                 after=str(drift.get("current_fingerprint")),
             )
 
-        result = {"stage": stage, "healed": True, "overall": overall,
-                  "report_id": status.get("report_id"), "logged": log}
-        # v0.15: a drifted worktree must not cross a stage boundary on a
-        # stale verdict - the re-check above only proves the code matches the
-        # design text, not that anyone reviewed the new design.
-        llm = gate.llm_status()
-        if llm["required"] and not llm["satisfied"]:
-            raise LLMAuditRequiredError(
-                "工作区已偏离审计基线，且当前没有匹配当前设计与代码的 LLM 审核结论。"
-                "请用 reviewer 重新审核后调用 se_store_consistency_report，再重试本次转换"
-            )
-        return result
+        return {
+            "stage": stage,
+            "healed": True,
+            "overall": overall,
+            "report_id": status.get("report_id"),
+            "logged": log,
+        }
 
     # ── Baseline ──────────────────────────────────────────────
 
@@ -308,6 +317,10 @@ class WorkflowEngine:
         # a rejected transition must not leave an auto-audit trail.
         if layer == L4_LAYER and not force:
             gate = ConsistencyGate(self.project)
+            # Heal first: ensure() re-anchors the audited fingerprint, so
+            # running it before the drift check would silently clear drift and
+            # skip the v0.15 verdict requirement.
+            self.heal_drift(f"baseline:{layer}")
             status = gate.ensure()
 
             if status.get("overall") == "config_error":
@@ -356,7 +369,8 @@ class WorkflowEngine:
                     f"{layer} 待办仍为模板占位符 '{TODO_PLACEHOLDER}'；"
                     f"请先用 se_update_todo 填写真实待办，或以 force=true 跳过"
                 )
-        if not force:
+        if not force and layer != L4_LAYER:
+            # (the L4 branch above already healed, before its ensure())
             self.heal_drift(f"baseline:{layer}")
 
         version = self._generate_baseline_version(layer)

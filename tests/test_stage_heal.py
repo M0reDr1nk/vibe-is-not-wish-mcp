@@ -96,6 +96,7 @@ class TestBaselineHealsDrift:
         # rename the documented symbol away -> text check must fail
         (proj.root / "main.py").write_text("def renamed_away():\n    return 0\n")
         sync_design(proj)
+        store_verdict(proj)  # v0.15: verdict first, then the text check decides
 
         with pytest.raises(ConsistencyGateError):
             WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "stage end")
@@ -151,6 +152,7 @@ class TestDescendHealsDrift:
         self._at_l2(proj)
         (proj.root / "main.py").write_text("def nope():\n    return 0\n")
         sync_design(proj)
+        store_verdict(proj)
 
         with pytest.raises(ConsistencyGateError):
             WorkflowEngine(proj).descend("L3-方案细化", "stage end")

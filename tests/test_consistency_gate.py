@@ -7,6 +7,7 @@ import pytest
 
 import vinw.server as server
 from vinw.store.project import Project
+from vinw.workflow.consistency_llm import LLMConsistencyAuditor
 from vinw.workflow.consistency_gate import (
     FRESH,
     MISSING,
@@ -144,22 +145,62 @@ class TestEnforcement:
 
 
 class TestReuse:
-    def test_llm_check_reuses_when_fresh(self, active):
+    def test_llm_check_reuses_only_with_matching_verdict(self, active):
         server.se_check_consistency(code_scope='["code"]', method="text")
-        # Persist a passing report through the gate
         ConsistencyGate(active).ensure(scope=["code"])
 
-        reused = json.loads(server.se_check_consistency(code_scope='["code"]', method="llm"))
+        # no LLM verdict yet -> a prompt is returned instead of 'reused'
+        result = json.loads(
+            server.se_check_consistency(code_scope='["code"]', method="llm")
+        )
+        assert result.get("status") == "prompt_ready"
+
+        # store a matching verdict, then it may be reused
+        gate = ConsistencyGate(active)
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(active).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=active.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        reused = json.loads(
+            server.se_check_consistency(code_scope='["code"]', method="llm")
+        )
         assert reused["reused"] is True
         assert reused["overall"] == "passed"
 
+    def test_ignore_fresh_forces_prompt(self, active):
+        gate = ConsistencyGate(active)
+        gate.ensure(scope=["code"])
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(active).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=active.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        result = json.loads(
+            server.se_check_consistency(
+                code_scope='["code"]', method="llm", ignore_fresh=True
+            )
+        )
+        assert result.get("status") == "prompt_ready"
+
     def test_llm_check_runs_when_stale(self, active):
         ConsistencyGate(active).ensure(scope=["code"])
-        (active.root.parent / "code" / "mod.py").write_text("def se_alpha():\n    pass\n# edit\n")
+        (active.root.parent / "code" / "mod.py").write_text(
+            "def se_alpha():\n    pass\n# edit\n"
+        )
 
-        result = json.loads(server.se_check_consistency(code_scope='["code"]', method="llm"))
+        result = json.loads(
+            server.se_check_consistency(code_scope='["code"]', method="llm")
+        )
         assert result.get("status") == "prompt_ready"
-        assert result["freshness"]["state"] == STALE_FILES
 
 
 class TestPendingPresentation:

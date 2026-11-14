@@ -556,6 +556,7 @@ def se_check_consistency(
     design_doc: str = "api-design.md",
     code_scope: str = "[]",
     method: str = "llm",
+    ignore_fresh: bool = False,
     project: str | None = None,
 ) -> str:
     """
@@ -572,8 +573,15 @@ def se_check_consistency(
 
     if method == "llm" or method == "ast":
         gate = ConsistencyGate(proj)
-        freshness = gate.freshness(scope or None)
-        if freshness["state"] == "fresh":
+        freshness = gate.freshness(scope or None, kind="llm")
+        # A verdict is only worth reusing if it still matches the current
+        # code and design; otherwise the caller needs a fresh prompt.
+        reusable = (
+            freshness["state"] == "fresh"
+            and gate.llm_status()["satisfied"]
+            and not ignore_fresh
+        )
+        if reusable:
             report = freshness["report"] or {}
             return json.dumps(
                 {
