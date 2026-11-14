@@ -5,15 +5,15 @@ doc_type: "final-report"
 status: "in_progress"
 ---
 
-# 终验报告 — VINW（descent-15，工程自动登记版）
+# 终验报告 — VINW（descent-16，澄清对齐与进程防护版）
 
 ## 项目信息
 
 | 字段 | 值 |
 |------|-----|
 | 项目名称 | vinw-self-design |
-| 下降轮次 | descent-1 ~ descent-15 |
-| 上升次数 | 14（asc-001 ~ asc-014） |
+| 下降轮次 | descent-1 ~ descent-16 |
+| 上升次数 | 15（asc-001 ~ asc-015） |
 | 终验时间 | 2026-11-13 |
 | 版本 | 0.2.0 |
 
@@ -23,11 +23,11 @@ status: "in_progress"
 |---|------|------|---------|
 | L1-需求拆解 | ✅ baselined | v001–v004, **v005** | 5 |
 | L2-参考文献与方案搜证汇总 | ✅ baselined | v001–v005, **v006** | 6 |
-| L3-方案细化 | ✅ baselined | v001–v016, **v017** | 15 |
-| L4-编码实现 | ✅ baselined | v001–v013, **v014** | 15 |
-| L5-测试验证 | ✅ baselined | v001–v011, **v012** | 15 |
-| L6-检视清理 | ✅ baselined | v001–v011, **v012** | 15 |
-| L7-终验 | ✅ completed | — | 15 |
+| L3-方案细化 | ✅ baselined | v001–v017, **v018** | 16 |
+| L4-编码实现 | ✅ baselined | v001–v014, **v015** | 16 |
+| L5-测试验证 | ✅ baselined | v001–v012, **v013** | 16 |
+| L6-检视清理 | ✅ baselined | v001–v012, **v013** | 16 |
+| L7-终验 | ✅ completed | — | 16 |
 
 ## 上升记录（ascensions.md）
 
@@ -47,6 +47,7 @@ status: "in_progress"
 | asc-012 | L7 → L3(v014) | reviewer2 的 9 项设计侧问题需补设计并落实 |
 | asc-013 | L5 → L3(v015) | 用户裁定 A：审计结论须匹配当前设计与代码，且覆盖所有阶段转换 |
 | asc-014 | L7 → L3(v016) | backlog 3：新建工程不写注册表，TUI 选择器不可见 |
+| asc-015 | L7 → L1(v005) | R30 进程陈旧防护 + R31 泛化歧义确认（带参考选项）+ R32 decision_bias 方案调研 |
 
 ## descent-4 交付内容（asc-003）
 
@@ -218,6 +219,38 @@ descent-13/14 累计 11 轮 reviewer 审计，发现 70+ 项问题，其中**7 �
 - `tests/conftest.py` autouse 隔离 `VINW_HOME`：修复前每跑测试都在真实注册表累积幽灵条目（实测 23 条，已 prune）
 - 验收标准 AC1–AC7 全部有对应测试
 
+## descent-16 交付内容（asc-015）
+
+### R31：LLM 驱动的歧义对齐机制（P1，用户定义）
+
+不是"所有决策都问用户"，而是**只在模糊/歧义时**发起，且由 LLM 反向提供选项与参考分析：
+
+| 环节 | 落地 |
+|------|------|
+| 发现 | 审计 `ambiguous` 分类 → `se_request_clarification_from_finding` 一键转澄清（预填假设/偏离） |
+| 显性化 | 请求必填 `assumption`（当前理解）/`deviation`（偏离风险）/`uncertainty`（为何不确定）——用户是纠正确认心智模型，不是做题 |
+| 参考选项 | LLM 生成选项（label/description/impact），自动追加 `assume-ok`（确认假设）与 `other`（自由输入）；`recommendation` 结构化推荐 |
+| 对齐闭环 | 裁决 `corrected = resolution != "assume-ok"`；引擎层统一写 `alignment` changelog（TUI/MCP 同副作用）；同主题第 3 次发起告警"该改设计文档了" |
+| 门槛 | 高置信/无歧义**自主执行**，工具层只强制 `uncertainty` 非空 |
+
+### R30：进程陈旧防护（事故驱动的三项）
+
+| 项 | 落地 |
+|----|------|
+| 版本横幅 | `__commit__/__dirty__` + `se_get_project.server_version` + 启动 stderr 日志 + TUI 三分支提示 |
+| 重启规则 | README 步骤 3.5：「pip install 后必须重启 MCP server」 |
+| 算法版本 | 报告与锚点写 `design_hash_algo: layer-v1`；不匹配即 stale（旧报告自然失效） |
+
+### R32：decision_bias（仅调研，未实现）
+
+L2 产出调研：形态对比（自由 prompt / 结构化问卷 / 混合）、**10 维调查表草案**、回答→倾向推断方法
+（v1 规则映射、v2 LLM 归纳但仅作参考不自动裁定）、与 triage 升级的衔接点。结论：推荐混合形态，backlog。
+
+### 过程记录（诚实披露）
+
+- **L6 曾试图清理测试 hack，被 v0.15 门控拦下**（改测试=改代码，设计已冻结 → design_lag）。已回退并记入清理日志，留待下轮 L4。
+- 两轮独立评审（reviewer14 设计、reviewer15 实现）共 23 项发现，19 修 / 4 进 backlog（R33：TUI 就地裁决、alignment 结构化）。
+
 ## 流程违规与补救披露（延续）
 
 descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并立规 DESC-001（基线后缺陷必须 ascend）。descent-4 本身即是按 DESC-001 执行的第四次下降：发现完成态缺口后先上升、改设计（L3 v0.4/v005）、再下降实现，未走热修。
@@ -264,7 +297,7 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 | test_bootstrap.py（含完成态 3 例） | 10 | 10/10 ✅ |
 | test_tui.py（滚动断言 + 多项目 4 例） | 9 | 9/9 ✅ |
 | test_todo_lifecycle.py（新增） | 15 | 15/15 ✅ |
-| **合计** | **287** | **287/287 ✅** |
+| **合计** | **303** | **303/303 ✅** |
 
 端到端实测：MCP 自举加载 ✅；一致性检查 20/20 ✅；se_complete_project 前置校验与成功路径 ✅；TUI 渲染/滚动/容错/completed ✅。
 
@@ -278,4 +311,4 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 
 ## 结论
 
-**十五次下降、十四次上升全部闭环，287 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**
+**十六次下降、十五次上升全部闭环，303 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**

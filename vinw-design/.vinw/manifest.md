@@ -129,10 +129,10 @@ ascent_history:
   to_baseline: v005
   to_layer: L1-需求拆解
 code_root: ..
-completed_at: '2026-11-14T05:27:20.047447+00:00'
+completed_at: '2026-11-14T07:20:54.997257+00:00'
 created_at: '2026-11-13T10:02:18.532679'
 current_descent: 16
-current_layer: L6-检视清理
+current_layer: L7-终验
 descent_started_at: '2026-11-14T05:42:16.413687+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
@@ -185,17 +185,15 @@ layer_states:
     latest_baseline: v013
     status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-14T05:26:43.512490+00:00'
+    baselined_at: '2026-11-14T07:20:29.063301+00:00'
     descent_count: 14
-    latest_baseline: v012
-    status: in_progress
+    latest_baseline: v013
+    status: baselined
   L7-终验:
-    descent_count: 12
+    completed_at: '2026-11-14T07:20:54.997257+00:00'
+    descent_count: 13
     latest_baseline: null
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T05:42:16.413676+00:00'
-    superseded_by: asc-015
+    status: completed
 name: vinw-self-design
 pending_confirmations:
 - blocking: true
