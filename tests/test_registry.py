@@ -407,3 +407,154 @@ class TestNewRegistryTools:
         snapshot = json.loads(server.se_export_projects())
         assert snapshot["version"] == 2
         assert any(v["name"] for v in snapshot["projects"].values())
+
+
+class TestAutoRegistration:
+    """backlog 3: a project created via MCP must be visible in the selector."""
+
+    def _init(self, tmp_path, name="auto-proj", register=True):
+        import json
+
+        import vinw.server as server
+
+        # se_init_project creates <path>/<name>
+        payload = json.loads(
+            server.se_init_project(str(name), str(tmp_path), register=register)
+        )
+        return tmp_path / name, payload
+
+    def test_init_registers_project(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("VINW_HOME", str(tmp_path / "home"))
+        monkeypatch.setattr(server_module(), "_registry", None)  # fresh DB
+
+        root, payload = self._init(tmp_path)
+        assert payload["registered"] is True
+
+        from vinw.store.registry import ProjectRegistry
+
+        reg = ProjectRegistry()
+        assert str(root) in [p["path"] for p in reg.list()]
+
+    def test_init_can_opt_out(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("VINW_HOME", str(tmp_path / "home2"))
+        monkeypatch.setattr(server_module(), "_registry", None)
+        root, payload = self._init(tmp_path, name="temp-proj", register=False)
+        assert payload["registered"] is False
+        assert payload.get("registration_skipped") is True
+
+        from vinw.store.registry import ProjectRegistry
+
+        assert str(root) not in [p["path"] for p in ProjectRegistry().list()]
+
+    def test_registration_failure_does_not_break_creation(self, tmp_path, monkeypatch):
+        """AC4: only registry-level failures are swallowed, with a warning."""
+        import vinw.server as server
+
+        class BrokenRegistry:
+            def add(self, _root):
+                raise OSError("disk full")
+
+        monkeypatch.setattr(server, "_get_registry", lambda: BrokenRegistry())
+        payload = json.loads(server.se_init_project("broken", str(tmp_path)))
+        root = tmp_path / "broken"
+
+        assert root.exists()
+        assert (root / ".vinw" / "manifest.md").exists()
+        assert payload["registered"] is False
+        assert "disk full" in payload["warning"]
+
+    def test_programming_error_is_not_swallowed(self, tmp_path, monkeypatch):
+        """A TypeError from a broken registry must surface, not become a warning."""
+        import vinw.server as server
+
+        class BuggyRegistry:
+            def add(self):
+                raise TypeError("signature changed")
+
+        monkeypatch.setattr(server, "_get_registry", lambda: BuggyRegistry())
+        with pytest.raises(TypeError):
+            server.se_init_project("buggy", str(tmp_path))
+
+    def test_adopted_project_is_registered(self, tmp_path):
+        """AC2: adopting an existing project also registers it."""
+        import vinw.server as server
+        from vinw.store.project import Project
+        from vinw.store.registry import ProjectRegistry
+
+        Project.init(tmp_path / "adopted", "adopted", "")
+        payload = json.loads(server.se_init_project("adopted", str(tmp_path)))
+        assert payload["adopted"] is True
+        assert payload["registered"] is True
+
+        paths = [p["path"] for p in ProjectRegistry().list()]
+        assert str(tmp_path / "adopted") in paths
+        # idempotent: a second init does not duplicate the entry
+        json.loads(server.se_init_project("adopted", str(tmp_path)))
+        assert paths.count(str(tmp_path / "adopted")) == 1
+        assert len(ProjectRegistry().list()) == 1
+
+    def test_use_project_registers_unregistered_project(self, tmp_path):
+        """AC3: activating by path registers the project."""
+        import vinw.server as server
+        from vinw.store.project import Project
+        from vinw.store.registry import ProjectRegistry
+
+        root = tmp_path / "manual"
+        Project.init(root, "manual", "")
+        assert ProjectRegistry().list() == []
+
+        payload = json.loads(server.se_use_project(str(root)))
+        assert payload["registered"] is True
+        assert str(root) in [p["path"] for p in ProjectRegistry().list()]
+        # now addressable by name
+        assert json.loads(server.se_use_project("manual"))["name"] == "manual"
+
+
+def server_module():
+    import vinw.server as server
+
+    return server
+
+
+class TestCliRegistration:
+    """AC6: the CLI entry point registers too (backlog 3 applies there as well)."""
+
+    def _run(self, *args, home):
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        repo = Path(__file__).resolve().parents[1]
+        env = {**os.environ, "VINW_HOME": str(home)}
+        return subprocess.run(
+            [sys.executable, "-m", "vinw", *args],
+            capture_output=True,
+            text=True,
+            cwd=repo,
+            env=env,
+        )
+
+    def test_init_registers(self, tmp_path, isolated_vinw_home):
+        result = self._run(
+            "init", "--name", "cli-new", str(tmp_path / "cli-new"),
+            home=isolated_vinw_home,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "Registered as" in result.stdout
+
+        from vinw.store.registry import ProjectRegistry
+
+        assert "cli-new" in [p["name"] for p in ProjectRegistry().list()]
+
+    def test_no_register_skips(self, tmp_path, isolated_vinw_home):
+        result = self._run(
+            "init", "--name", "cli-tmp", str(tmp_path / "cli-tmp"), "--no-register",
+            home=isolated_vinw_home,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "skipped registration" in result.stdout
+
+        from vinw.store.registry import ProjectRegistry
+
+        assert "cli-tmp" not in [p["name"] for p in ProjectRegistry().list()]

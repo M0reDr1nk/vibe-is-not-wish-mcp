@@ -374,3 +374,28 @@ anchor report     : 1fc249d1（该报告的 design_hash = 7bb0ca74d50c4f45）
 2. `detect_drift` 在锚点缺 `design_hash` 时回退到锚点报告的值（修复 completed 工程永久报 design drift）
 3. 报告查找前移，使 `report` 同时用于指纹回退与 `changed` 计算
 4. 回归测试 2 例（`TestAnchorRobustness`），真实工程重新锚定后 `drift: clean`
+
+
+---
+
+# R29（descent-15）：工程自动登记
+
+## 需求
+
+新建工程后，TUI 选择器（`p` 键）与 `se_list_projects` 必须能立即看到该工程，无需手工 `vinw project add`。
+
+## 验收标准
+
+| 编号 | 标准 | 验证方式 |
+|------|------|---------|
+| AC1 | `se_init_project` 成功后工程出现在注册表 | `se_list_projects` 含该路径 |
+| AC2 | 接管已有工程（adopted）同样登记 | 同上 |
+| AC3 | `se_use_project` 激活未登记工程时补登记 | 激活后可按名称寻址 |
+| AC4 | 登记失败不得导致工程创建失败 | 返回 `registered:false` + `warning`，工程目录存在 |
+| AC5 | 可显式 `register=false` 跳过 | 返回 `registration_skipped:true` |
+| AC6 | CLI `vinw init` 同样自动登记，`--no-register` 可跳过 | `vinw project list` 含该工程 |
+| AC7 | 测试不得污染真实注册表 | `tests/conftest.py` autouse 隔离 `VINW_HOME` |
+
+## 优先级
+
+P2（可用性缺陷：工程不丢但用户看不到，易误判为创建失败）

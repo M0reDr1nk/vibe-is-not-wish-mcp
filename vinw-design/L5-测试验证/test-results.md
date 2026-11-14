@@ -337,3 +337,24 @@ reviewer 独立审出 15 项 → 裁定 14 项（10 项 impl_bug/high 自动修�
 ### 评审轮次统计（本项目自身）
 
 descent-13/14 共进行 11 轮独立 reviewer 审计，累计发现 70+ 项问题；其中**门控绕过类 7 项**全部为独立评审发现，text 门控与自审均未捕获。
+
+## descent-15 round 1（backlog 3：工程自动登记，2026-11-14）
+
+| 指标 | 值 |
+|------|-----|
+| 总用例数 | 285 |
+| 通过 | 285 |
+| 失败 | 0 |
+
+### 新增覆盖
+
+| AC | 用例 |
+|----|------|
+| AC1 新建即登记 | `TestAutoRegistration::test_init_registers_project` |
+| AC2 接管也登记（幂等） | `TestAutoRegistration::test_adopted_project_is_registered` |
+| AC3 `se_use_project` 补登记 | `TestAutoRegistration::test_use_project_registers_unregistered_project` |
+| AC4 登记失败不毁工程 | `test_registration_failure_does_not_break_creation`（OSError→warning） |
+| AC4' 编程错误必须暴露 | `test_programming_error_is_not_swallowed`（TypeError 上抛） |
+| AC5 可跳过 | `test_init_can_opt_out` |
+| AC6 CLI 一并修复 | `TestCliRegistration`（2 例） |
+| AC7 测试隔离 | `tests/conftest.py` autouse + 真实注册表清理（23 条幽灵条目已 prune） |

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import sqlite3
+
+_log = __import__("logging").getLogger(__name__)
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -78,6 +81,30 @@ def _get_registry() -> ProjectRegistry:
     if _registry is None:
         _registry = ProjectRegistry()
     return _registry
+
+
+def _register_quietly(root: Path, register: bool) -> dict[str, Any]:
+    """Register a project without letting registration failure break creation.
+
+    Only registry-level failures are tolerated (unwritable/consumed disk,
+    corrupt database). Programming errors propagate so they stay visible.
+    """
+    if not register:
+        return {"registered": False, "registration_skipped": True}
+    try:
+        result = _get_registry().add(root)
+    except (OSError, sqlite3.Error, ValueError) as e:
+        _log.warning("工程登记失败 %s: %s", root, e, exc_info=True)
+        return {"registered": False, "warning": f"工程已创建，但登记失败: {e}"}
+
+    payload: dict[str, Any] = {"registered": True}
+    if isinstance(result, dict):
+        # add() returns the final name and a warning when it had to rename
+        if result.get("name"):
+            payload["name"] = result["name"]
+        if result.get("warning"):
+            payload["warning"] = result["warning"]
+    return payload
 
 
 def _consistency_state(proj) -> dict | None:
@@ -158,17 +185,23 @@ def _project_or_error(project: str | None) -> tuple[Project | None, str | None]:
 # ── Project lifecycle ───────────────────────────────────────
 
 @mcp.tool()
-def se_init_project(name: str, path: str, description: str = "") -> str:
+def se_init_project(
+    name: str, path: str, description: str = "", register: bool = True
+) -> str:
     """Initialize a new project with 7-layer spiral-ascend structure.
 
     If the target already contains a VINW project (.vinw/manifest.md), adopt it
     as the active project instead of re-initializing.
+
+    The project is registered automatically (register=False to opt out) so the
+    TUI selector can see it; a registration failure never fails the creation.
     """
     global _active_project
     root = Path(path).expanduser().resolve() / name
     if (root / ".vinw" / "manifest.md").exists():
         _active_project = Project(root)
         manifest = _active_project.read_manifest()
+        registration = _register_quietly(root, register)
         return json.dumps(
             {
                 "project_id": str(root),
@@ -176,17 +209,20 @@ def se_init_project(name: str, path: str, description: str = "") -> str:
                 "layers": LAYERS,
                 "current_layer": manifest.get("current_layer", LAYERS[0]),
                 "current_descent": manifest.get("current_descent", 1),
+                **registration,
             },
             ensure_ascii=False,
             indent=2,
         )
     _active_project = Project.init(root, name, description)
+    registration = _register_quietly(root, register)
     return json.dumps(
         {
             "project_id": str(root),
             "layers": LAYERS,
             "current_layer": "L1-需求拆解",
             "current_descent": 1,
+            **registration,
         },
         ensure_ascii=False,
         indent=2,
@@ -1021,6 +1057,8 @@ def se_use_project(project: str) -> str:
         )
     _active_project = resolved
     _get_registry().touch(str(resolved.root))
+    # A project may be reachable by path without ever being registered
+    registration = _register_quietly(resolved.root, True)
     manifest = resolved.read_manifest()
     return json.dumps(
         {
@@ -1029,6 +1067,7 @@ def se_use_project(project: str) -> str:
             "path": str(resolved.root),
             "current_layer": manifest.get("current_layer"),
             "current_descent": manifest.get("current_descent"),
+            **registration,
         },
         ensure_ascii=False,
         indent=2,

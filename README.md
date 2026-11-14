@@ -12,6 +12,7 @@ VINW is an MCP server that gives an agent a process it cannot skip: seven layers
 - [Install & Configure](#install--configure)
 - [Watching Progress](#watching-progress)
 - [MCP Tools](#mcp-tools)
+- [Citation & Reference Format](#citation--reference-format)
 - [License](#license)
 
 ## Design Purpose & Philosophy
@@ -199,10 +200,12 @@ Steps:
    "$WORK_ROOT/$PROJECT/.vinw/manifest.md" already exists.
      .venv/bin/vinw init "$WORK_ROOT/$PROJECT" --name "$PROJECT" --desc "<one sentence>"
 
-4. Register the project. The TUI project selector reads the registry, and
-   `vinw init` does not register for you.
-     .venv/bin/vinw project add "$WORK_ROOT/$PROJECT" --name "$PROJECT"
+4. Verify registration. `vinw init` registers the project automatically in
+   current revisions (pass `--no-register` to opt out). Check:
      .venv/bin/vinw project list
+   If the project is missing (older version, `--no-register`, or a registry
+   failure), register it manually:
+     .venv/bin/vinw project add "$WORK_ROOT/$PROJECT" --name "$PROJECT"
 
 5. Connect the MCP server. Prefer stdio unless the harness cannot launch a
    subprocess.
@@ -267,9 +270,9 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -U pip
 .venv/bin/python -m pip install -e .        # add ".[dev]" for pytest/ruff
 
-# 2. Create and register a project
+# 2. Create a project — current revisions register it automatically
 .venv/bin/vinw init ./projects/my-app --name my-app --desc "My application"
-.venv/bin/vinw project add ./projects/my-app --name my-app
+.venv/bin/vinw project list   # verify the project is visible
 
 # 3. Watch it (read-only)
 .venv/bin/vinw tui my-app
@@ -280,6 +283,12 @@ python3 -m venv .venv
 ```
 
 Why `-e` matters: it makes the `vinw` console script and the `vinw` Python package come from this checkout. A non-editable copy in `site-packages` will keep running old code after you pull, which produces the classic "the fix is in the source but the TUI still shows the bug" illusion.
+
+`vinw init` registers the project automatically in current revisions. On an older revision, or when you pass `--no-register`, register it explicitly:
+
+```bash
+.venv/bin/vinw project add ./projects/my-app --name my-app
+```
 
 ### Register with your harness
 
@@ -357,7 +366,7 @@ For a **DeepSeek Harness** bundle, the repository contains a working example in 
 |---------|---------------|
 | `vinw: command not found` | Use `.venv/bin/vinw`, or activate the venv, or install globally with `pipx install .` |
 | Import points at `site-packages/vinw` | Stale non-editable install; reinstall with `pip install -e .` |
-| New project missing from the TUI selector | Register it: `vinw project add <path> --name <name>`. `vinw init` and `se_init_project` do not write the registry |
+| New project missing from the TUI selector | Run `vinw project list`. If absent, register it: `vinw project add <path> --name <name>`. In current revisions, `vinw init` and `se_init_project` register automatically; `--no-register` / `register=false` opts out, and a registry failure is reported as a warning |
 | `sqlite3.OperationalError: unable to open database file` | `$VINW_HOME` (default `~/.vinw`) is not writable, often because the agent runs in a sandbox. Set `VINW_HOME` to a writable directory |
 | MCP tools do not appear after configuration | Restart or reload the harness; check its MCP log; ensure the `command` path is absolute and executable |
 | `No active project` from a tool | `se_use_project("<name>")`, or pass `project="<path-or-name>"` to the tool |
@@ -526,6 +535,86 @@ The TUI and MCP tools are designed to run at the same time:
 | **Search** | `se_search_proposals` |
 
 The authoritative tool contracts live in [`vinw-design/L3-方案细化/api-design.md`](vinw-design/L3-方案细化/api-design.md). The design catalog is generated from `vinw/server.py` and checked by a test, so the published list and the implementation cannot silently diverge.
+
+## Citation & Reference Format
+
+### Citing VINW
+
+If you use VINW in academic work, a report, or another project, cite the software and, when the claim depends on a specific state, pin the commit.
+
+**Plain text**
+
+```text
+M0reDr1nk. VINW: Vibe Is Not Wish MCP (Version 0.2.0) [Computer software].
+2026. https://github.com/M0reDr1nk/vibe-is-not-wish-mcp
+```
+
+**BibTeX**
+
+```bibtex
+@software{vinw2026,
+  author       = {M0reDr1nk},
+  title        = {{VINW}: Vibe Is Not Wish MCP},
+  year         = {2026},
+  version      = {0.2.0},
+  url          = {https://github.com/M0reDr1nk/vibe-is-not-wish-mcp},
+  note         = {Markdown-first, spiral-ascend workflow engine for strict
+                  software engineering process control}
+}
+```
+
+**Pinning a commit.** For reproducible claims, cite a commit-pinned URL instead of `main`:
+
+```text
+https://github.com/M0reDr1nk/vibe-is-not-wish-mcp/tree/<commit-sha>
+```
+
+For example, the self-hosting statistics in this README were compiled at `830a5c2`; cite that commit if you are reproducing the table. State the commit you actually inspected, not the newest one by default.
+
+### Referencing the audit trail
+
+VINW's records use stable, short identifiers. They are designed to be quoted in issues, reviews, and papers without ambiguity.
+
+| Kind | Format | Scope | Example |
+|------|--------|-------|---------|
+| Commit | 7-character short SHA | Repository | `830a5c2` |
+| Baseline | `vNNN` | Layer | `L4-编码实现/v013` |
+| Ascent | `asc-NNN` | Project | `asc-013` |
+| Change | `chg-YYYYMMDD-HHMMSS-NNN` | Project | `chg-20261114-030842-147` |
+| Confirmation | `cfm-YYYYMMDD-HHMMSS-NNN` | Project | `cfm-20261113-153121-001` |
+| Consistency report | `report-<id>[-NN].md` | Project | `report-954217cd` |
+| Finding | `INC-NNN` / `GAP-NNN` | **Report-local** | `report-954217cd/INC-001` |
+| Design or code location | `file:line` or `file:start-end` | Repository | `api-design.md:610-612` |
+| Layer document | `<layer>/<filename>` | Project | `L3-方案细化/api-design.md` |
+
+Two rules matter when citing findings:
+
+1. **Finding IDs are report-local.** `INC-001` exists in several reports with different meanings; for example, `report-7474b697/INC-001` and `report-954217cd/INC-001` are different defects. Always qualify it with the report: `report-954217cd/INC-001`, not `INC-001`.
+2. **Report IDs are usually content-derived.** Most are hashes of the report content; a `-NN` suffix marks a re-check or a second part. Some early reports use a descriptive ID such as `report-L4-r1-text.md`. Cite the filename as stored under `L4-编码实现/consistency-reports/`.
+
+For a review comment, the full form is:
+
+```text
+report-954217cd/INC-001 (impl_bug, confidence=high)
+```
+
+### Referencing literature in L2
+
+L2 uses three prefixes so that a claim can be traced to its kind of source:
+
+| Prefix | Use for | Example |
+|--------|---------|---------|
+| `ref-NNN` | Academic papers, standards, official documentation | `ref-001` |
+| `oss-NNN` | Open-source projects, products, existing implementations | `oss-001` |
+| `internal-NNN` | Internal or historical projects used as evidence (same pattern as `ref-`/`oss-`) | `internal-001` |
+
+Each entry lives in [`L2-参考文献与方案搜证汇总/references.md`](vinw-design/L2-参考文献与方案搜证汇总/references.md) with its title, source/link, key conclusion, and relevance. The evidence matrix and synthesis should cite the ID (`ref-001`), not repeat a bare URL; this keeps the evidence chain stable when a link moves.
+
+### Repo-internal links
+
+- Use relative paths for files in this repository.
+- Use commit permalinks for evidence that must remain stable: `https://github.com/M0reDr1nk/vibe-is-not-wish-mcp/blob/<commit-sha>/<path>#Lx-Ly`.
+- Do not cite a moving branch when the claim depends on a specific line; pin the commit and the line range.
 
 ## License
 

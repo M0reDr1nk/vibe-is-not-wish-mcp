@@ -112,12 +112,20 @@ ascent_history:
     L3 改设计后实现
   to_baseline: v015
   to_layer: L3-方案细化
+- created_at: '2026-11-14T05:07:28.904290+00:00'
+  descent_after: 15
+  descent_before: 14
+  from_layer: L7-终验
+  id: asc-014
+  reason: 解决 backlog 3：se_init_project 新建工程不写注册表，导致 TUI 选择器看不到；需改设计后实现工程自动登记
+  to_baseline: v016
+  to_layer: L3-方案细化
 code_root: ..
 completed_at: '2026-11-14T04:55:20.041586+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 14
-current_layer: L7-终验
-descent_started_at: '2026-11-14T04:17:58.990213+00:00'
+current_descent: 15
+current_layer: L3-方案细化
+descent_started_at: '2026-11-14T05:07:28.906447+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
@@ -133,11 +141,11 @@ layer_states:
     latest_baseline: v006
     status: baselined
   L3-方案细化:
-    active_ascent: asc-013
+    active_ascent: asc-014
     baselined_at: '2026-11-14T04:18:09.973829+00:00'
-    descent_count: 14
+    descent_count: 15
     latest_baseline: v016
-    status: baselined
+    status: in_progress
   L4-编码实现:
     audit:
       auto_fixable: 0
@@ -171,7 +179,9 @@ layer_states:
   L7-终验:
     descent_count: 11
     latest_baseline: null
-    status: completed
+    status: superseded
+    superseded_at: '2026-11-14T05:07:28.906442+00:00'
+    superseded_by: asc-014
 name: vinw-self-design
 pending_confirmations:
 - blocking: true

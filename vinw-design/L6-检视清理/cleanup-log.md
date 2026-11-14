@@ -150,3 +150,13 @@ status: "completed"
 | 文档纠偏 | 流程图补第二次 ensure、strict 作用域、config_error 双重语义、测试数快照 | 对应 reviewer11 的 4 项文档发现 |
 | 构建产物 | 清理 `build/`、`__pycache__` | — |
 | 测试复验 | 275/275 通过 ✅ | — |
+
+## descent-15 清理（backlog 3）
+
+| 项 | 说明 |
+|----|------|
+| 测试污染 | 新增 `tests/conftest.py`，autouse 隔离 `VINW_HOME` 并重置注册表单例 |
+| 真实数据修复 | `ProjectRegistry.prune()` 清除 23 条 `/pytest-of-*` 幽灵条目，现存 1 条（vinw-self-design） |
+| 异常边界 | `_register_quietly` 由 `except Exception` 收窄为 `(OSError, sqlite3.Error, ValueError)`，并 `logging.warning(exc_info=True)` 留痕 |
+| 文档一致性 | 方案编号统一（扫描发现=B）、README 故障排查行更新、设计补 name/warning/异常边界/测试隔离 |
+| 测试复验 | 285/285 通过 ✅ |

@@ -819,3 +819,75 @@ v0.14 只在 **L4→L5** 与 **项目完成前** 校验"审核结论是否匹配
 
 - **成本**：每次"代码或设计变更后的第一次转换"需要一次独立审核；无变更则无成本
 - **不覆盖**：转换之间的连续改动仍由下一次转换拦（无实时守护），这是刻意为此（避免每写一行代码就要求审核）
+
+---
+
+# v0.16 工程发现与自动登记（descent-15 / asc-014）
+
+## 背景（backlog 3）
+
+`se_init_project` 创建工程后只设置进程内 `_active_project`，**不写注册表**；`se_use_project` 同样不登记。
+TUI 选择器的数据源是「注册表 + 当前工作目录工程」，因此**跨目录新建的工程在选择器里根本不出现**，
+用户会以为工程丢了（磁盘完好，`se_get_project` 正常）。
+
+## 契约
+
+### 自动登记（A 方案，用户裁决）
+
+| 触发 | 行为 |
+|------|------|
+| `se_init_project` 成功创建工程 | **自动 `registry.add()`**，返回体新增 `registered: true` |
+| `se_init_project` 接管已有工程（adopted） | 同样自动登记（幂等） |
+| `se_use_project` 成功解析为工程 | 自动登记（兜底：覆盖未通过 init 进入场景的工程） |
+| 显式 `register=false` | 跳过自动登记，用于临时/一次性工程 |
+| CLI `vinw init` | 同样自动登记；`--no-register` 可跳过（与 MCP 口径一致） |
+
+幂等保证：`registry.add()` 对同一路径重复调用不新增条目（已有契约）。
+
+### 返回字段
+
+`se_init_project` / `se_use_project` / `vinw init` 成功时追加：
+
+| 字段 | 含义 |
+|------|------|
+| `registered` | 是否登记成功 |
+| `name` | **登记后的可寻址名**（同名冲突时会被改名为 `<name>-2`，须以本字段为准） |
+| `warning` | 登记失败或被改名时的说明 |
+| `registration_skipped` | `register=false` 时为 true |
+
+> `se_use_project` 的补登记同样返回上述字段：受限环境下若登记失败，调用方可据 `warning` 判断"已激活但不能按名寻址"。
+
+### 异常边界
+
+只容忍**注册表层故障**（`OSError` / `sqlite3.Error` / `ValueError`）并降级为 `warning`；
+`TypeError`、`AttributeError` 等编程错误必须向上抛出，否则会被伪装成环境故障。
+
+### 测试隔离（v0.16 追加）
+
+自动登记把"测试会写真实注册表"变成现实风险：`tests/conftest.py` 提供 **autouse fixture**，
+把 `VINW_HOME` 指向临时目录并重置 `_registry` / `_active_project` 单例。
+否则每跑一次测试都会在开发者 `~/.vinw/registry.db` 里累积 `/pytest-of-*` 幽灵工程
+（本轮实测累积 23 条，已用 `prune` 清除）。
+
+### 不改变的行为
+
+- `se_list_projects` 仍只列注册表条目（不做目录扫描，避免慢盘开销）
+- 手工 `vinw project add` 与 `se_register_project` 仍是显式入口
+- 注册表损坏/不可写时：**工程创建仍成功**，仅在返回体给出 `warning`（不因登记失败回滚工程）
+
+### 错误处理
+
+登记失败不得让 `se_init_project` 失败——工程已落盘，回滚会让用户丢失工作区。
+返回：`{project_id, layers, current_layer, current_descent, registered: false, warning: "..."}`
+
+## 影响
+
+| 场景 | 修复前 | 修复后 |
+|------|--------|--------|
+| 在别的目录新建工程 → 打开 TUI 按 p | 看不到 | 看得到 |
+| 用 `se_use_project` 激活未登记工程 | 后续按名称寻址失败 | 自动登记后可按名称寻址 |
+
+## 已知取舍
+
+- 自动登记会产生"创建即登记"的副作用；用户若想要临时工程，需显式 `register=false`
+- 不实现「扫描发现未登记工程」（B 方案）：需要遍历目录，慢盘成本高，且与"注册表即事实源"的设计冲突

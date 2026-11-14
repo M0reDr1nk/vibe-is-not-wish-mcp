@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -34,6 +35,12 @@ def main():
     p_init.add_argument("path", help="Project root directory")
     p_init.add_argument("--name", required=True, help="Project name")
     p_init.add_argument("--desc", default="", help="Project description")
+    p_init.add_argument(
+        "--no-register",
+        dest="register",
+        action="store_false",
+        help="Do not add the project to the registry (temporary projects)",
+    )
 
     # project (multi-project registry)
     p_proj = sub.add_parser("project", help="Manage registered VINW projects")
@@ -86,6 +93,21 @@ def main():
         print(f"   Current layer: {proj.get_current_layer()}")
         from vinw.store.project import LAYERS
         print(f"   Layers: {', '.join(LAYERS)}")
+        if getattr(args, "register", True):
+            try:
+                registration = ProjectRegistry().add(proj.root)
+                name = (
+                    registration.get("name")
+                    if isinstance(registration, dict)
+                    else args.name
+                )
+                print(f"   Registered as: {name}")
+                if isinstance(registration, dict) and registration.get("warning"):
+                    print(f"   ⚠ {registration['warning']}")
+            except (OSError, sqlite3.Error, ValueError) as e:
+                print(f"   ⚠ 登记失败（工程已创建）: {e}")
+        else:
+            print("   (skipped registration)")
     elif args.command == "project":
         _run_project_command(args)
     elif args.command == "status":
