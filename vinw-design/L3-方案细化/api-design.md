@@ -896,6 +896,18 @@ TUI 选择器的数据源是「注册表 + 当前工作目录工程」，因此*
 
 # v0.17 澄清选项与进程防护（descent-16 / asc-015）
 
+## 〇、R31 定位修正（用户澄清）：LLM 驱动的需求对齐机制
+
+R31 不是孤立的问答工具，而是**"发现假设 → 显性化 → 用户对齐 → 消除偏离"的闭环**，
+结合 LLM 能力贯穿三个环节：
+
+1. **发现**：LLM 审计/实现过程中识别歧义点、隐含假设、与用户已有设计/需求的潜在偏离
+   （复用 triage 的 `ambiguous` 分类作为发现入口之一）
+2. **显性化**：每个澄清请求必须携带 `assumption`（当前理解/默认假设）与 `deviation`
+   （假设错误时会偏离什么）——用户不是在回答问题，而是在**纠正或确认 agent 的心智模型**
+3. **对齐闭环**：裁决记录 `assumption → confirmed/corrected`；changelog 写 alignment 条目；
+   同一主题反复出现歧义时升级为"设计表述缺陷"（该改文档而不是反复问）
+
 ## 一、R31：带参考选项的澄清请求
 
 ### 选项结构扩展（兼容性红线）
@@ -918,15 +930,26 @@ TUI 选择器的数据源是「注册表 + 当前工作目录工程」，因此*
 se_request_clarification(
   question: str,            # 歧义点描述（必填）
   layer: str,               # 所在层级（必填，如 "L3-方案细化"）
+  assumption: str = "",     # 当前理解/默认假设（对齐核心：用户确认或纠正的对象）
+  deviation: str = "",      # 若假设错误会偏离什么（用户意图/已有设计）
   context: str = "",        # 背景/为什么需要确认
   options: str = "[]",      # 参考选项 JSON 数组（≥2，结构如上；自动追加 {"id":"other","label":"其他（请说明）"}）
   blocking: bool = false,   # 是否阻塞当前层推进（默认否）
   recommendation: str = ""  # 发起方的推荐选项 id 与理由（可选）
 ) -> {confirmation_id, status: "pending"}
+
+# 从审计歧义一键发起（LLM 驱动入口）：
+se_request_clarification_from_finding(finding_id: str, layer: str, ...) -> {confirmation_id}
+# 将 triage 中 classification=ambiguous 的发现的 difference/analysis 预填为
+# assumption/deviation，agent 只需补 question 与 options。
 ```
 
 - item_type 固定为 `"clarification"`，写入 manifest.pending_confirmations（复用既有存储、purge、changelog 语义）
 - blocking=true 时参与既有一致性门控的 blocking_pending 统计
+- **对齐语义**：resolution 为选项 id 或 modify 文本时，changelog 写 `alignment` 条目：
+  `{question, assumption, resolution, corrected: bool}`——corrected=true 表示用户纠正了假设
+- 同一 `layer+question主题`（按 id 前缀聚类）第 3 次发起时，工具返回 warning：
+  「该主题已反复澄清 N 次，建议改为修订设计文档」
 
 ### 裁决扩展：`se_resolve_confirmation`
 
@@ -935,8 +958,15 @@ se_request_clarification(
 
 ### TUI 呈现
 
-确认面板中 clarification 类型的问题展开显示：context、各选项的 label+description+impact、
-推荐项标记（★推荐）。键盘：数字键选择选项 / a拒绝 / m修改。选中后写入 resolution。
+确认面板中 clarification 类型的问题展开显示：**assumption（当前假设，高亮）**、deviation（偏离风险）、
+context、各选项的 label+description+impact、推荐项标记（★推荐）。
+键盘：数字键选择选项 / a拒绝 / m修改。选中后写入 resolution。
+
+## 一之二、与 LLM 审计的衔接
+
+- triage 输出中 `classification=ambiguous` 的发现，其 escalation 呈现时附带提示
+  「可转为澄清请求」；转换后该 finding 标记 `clarification_id`，裁定决策引用用户答案
+- LLM 审核 prompt（PROMPT_TEMPLATE）不变——ambiguous 归类已是 v2 语义；衔接发生在工具层
 
 ## 二、R30：进程陈旧防护
 
