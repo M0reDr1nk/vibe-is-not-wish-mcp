@@ -168,3 +168,15 @@ status: "completed"
 | touch 容错 | `se_use_project` 的 `touch()` 移入 `(OSError, sqlite3.Error)` 容错范围，登记先行 |
 | 文档索引 | 版本历史补 v0.15/v0.16 行；checkpoints.md 工具数 18→36 |
 | 测试复验 | 287/287 通过 ✅ |
+
+## descent-16 清理（R31 + R30）
+
+| 项 | 说明 |
+|----|------|
+| 未使用导入 | AST 全量扫描：0 处 |
+| 调试残留 | `breakpoint()` / `pdb` / DBG 打印：0 处 |
+| 测试 hack | 移除 `"6x16" if False else "x"` 与函数内重复 `import pytest` |
+| 工具清单 | `scripts/gen_tool_catalog.py` 重新生成（38 个工具，含 2 个新澄清工具） |
+| 文档同步 | v0.17 设计（reviewer14 定稿版）、README 3.5 重启规则、R33 backlog 登记 |
+| 进程卫生 | 安装后重启 MCP server（R30 教训实践） |
+| 测试复验 | 303/303 通过 ✅ |

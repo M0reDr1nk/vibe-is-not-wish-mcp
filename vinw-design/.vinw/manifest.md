@@ -132,7 +132,7 @@ code_root: ..
 completed_at: '2026-11-14T05:27:20.047447+00:00'
 created_at: '2026-11-13T10:02:18.532679'
 current_descent: 16
-current_layer: L4-编码实现
+current_layer: L6-检视清理
 descent_started_at: '2026-11-14T05:42:16.413687+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
@@ -161,39 +161,34 @@ layer_states:
       decision: resolved
       escalations: []
       escalations_count: 0
-      findings: 13
-      report_id: 44d8143e-01
-    baselined_at: '2026-11-14T05:25:53.231693+00:00'
+      findings: 10
+      report_id: 2a032951-01
+    baselined_at: '2026-11-14T07:17:34.030792+00:00'
     consistency:
-      checked_at: '2026-11-14T05:25:53.225164+00:00'
-      code_fingerprint: 0df2cb87a6306f71aefcaca8417572f6f8378768453a25c70e2813f7f5e8e192
+      checked_at: '2026-11-14T07:17:34.025486+00:00'
+      code_fingerprint: f1e7b7f8e03fff7a309d324d34a88d1d7f1d11c84536fb4522cba17509ab6b5f
       descent: 16
-      design_hash: e64a58a5a62c8fb70039f39dcc947e1d7e202e1e97b4095aa3496abc950f2955
+      design_hash: 5c2c0e536267b3090d50271421481b38561b521a694874135e3288899577fcf4
+      design_hash_algo: layer-v1
       llm_auditor: reviewer
-      llm_report_id: 44d8143e-01
+      llm_report_id: 2a032951-01
       llm_verdict: warning
       overall: passed
-      report_id: a7b52cb1
+      report_id: 4092f6c2-01
     descent_count: 15
-    latest_baseline: v014
-    status: in_progress
+    latest_baseline: v015
+    status: baselined
   L5-测试验证:
     abandoned_at: '2026-11-14T04:16:39.686081+00:00'
-    baselined_at: '2026-11-14T05:26:36.551620+00:00'
-    descent_count: 13
-    latest_baseline: v012
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T05:42:16.413676+00:00'
-    superseded_by: asc-015
+    baselined_at: '2026-11-14T07:18:11.438430+00:00'
+    descent_count: 14
+    latest_baseline: v013
+    status: baselined
   L6-检视清理:
     baselined_at: '2026-11-14T05:26:43.512490+00:00'
-    descent_count: 13
+    descent_count: 14
     latest_baseline: v012
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T05:42:16.413676+00:00'
-    superseded_by: asc-015
+    status: in_progress
   L7-终验:
     descent_count: 12
     latest_baseline: null

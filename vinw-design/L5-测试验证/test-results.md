@@ -365,3 +365,32 @@ descent-13/14 共进行 11 轮独立 reviewer 审计，累计发现 70+ 项问�
 |------|------|
 | `TestRegistrationEdgePaths::test_name_collision_returns_actual_name` | 同名碰撞透传登记名 + warning |
 | `TestRegistrationEdgePaths::test_use_project_tolerates_touch_failure` | touch 失败不破坏激活（GAP-R13-001） |
+
+## descent-16 round 1（R31 澄清对齐 + R30 进程防护，2026-11-14）
+
+| 指标 | 值 |
+|------|-----|
+| 总用例数 | 303 |
+| 通过 | 303 |
+| 失败 | 0 |
+| 增量 | +16（287 → 303） |
+
+### 新增覆盖（按需求验收标准）
+
+| AC | 用例 |
+|----|------|
+| R31-AC1 澄清工具与参考选项 | `TestClarificationFlow::test_creates_clarification_with_auto_options` |
+| R31-AC1 选项边界 | `test_string_reserved_id_rejected`、`test_mixed_array_rejected`、`test_recommendation_must_be_object`、`test_recommendation_id_must_be_option` |
+| R31-AC1 必填校验 | `test_empty_uncertainty_rejected`、`test_empty_layer_rejected` |
+| R31-AC2 阻塞语义 | blocking 字段入库（既有 purge/blocking 统计复用） |
+| R31-AC3 裁决语义 | `test_resolve_assume_ok_vs_corrected`、`test_other_requires_feedback` |
+| R31-AC3 反复澄清 | `test_repeat_warning_after_two_resolved`（含 superseded 不计入） |
+| R31-AC4 topic 归一化 | `test_topic_default_normalizes_question` |
+| R31-AC5 from_finding | `test_from_finding_marks_and_rejects`（预填 + 标记 + 缺失拒绝） |
+| R30-AC1 版本横幅 | `test_server_version_in_get_project` |
+| R30-AC4 算法版本 | `test_report_carries_algo`、`test_algo_mismatch_invalidates_verdict` |
+
+### 评审轮次
+
+descent-16 进行 2 轮独立评审（reviewer14 设计定稿前、reviewer15 实现后），累计 23 项发现全部处置
+（19 修复 / 4 记入 R33 backlog）。
