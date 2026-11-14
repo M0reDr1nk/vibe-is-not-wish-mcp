@@ -170,6 +170,18 @@ class TestHealOrdering:
         (proj.root / "main.py").write_text("def main():\n    return 9\n")
         proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n同步\n")
 
+        # v0.15: after drift, a matching verdict is required before any
+        # transition may proceed
+        fp = ConsistencyGate(proj).current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+
         WorkflowEngine(proj).baseline("L5-测试验证", "ok")
         changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
         assert "auto-audit" in changelog

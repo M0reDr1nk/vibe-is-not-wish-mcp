@@ -1,14 +1,14 @@
 ---
-baseline_reason: descent-12 L3 v0.14：分级裁定数据模型、triage 门控决策、4 个新工具
+baseline_reason: descent-13 L3 v0.15：审计契约补全（漂移/自动重审/LLM 指纹前置/triage 覆盖性/决策状态机/单流程/工具清单）
 baseline_version: v015
-baselined_at: '2026-11-14T03:09:04.250863+00:00'
+baselined_at: '2026-11-14T03:09:04.249287+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-14T03:08:42.878039+00:00'
-rolled_back_from: v014
+rolled_back_at: '2026-11-14T04:17:58.989938+00:00'
+rolled_back_from: v015
 se_version: '2.0'
-status: baselined
+status: in_progress
 todo_descent: 10
 ---
 

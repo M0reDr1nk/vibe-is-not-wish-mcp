@@ -385,6 +385,17 @@ def se_descend(to_layer: str, reason: str = "", project: str | None = None) -> s
             ensure_ascii=False,
             indent=2,
         )
+    except LLMAuditRequiredError as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "hint": "用 reviewer 审核当前设计与代码，然后 se_store_consistency_report",
+                "drift": detect_drift(proj),
+                "consistency": _consistency_state(proj),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     except ValueError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 

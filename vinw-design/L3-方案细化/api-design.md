@@ -682,3 +682,55 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 判定依据：`layer_states[L4].consistency.design_hash`（审计时记录的 L3 全层哈希）与当前 L3 全层哈希比对；缺失时回退到最近一份 LLM 报告的 `design_hash`。
 
 呈现：`design_lag` 在 TUI 显示红色「🚫 实现先于设计」面板，文案明确"不接受只改代码不改设计"。
+
+---
+
+# v0.15 全阶段审计契约（descent-14 / asc-013）
+
+## 背景（用户裁定 A）
+
+v0.14 只在 **L4→L5** 与 **项目完成前** 校验"审核结论是否匹配当前设计与代码"，导致中间轮次（L5→L6、任意层 baseline）即便工作区已漂移也能推进。用户要求：**任何阶段转换前，只要工作区偏离审计基线，就必须持有针对当前设计与代码的审核结论。**
+
+## 契约
+
+### 判定单元：`StageAudit`
+
+每次阶段转换（`se_baseline` 任意层 / `se_descend` 任意转换 / `se_complete_project`）执行：
+
+1. `heal_drift()`：先按现有规则处理漂移
+   - `design_lag` → `DesignLagError`（先 ascend 补设计）
+   - `config_error` / `unknown` → 放行（无可审对象）
+   - 其余 → 重跑 text 检查；不通过 → `ConsistencyGateError`
+2. **新增**：若本次确实发生了漂移（`healed=True`）且 `consistency_policy` 要求 LLM（`text+llm` / `strict`）：
+   - `llm_status().satisfied == False` → 抛 `LLMAuditRequiredError`
+   - 即：**漂移后的第一次转换必须出示新的审核结论**，不接受"旧结论 + text 重查"过关
+3. 无漂移（`clean`）时不做额外要求：现有结论仍然匹配，直接放行
+
+### 与既有门控的关系
+
+| 门控 | v0.14 | v0.15 |
+|------|-------|-------|
+| `se_baseline(任意层)` | 仅占位符守卫 + heal | heal + **漂移后强制新结论** |
+| `se_descend(任意转换)` | 仅 L4 出口校验 LLM | heal + **漂移后强制新结论** |
+| `se_complete_project` | 校验 LLM + triage | 不变（已最强） |
+
+### 未漂移时的成本
+
+`detect_drift` 只做哈希比对（毫秒级），不触发审计、不产生报告 → 正常路径零额外开销。
+
+### 与 `needs_llm` 的关系
+
+`heal_drift` 原返回 `needs_llm=True` 仅作提示；v0.15 起该情形在转换处**直接阻断**（抛错），而不是让调用方自行判断。
+
+## 失败语义
+
+| 异常 | 触发 | hint |
+|------|------|------|
+| `DesignLagError` | 代码变了、设计未变 | 先 ascend 补设计 |
+| `LLMAuditRequiredError` | 漂移已修复但结论过期/缺失 | 用 reviewer 重新审核并 `se_store_consistency_report` |
+| `ConsistencyGateError` | text 复查不通过 | 修复不一致后重试 |
+
+## 已知取舍
+
+- **成本**：每次"代码或设计变更后的第一次转换"需要一次独立审核；无变更则无成本
+- **不覆盖**：转换之间的连续改动仍由下一次转换拦（无实时守护），这是刻意为此（避免每写一行代码就要求审核）

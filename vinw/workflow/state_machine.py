@@ -290,9 +290,15 @@ class WorkflowEngine:
 
         result = {"stage": stage, "healed": True, "overall": overall,
                   "report_id": status.get("report_id"), "logged": log}
+        # v0.15: a drifted worktree must not cross a stage boundary on a
+        # stale verdict - the re-check above only proves the code matches the
+        # design text, not that anyone reviewed the new design.
         llm = gate.llm_status()
-        if llm["required"] and not llm.get("matches_current"):
-            result["needs_llm"] = True
+        if llm["required"] and not llm["satisfied"]:
+            raise LLMAuditRequiredError(
+                "工作区已偏离审计基线，且当前没有匹配当前设计与代码的 LLM 审核结论。"
+                "请用 reviewer 重新审核后调用 se_store_consistency_report，再重试本次转换"
+            )
         return result
 
     # ── Baseline ──────────────────────────────────────────────

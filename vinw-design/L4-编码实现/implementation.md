@@ -256,3 +256,22 @@ updated_at: "2026-11-13T10:02:19.675591"
 | README 只镜像 status，基线版本不更新 | `_sync_layer_status(extra=...)` 同步 baseline_version/baselined_at；`sync_all_layer_readmes` 修历史 |
 | drift unknown 分支缺 needs_reaudit/audited_report | 统一 `_result()` 构造，所有路径键集一致 |
 | se_baseline 未处理 DesignLagError（裸异常） | 映射为结构化 error + hint + drift 快照 |
+
+## descent-14 实现记录（asc-013：全阶段审计契约 v0.15）
+
+### 改动
+- `heal_drift`：漂移修复成功后，若策略要求 LLM（`text+llm`/`strict`）且 `llm_status().satisfied == False`，直接抛 `LLMAuditRequiredError`
+  - 覆盖全部阶段转换：`se_baseline(任意层)`、`se_descend(任意转换)`、`se_complete_project`
+  - 无漂移（clean）时不触发，正常路径零额外成本（仅一次哈希比对）
+- `se_descend` 补充该异常的结构化映射（error + hint + drift + consistency 快照）
+
+### 语义变化（重要）
+| 变更前 | 变更后 |
+|--------|--------|
+| 漂移由 text 重查"洗白"后即可转换 | 漂移后的**第一次转换**必须出示匹配当前设计与代码的审核结论 |
+| 仅 L4→L5 与终验校验 LLM | 任意阶段的 baseline/descend 均校验 |
+| `heal_drift` 返回 `needs_llm` 提示 | 直接阻断，不再依赖调用方自觉 |
+
+### 验证
+- 262/262 测试通过（新增：漂移后无新结论 → 阻断；有新结论 → 放行；代码+设计同改 → 需重审）
+- 真实工程实测：`design_synced` + 无匹配结论时，`descend L5` 与 `descend L6` 均被拒绝

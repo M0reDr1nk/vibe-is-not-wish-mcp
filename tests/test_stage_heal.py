@@ -37,6 +37,20 @@ def changelog(proj):
     return (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
 
 
+def store_verdict(proj):
+    """Store a reviewer verdict matching the current code+design."""
+    gate = ConsistencyGate(proj)
+    fp = gate.current_fingerprint()
+    LLMConsistencyAuditor(proj).store_report(
+        {"overall": "passed", "inconsistencies": [], "matched": []},
+        descent=proj.read_manifest().get("current_descent", 1),
+        design_digest=fp["design_hash"],
+        hashes=fp["file_hashes"],
+        kind="llm",
+        auditor="reviewer",
+    )
+
+
 def sync_design(proj):
     """Move the design along with the code (both hashes change)."""
     proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n同步更新\n")
@@ -54,11 +68,23 @@ class TestBaselineHealsDrift:
         with pytest.raises(DesignLagError):
             WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "stage end")
 
-    def test_design_and_code_change_is_reaudited(self, proj):
+    def test_design_and_code_change_requires_fresh_verdict(self, proj):
+        """v0.15: drift healed by text is not enough; a verdict is required."""
+        from vinw.workflow.state_machine import LLMAuditRequiredError
+
         audit(proj)
         (proj.root / "main.py").write_text("def main():\n    return 7\n")
         sync_design(proj)
         assert detect_drift(proj)["state"] == "design_synced"
+
+        with pytest.raises(LLMAuditRequiredError):
+            WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "stage end")
+
+    def test_design_and_code_change_passes_with_fresh_verdict(self, proj):
+        audit(proj)
+        (proj.root / "main.py").write_text("def main():\n    return 7\n")
+        sync_design(proj)
+        store_verdict(proj)
 
         WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "stage end")
 
@@ -87,11 +113,23 @@ class TestDescendHealsDrift:
         manifest["current_layer"] = "L2-参考文献与方案搜证汇总"
         proj.write_manifest(manifest)
 
-    def test_descend_reaudits_when_design_and_code_moved(self, proj):
+    def test_descend_requires_verdict_after_drift(self, proj):
+        from vinw.workflow.state_machine import LLMAuditRequiredError
+
         audit(proj)
         self._at_l2(proj)
         (proj.root / "main.py").write_text("def main():\n    return 42\n")
         sync_design(proj)
+
+        with pytest.raises(LLMAuditRequiredError):
+            WorkflowEngine(proj).descend("L3-方案细化", "stage end")
+
+    def test_descend_passes_with_fresh_verdict(self, proj):
+        audit(proj)
+        self._at_l2(proj)
+        (proj.root / "main.py").write_text("def main():\n    return 42\n")
+        sync_design(proj)
+        store_verdict(proj)
 
         WorkflowEngine(proj).descend("L3-方案细化", "stage end")
 
@@ -153,9 +191,10 @@ class TestLlmMatching:
         (proj.root / "main.py").write_text("def main():\n    return 2\n")
         sync_design(proj)
 
-        result = WorkflowEngine(proj).heal_drift("baseline:test")
-        assert result["healed"] is True
-        assert result.get("needs_llm") is True
+        from vinw.workflow.state_machine import LLMAuditRequiredError
+
+        with pytest.raises(LLMAuditRequiredError):
+            WorkflowEngine(proj).heal_drift("baseline:test")
 
 
 class TestAscendStateReset:

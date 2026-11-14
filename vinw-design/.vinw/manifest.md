@@ -103,12 +103,21 @@ ascent_history:
     结论未校验指纹、裁定流程双路线、triage 覆盖性约束缺失、heal 执行位置未定义
   to_baseline: v014
   to_layer: L3-方案细化
+- created_at: '2026-11-14T04:17:58.986227+00:00'
+  descent_after: 14
+  descent_before: 13
+  from_layer: L5-测试验证
+  id: asc-013
+  reason: 用户裁定 A：审计结论必须匹配当前设计与代码，且该校验扩展到所有阶段转换（任意 baseline/descend），而非仅 L4 出口与终验；需升回
+    L3 改设计后实现
+  to_baseline: v015
+  to_layer: L3-方案细化
 code_root: ..
 completed_at: '2026-11-14T02:44:39.234701+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 13
-current_layer: L6-检视清理
-descent_started_at: '2026-11-14T03:08:42.878453+00:00'
+current_descent: 14
+current_layer: L4-编码实现
+descent_started_at: '2026-11-14T04:17:58.990213+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
@@ -124,10 +133,10 @@ layer_states:
     latest_baseline: v006
     status: baselined
   L3-方案细化:
-    active_ascent: asc-012
-    baselined_at: '2026-11-14T03:09:04.250863+00:00'
-    descent_count: 13
-    latest_baseline: v015
+    active_ascent: asc-013
+    baselined_at: '2026-11-14T04:18:09.973829+00:00'
+    descent_count: 14
+    latest_baseline: v016
     status: baselined
   L4-编码实现:
     audit:
@@ -138,33 +147,37 @@ layer_states:
       report_id: 954217cd
     baselined_at: '2026-11-14T04:04:50.343394+00:00'
     consistency:
-      checked_at: '2026-11-14T04:16:38.907822+00:00'
-      code_fingerprint: 5eeb90f156e70ee71c61cf3d36986e03dd65250cbaf27b301b714064e12e5d8d
-      descent: 13
-      design_hash: d239e77fc0336c8372a39ab60ea0f6fc603d822be0564235e2f2059490c41e2f
+      checked_at: '2026-11-14T04:19:36.144593+00:00'
+      code_fingerprint: 039e090a697085d01c6a2d04956aa864dbc549b3697e4b3f5e7641cfbbccc2cf
+      descent: 14
+      design_hash: 9992632018b5a32fc66c7f13966134d852fb299d8e1ba4009f21ab03abdebf23
       overall: passed
-      report_id: 6d829b91-01
-    descent_count: 12
+      report_id: cb9cda22-01
+    descent_count: 13
     latest_baseline: v012
-    status: baselined
+    status: in_progress
   L5-测试验证:
     abandoned_at: '2026-11-14T04:16:39.686081+00:00'
     baselined_at: '2026-11-14T02:43:01.655609+00:00'
     descent_count: 11
     latest_baseline: v010
     needs_redo: true
-    status: pending
+    status: superseded
+    superseded_at: '2026-11-14T04:17:58.990205+00:00'
+    superseded_by: asc-013
   L6-检视清理:
     baselined_at: '2026-11-14T02:43:51.413339+00:00'
     descent_count: 11
     latest_baseline: v010
-    status: in_progress
+    status: superseded
+    superseded_at: '2026-11-14T04:17:58.990209+00:00'
+    superseded_by: asc-013
   L7-终验:
     descent_count: 10
     latest_baseline: null
     status: superseded
-    superseded_at: '2026-11-14T03:08:42.878446+00:00'
-    superseded_by: asc-012
+    superseded_at: '2026-11-14T04:17:58.990211+00:00'
+    superseded_by: asc-013
 name: vinw-self-design
 pending_confirmations:
 - blocking: true
