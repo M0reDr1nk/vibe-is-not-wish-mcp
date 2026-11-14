@@ -1,11 +1,11 @@
 ---
-baseline_version: v003
-baselined_at: '2026-11-14T13:05:59.655805+00:00'
+baseline_version: v004
+baselined_at: '2026-11-14T14:12:04.605017+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
-status: superseded
+status: baselined
 todo_descent: 6
 ---
 

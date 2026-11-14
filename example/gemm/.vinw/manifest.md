@@ -46,7 +46,7 @@ ascent_history:
 completed_at: '2026-11-14T13:15:14.904320+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 6
-current_layer: L4-编码实现
+current_layer: L7-终验
 descent_started_at: '2026-11-14T14:08:45.775906+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
@@ -74,8 +74,8 @@ layer_states:
       decision: resolved
       escalations: []
       escalations_count: 0
-      findings: 2
-      report_id: 9b7b63cf-01
+      findings: 9
+      report_id: 858fb732-01
     baselined_at: '2026-11-14T14:09:07.359786+00:00'
     consistency:
       checked_at: '2026-11-14T14:09:07.349111+00:00'
@@ -83,8 +83,8 @@ layer_states:
       descent: 6
       design_hash: fe3b082b7f3c1231de88b66701357cb099827356bc52af7c1fb74d8cec7ec9b8
       design_hash_algo: layer-v1
-      llm_auditor: self
-      llm_report_id: 9b7b63cf-01
+      llm_auditor: reviewer
+      llm_report_id: 858fb732-01
       llm_verdict: warning
       overall: passed
       report_id: ac246cbf-02
@@ -92,29 +92,20 @@ layer_states:
     latest_baseline: v004
     status: baselined
   L5-测试验证:
-    baselined_at: '2026-11-14T13:00:17.653949+00:00'
-    descent_count: 3
-    latest_baseline: v003
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T14:08:45.775892+00:00'
-    superseded_by: asc-005
+    baselined_at: '2026-11-14T14:12:00.656688+00:00'
+    descent_count: 4
+    latest_baseline: v004
+    status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-14T13:05:59.655805+00:00'
-    descent_count: 3
-    latest_baseline: v003
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T14:08:45.775892+00:00'
-    superseded_by: asc-005
+    baselined_at: '2026-11-14T14:12:04.605017+00:00'
+    descent_count: 4
+    latest_baseline: v004
+    status: baselined
   L7-终验:
     completed_at: '2026-11-14T13:15:14.904320+00:00'
-    descent_count: 3
+    descent_count: 4
     latest_baseline: null
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T14:08:45.775892+00:00'
-    superseded_by: asc-005
+    status: in_progress
 name: gemm
 pending_confirmations:
 - blocking: true

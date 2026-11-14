@@ -4,18 +4,17 @@ descent_count: 0
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
-status: superseded
-todo_descent: 5
+status: in_progress
+todo_descent: 6
 ---
 
 # L7-终验
 
 ## 当前待办
 
-- [x] R1-R8 逐条验收
-- [x] descent-3/4/5 三轮尝试诚实记录
-- [x] 评审失败事实披露（self-audit）
-- [x] 遗留项登记
+- [x] descent-6 范围收缩与归因更正收敛
+- [x] r24 九项发现全部修复（含交付路径数字归属错误）
+- [x] 元数据与版本号自洽
 
 ## 阶段小结
 
