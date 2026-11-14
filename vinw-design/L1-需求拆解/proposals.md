@@ -500,3 +500,37 @@ DSH 插件的 `vinw server` 进程 10:42 启动后持续运行 3 小时；期间
 | R33-2 | alignment changelog 条目改结构化字段（question/assumption/chosen_option/feedback/corrected），去除截断，支持机读统计 | reviewer15 INC-003 |
 
 已接受的偏差记录：当前 alignment 用截断 reason 承载（reviewer 判定闭环语义成立、可接受）。
+
+---
+
+# R34（descent-17）：R31 澄清升级为 harness 式询问（用户提出）
+
+## 问题
+
+descent-15/16 的 R31 澄清在实践中是**同步阻塞**的：agent 发现问题 → 停下来在对话里问 → 用户必须立刻回答。
+这在高影响决策上是对的，但在**多数中低影响歧义**上是浪费：
+
+- agent 被迫中断，工作流停在原地（用户可能几小时后才回）
+- 多个独立歧义只能逐个问，打断呈碎片化
+- 有些歧义其实"先按一个合理假设推进、到检查点再统一确认"更划算
+- 缺少"我已按什么假设推进了"的可审计记录，用户事后无法追溯
+
+## 需求（harness 式询问）
+
+| 编号 | 标准 |
+|------|------|
+| AC1 | 澄清请求带 `impact`（high/medium/low）与 `reversibility`（reversible/irreversible） |
+| AC2 | 按影响×可逆性**自动决定**阻塞或入队：high+irreversible → blocking（立即停）；其余 → 入队，agent 带假设继续 |
+| AC3 | 新增 `se_clarification_brief`：一次性汇总全部待澄清项（问题/假设/偏离/选项/推荐）+ 本轮已按假设推进的决策清单 |
+| AC4 | 断点批量裁决：在层转换（baseline/descend/complete）前，若有 blocking 澄清则阻断（沿用现有 blocking_pending）；非 blocking 项出现在 brief 中但不阻断 |
+| AC5 | 「带假设推进」必须留痕：changelog 写 `assumption-taken` 条目（问题、假设、影响、何时复查） |
+| AC6 | 同一问题被反复入队未裁决时，升级为 blocking（防止无限推迟） |
+
+## 边界
+
+- 不改变"由 LLM 发起、带参考选项"的 R31 主体（harness 只改**何时问、怎么收集、怎么呈报**）
+- 不引入外部服务：harness 全部基于 manifest + changelog + 新工具
+
+## 优先级
+
+P1（用户明确指出：更多场景应走 harness 询问而非直接停下）
