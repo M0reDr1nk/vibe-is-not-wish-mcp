@@ -17,6 +17,13 @@
 - **挂载点**：`AuditTriage.escalations` 输出时附 `user_bias_hint`
 - **风险**：倾向漂移（答完即忘）→ 每次升级回显依据；过度拟合 → 仅重排推荐不锁死选项
 
+## 已完成（原 backlog）
+
+| 编号 | 需求 | 完成 |
+|------|------|------|
+| R33-2 | alignment changelog 结构化（`extra` 字段 + 共享解析器） | descent-19 / v0.20 |
+| R33-1 | TUI 澄清就地裁决 | descent-18 / v0.19 |
+
 ## 长期方向（未排期）
 
 | 方向 | 说明 |
