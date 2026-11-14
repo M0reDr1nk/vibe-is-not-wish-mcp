@@ -5,15 +5,15 @@ doc_type: "final-report"
 status: "in_progress"
 ---
 
-# 终验报告 — VINW（descent-19，结构化 changelog 版）
+# 终验报告 — VINW（descent-20，流程违规特例审批版）
 
 ## 项目信息
 
 | 字段 | 值 |
 |------|-----|
 | 项目名称 | vinw-self-design |
-| 下降轮次 | descent-1 ~ descent-19 |
-| 上升次数 | 18（asc-001 ~ asc-018） |
+| 下降轮次 | descent-1 ~ descent-20 |
+| 上升次数 | 19（asc-001 ~ asc-019） |
 | 终验时间 | 2026-11-13 |
 | 版本 | 0.2.0 |
 
@@ -51,6 +51,7 @@ status: "in_progress"
 | asc-016 | L7 → L1(v006) | R34：R31 澄清从「同步阻塞逐个问」升级为 harness 式（按影响分级 + 队列 + 断点批量呈报） |
 | asc-017 | L7 → L3(v019) | 六处热修补流程：工程可见性、TUI 三栏信息架构、下层变更作废上层、completed_dirty、R33-1 就地裁决 |
 | asc-018 | L7 → L3(v020) | R33-2：alignment changelog 结构化（先改代码后补设计，再次 design_lag） |
+| asc-019 | L7 → L1(v007) | R35：流程违规特例必须经用户显式批准，默认不允许违规；违约后强制一致性校验 |
 
 ## descent-4 交付内容（asc-003）
 
@@ -321,6 +322,29 @@ L2 产出调研：形态对比（自由 prompt / 结构化问卷 / 混合）、*
 CRLF 静默截断、`change_type` 未转义、反引号不对称剥离、`corrected` 返回字符串 `"False"`
 （真值判断会反向）、MCP 侧双解析器、兼容性弱覆盖、死导入。
 
+## descent-20 交付内容（asc-019 / R35：流程违规特例审批）
+
+用户要求：**违反流程必须有显式审批、必须告知用户确认、默认非必要不允许违规**，
+并追加「违约流程结束后必须强制做一致性校验」。
+
+| 机制 | 行为 |
+|------|------|
+| **默认拒绝** | 无批准特例时，漂移照旧阻断 baseline/descend/complete（与 v0.20 一致，不因工具存在而放宽） |
+| 申请 | `se_request_workflow_exception(reason, files, necessity, impact, expires_in_descents)` 登记 **pending** 特例，并创建**阻塞确认**——未批准前一律拒绝 |
+| 四态 | none / pending(硬停) / active(容忍) / expired(硬停)；过期 = 轮次超期 **或** 容忍次数 ≥ 3 |
+| force 不可绕过 | 硬停位于所有 force 分支之前——`force=True` 只能跳过一致性/占位符守卫，**不能跳过用户批准** |
+| AC8 强制校验 | 首次容忍即写 `post_violation_audit_required`（**不受 log 参数影响**）；此后任何 baseline/descend/complete 都要求与当前代码+设计匹配的审核结论，与 `consistency_policy` 无关 |
+| 正规化 | `ascend` 结转 pending/approved 特例为 `regularized`；完成态若有未正规化特例则拒绝 |
+| 外键 | 特例记录保存 `confirmation_id`；裁决按 id 精确匹配且仅接受 `pending`，拒绝静默错配 |
+
+**评审 r25（独立）判 failed**，抓到 2 个 critical：`force=True` 可绕过待批准特例、
+`log=False` 路径不写 AC8 标志——即**核心需求本身可被绕过**。修复后 **r26 复审 passed**
+（6 项漏洞逐一复核关闭），r26 另指出 4 处文档未真正更新，已同步。
+
+**已知限制（已写入设计）**：MCP 协议层无法区分「agent 调用」与「人调用」，
+因此 agent 理论上仍可自行调用 `se_resolve_confirmation` 批准特例。
+真正强制需要宿主层（TUI 人类通道 / 一次性审批令牌）实现；当前缓解是双向 changelog 审计痕迹。
+
 ## 流程违规与补救披露（延续）
 
 descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并立规 DESC-001（基线后缺陷必须 ascend）。descent-4 本身即是按 DESC-001 执行的第四次下降：发现完成态缺口后先上升、改设计（L3 v0.4/v005）、再下降实现，未走热修。
@@ -367,7 +391,7 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 | test_bootstrap.py（含完成态 3 例） | 10 | 10/10 ✅ |
 | test_tui.py（滚动断言 + 多项目 4 例） | 9 | 9/9 ✅ |
 | test_todo_lifecycle.py（新增） | 15 | 15/15 ✅ |
-| **合计** | **342** | **342/342 ✅** |
+| **合计** | **354** | **354/354 ✅** |
 
 端到端实测：MCP 自举加载 ✅；一致性检查 20/20 ✅；se_complete_project 前置校验与成功路径 ✅；TUI 渲染/滚动/容错/completed ✅。
 
@@ -381,4 +405,4 @@ descent-2 终验后的三次热修（chg-032/033/034）已由 asc-002 补救并�
 
 ## 结论
 
-**十九次下降、十八次上升全部闭环，342 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**
+**二十次下降、十九次上升全部闭环，354 个单元测试全部通过，完成态迁移能力补齐，自举与跨 harness 能力端到端验证成功。VINW 项目达到可交付状态。**

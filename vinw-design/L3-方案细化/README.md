@@ -1,14 +1,14 @@
 ---
 baseline_reason: descent-18 L3 v019：可见性与状态可信度定稿（路径登记、三栏 IA、下层作废上层 + current 保护、completed_dirty、R33-1）
-baseline_version: v021
-baselined_at: '2026-11-14T13:51:56.541388+00:00'
+baseline_version: v022
+baselined_at: '2026-11-14T14:33:02.652696+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
 rolled_back_at: '2026-11-14T13:40:10.784204+00:00'
 rolled_back_from: v020
 se_version: '2.0'
-status: superseded
+status: baselined
 todo_descent: 20
 ---
 

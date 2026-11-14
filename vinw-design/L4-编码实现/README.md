@@ -1,12 +1,12 @@
 ---
-baseline_version: v018
-baselined_at: '2026-11-14T13:52:03.009924+00:00'
+baseline_version: v019
+baselined_at: '2026-11-14T14:33:09.579472+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L4-编码实现
 se_version: '2.0'
 started_at: '2026-11-13T10:15:00Z'
-status: superseded
+status: baselined
 todo_descent: 20
 ---
 
