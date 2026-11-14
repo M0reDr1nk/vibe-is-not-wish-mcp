@@ -313,6 +313,32 @@ class WorkflowEngine:
 
     # ── Baseline ──────────────────────────────────────────────
 
+    def _invalidate_above(self, layer: str, reason: str) -> list[str]:
+        """A (re)baselined lower layer invalidates every layer above it.
+
+        Nothing used to re-check L5/L6/L7 after L4 changed, so higher layers
+        kept claiming "baselined" while their evidence was against old code
+        (the layer-graph false-green the user reported).
+        """
+        idx = LAYERS.index(layer)
+        manifest = self.project.read_manifest()
+        states = manifest.get("layer_states", {})
+        marked: list[str] = []
+        for higher in LAYERS[idx + 1:]:
+            state = states.get(higher)
+            if state and state.get("status") in ("baselined", "completed"):
+                state["status"] = "superseded"
+                state["superseded_at"] = datetime.now(timezone.utc).isoformat()
+                state["superseded_by"] = f"baseline:{layer}"
+                state["needs_redo"] = True
+                marked.append(higher)
+        if marked:
+            manifest["layer_states"] = states
+            self.project.write_manifest(manifest)
+            for higher in marked:
+                self._sync_layer_status(higher, "superseded")
+        return marked
+
     def _assert_no_blocking_clarifications(self, action: str) -> None:
         """Blocking clarifications must stop layer transitions (design v0.18 AC4).
 
@@ -425,6 +451,9 @@ class WorkflowEngine:
         version = self._generate_baseline_version(layer)
         self.project.freeze_baseline(layer, version, reason)
 
+        # 下层重新基线 → 上层"已验证"依据作废（回到待重做）
+        invalidated = self._invalidate_above(layer, f"baseline:{layer}")
+
         manifest = self.project.read_manifest()
         layer_states = manifest.get("layer_states", {})
         if layer not in layer_states:
@@ -455,7 +484,12 @@ class WorkflowEngine:
             scope=f"{layer}/{version}",
             reason=reason or f"Freeze {layer} baseline {version}",
         )
-        return {"layer": layer, "version": version, "status": "baselined"}
+        return {
+            "layer": layer,
+            "version": version,
+            "status": "baselined",
+            "invalidated_above": invalidated,
+        }
 
     # ── Ascend ────────────────────────────────────────────────
 

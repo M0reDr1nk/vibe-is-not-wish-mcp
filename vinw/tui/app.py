@@ -216,6 +216,54 @@ def build_bottom_panel(project, manifest, drift, descent, current) -> Panel:
     )
 
 
+
+def build_issue_panel(manifest, drift, detail: str = "") -> Panel | None:
+    """One prioritized issue block instead of three overlapping red panels.
+
+    Previously completed-dirty, design-lag and drift each rendered their own
+    red panel, so the top looked uniformly red (user report).
+    """
+    layers = manifest.get("layer_states", {})
+    state = (drift or {}).get("state")
+    l7_completed = layers.get("L7-终验", {}).get("status") == "completed"
+
+    if l7_completed and state not in (None, "clean"):
+        title, severity = "⚠ 完成态已被改动（需上升）", "red"
+        lines = [
+            "终验之后工作区指纹发生变化，L5/L6/L7 的通过依据已失效。",
+            f"漂移类型：{state}（{drift.get('reason')}）",
+            "处置：se_ascend 回对应层补齐设计/实现，再重新下降。",
+        ]
+    elif state == "design_lag":
+        title, severity = "🚫 实现先于设计（需上升）", "red"
+        lines = [
+            "代码已改动但 L3 设计未同步——不接受只改代码不改设计。",
+            "处置：se_ascend 回 L3 补设计并基线，再重新审计。",
+        ]
+    elif state in ("drifted", "design_synced"):
+        title, severity = "⚠ 需重新审计", "yellow"
+        lines = [
+            f"工作区已偏离审计基线（{drift.get('reason')}）。",
+            "处置：重跑 se_check_consistency 并提交审核结论。",
+        ]
+    elif state == "unknown":
+        title, severity = "⚠ 漂移未知", "yellow"
+        lines = ["无法判定工作区是否与基线一致，不代表一致。"]
+    else:
+        return None
+
+    if detail:
+        lines.append(detail)
+    changed = (drift or {}).get("changed") or []
+    if changed:
+        lines.append("变更文件：" + ", ".join(changed[:4]) + ("…" if len(changed) > 4 else ""))
+    return Panel(
+        Text("\n".join(lines), style="bold red" if severity == "red" else "yellow"),
+        title=title,
+        border_style=severity,
+    )
+
+
 class SEApp(App):
     """Main TUI application for SE-MCP."""
 
@@ -472,7 +520,8 @@ class SEApp(App):
                 if active_ascent:
                     extra += f" ↑{active_ascent}"
             elif status == "superseded":
-                icon, color = "↻", "red"
+                # 上升后"待重做"是正常流程，不是错误——红色只留给问题
+                icon, color = "↻", "yellow"
                 extra = " [待重做]"
                 if baseline:
                     extra += f" [{baseline}]"
@@ -536,6 +585,9 @@ class SEApp(App):
                 f"{asc['id']}: {asc['from_layer']} → {asc['to_layer']}({asc['to_baseline']})"
                 f" | 原因: {asc['reason']}"
             )
+        if len(arrow_texts) > 3:
+            arrow_texts = ["…（更早的 %d 条已折叠）" % (len(arrow_texts) - 3)] + arrow_texts[-3:]
+        arrow_texts = [t[:110] + ("…" if len(t) > 110 else "") for t in arrow_texts]
         arrows = (
             Text("\n".join(arrow_texts), style="cyan")
             if arrow_texts
@@ -546,43 +598,13 @@ class SEApp(App):
             Columns(layers_render, equal=True),
             Text(""),
         ]
-        if (
-            layer_states.get("L7-终验", {}).get("status") == "completed"
-            and drift.get("state") not in (None, "clean")
-        ):
-            blocks.append(
-                Panel(
-                    Text.from_markup(
-                        "⚠ [bold]完成态已被改动[/bold]：终验后工作区指纹变化，"
-                        "L5/L6/L7 的通过依据已失效。\n"
-                        "   处置：se_ascend 回到对应层补齐设计/实现，再重新下降"
-                    ),
-                    border_style="red",
-                )
-            )
+        issue = build_issue_panel(
+            manifest, drift, "\n".join(drift_lines(self.project))
+        )
+        if issue is not None:
+            children.append(issue)
+            children.append(Text(""))
 
-        if drift.get("state") == "design_lag":
-            children.append(
-                Panel(
-                    Text(
-                        "\n".join(drift_lines(self.project)),
-                        style="bold red",
-                    ),
-                    border_style="red",
-                    title="🚫 实现先于设计",
-                )
-            )
-            children.append(Text(""))
-        elif drift.get("state") in ("drifted", "design_synced", "unknown"):
-            note = "\n".join(drift_lines(self.project)) or "⚠ 无法判定漂移状态"
-            children.append(
-                Panel(
-                    Text(note, style="bold red" if drift.get("detected") else "yellow"),
-                    border_style="red" if drift.get("detected") else "yellow",
-                    title="⚠ 漂移告警" if drift.get("detected") else "⚠ 漂移未知",
-                )
-            )
-            children.append(Text(""))
         children.append(Panel(arrows, title="↩️ 上升回溯历史", border_style="cyan"))
 
         top_content = Panel(

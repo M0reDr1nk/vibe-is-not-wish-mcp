@@ -1305,3 +1305,44 @@ class TestClarificationHarnessGates:
         finally:
             server._active_project = saved
         assert payload.get("pending_clarifications", {}).get("queued", 0) >= 1
+
+
+class TestHigherLayerInvalidation:
+    """User question: does a lower-layer change re-check the higher layers?
+
+    It did not - L5/L6/L7 kept 'baselined' while their evidence was against
+    code that had since changed. Re-baselining a layer now supersedes every
+    layer above it.
+    """
+
+    def test_rebaseline_invalidates_above(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        engine = WorkflowEngine(proj)
+        manifest = proj.read_manifest()
+        for layer in manifest["layer_states"]:
+            manifest["layer_states"][layer] = {"status": "baselined", "latest_baseline": "v001"}
+        manifest["layer_states"]["L7-终验"] = {"status": "completed"}
+        proj.write_manifest(manifest)
+
+        result = engine.baseline("L1-需求拆解", "重新基线", force=True)
+
+        assert result["status"] == "baselined"
+        assert "L2-参考文献与方案搜证汇总" in result["invalidated_above"]
+        assert "L7-终验" in result["invalidated_above"]
+
+        states = proj.read_manifest()["layer_states"]
+        assert states["L1-需求拆解"]["status"] == "baselined"
+        for layer in ("L2-参考文献与方案搜证汇总", "L7-终验"):
+            assert states[layer]["status"] == "superseded"
+            assert states[layer]["needs_redo"] is True
+
+    def test_no_invalidation_when_higher_already_pending(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        manifest = proj.read_manifest()
+        for layer in manifest["layer_states"]:
+            manifest["layer_states"][layer] = {"status": "superseded"}
+        proj.write_manifest(manifest)
+        result = WorkflowEngine(proj).baseline("L1-需求拆解", "t", force=True)
+        assert result["invalidated_above"] == []
