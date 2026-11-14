@@ -9,7 +9,7 @@ layer: L3-方案细化
 rolled_back_at: '2026-11-14T08:53:37.128319+00:00'
 rolled_back_from: v003
 se_version: '2.0'
-status: baselined
+status: superseded
 todo_descent: 5
 ---
 

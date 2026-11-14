@@ -1,26 +1,24 @@
 ---
-baseline_reason: descent-3 L1 v003：性能基线口径修订（用户裁定 both-baselines + AMX 追加裁定），验收尺寸固定
-  1024³，R3/R4 门槛可机器判定
-baseline_version: v003
-baselined_at: '2026-11-14T12:42:10.648617+00:00'
+baseline_reason: descent-5 L1 v003：R4 修订（AMX 为主力，交付路径 ≥4×；线程扩展性降级为参考；复杂度受控）
+baseline_version: v004
+baselined_at: '2026-11-14T14:08:49.314981+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L1-需求拆解
-rolled_back_at: '2026-11-14T09:53:31.803834+00:00'
-rolled_back_from: v002
+rolled_back_at: '2026-11-14T14:08:45.775590+00:00'
+rolled_back_from: v003
 se_version: '2.0'
 status: baselined
-todo_descent: 5
+todo_descent: 6
 ---
 
 # L1-需求拆解
 
 ## 当前待办
 
-- [x] R4 修订：交付路径相对朴素基线 ≥4×（AMX 为主力）
-- [x] 线程扩展性降级为参考（不再作为门槛）
-- [x] 复杂度边界：不做多线程 AMX/fp16/多级阻塞
-- [x] AC1-AC5 验收标准
+- [x] R6 收缩：不做 x86_64（验证 VINW 非交付 BLAS）
+- [x] GAP-006 裁剪：AMX 边界覆盖不做
+- [x] 测量归因更正（后台进程竞争，非热降频）
 ## 阶段小结
 
 （阶段完成时填写）
