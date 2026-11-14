@@ -1,10 +1,10 @@
 ---
-completed_at: '2026-11-14T13:52:50.450933+00:00'
+completed_at: '2026-11-14T14:34:39.250409+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
-status: in_progress
+status: completed
 todo_descent: 20
 ---
 
@@ -12,7 +12,10 @@ todo_descent: 20
 
 ## 当前待办
 
-- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
+- [x] R35 AC1-AC7 逐条核对
+- [x] AC8 违约后强制校验
+- [x] r25 判 failed → 修复 → r26 复审 passed
+- [x] 354/354 复验
 
 - [x] R33-2 验收（写入/读取/alignment/统一）
 - [x] r23 8 项发现处置
