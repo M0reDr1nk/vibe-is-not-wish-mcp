@@ -451,3 +451,26 @@ descent-16 进行 2 轮独立评审（reviewer14 设计定稿前、reviewer15 �
 | `test_change_type_pipe_is_escaped` | 类型字段转义 |
 | `test_mcp_changelog_returns_structured_entries` | MCP 面机读 |
 | `TestStructuredAlignmentEntry`（3 例） | 结构化字段往返、assume-ok、布尔类型 |
+
+## descent-20 round 1（R35 流程违规特例审批，2026-11-14）
+
+| 指标 | 值 |
+|------|-----|
+| 总用例数 | 354 |
+| 通过 | 354 |
+| 增量 | +6（348 → 354 加固用例；另有 6 例基础审批用例在本轮前半段加入） |
+
+| 用例 | 覆盖 |
+|------|------|
+| `test_request_is_blocking_and_pending` | 必须用户批准、进入阻塞待确认 |
+| `test_duplicate_reason_reuses_record` | 去重 |
+| `test_reject_keeps_violation_blocked` | 拒绝后不得带漂移推进 |
+| `test_approve_enables_tolerated_transition_and_requires_audit` | 批准后容忍 + AC8 |
+| `test_force_cannot_bypass_pending_exception` | **critical 回归** |
+| `test_force_cannot_bypass_expired_exception` | 过期硬停 |
+| `test_tolerate_records_audit_flag_and_use_count` | **AC8 不受 log 影响** |
+| `test_expiry_reachable_by_use_count` | 使用次数触发过期 |
+| `test_resolution_requires_linked_confirmation` | 外键失配报错 |
+| `test_complete_rejects_expired_exception` | 完成态守卫 |
+| `test_ascend_regularizes_exception` | 正规化结转 |
+| `test_expired_exception_blocks` | 轮次过期 |

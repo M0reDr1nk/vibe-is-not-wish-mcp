@@ -211,3 +211,13 @@ status: "completed"
 | 双解析器 | TUI + MCP 统一到 `read_changelog_entries` |
 | 弱测试 | 兼容性用例补 6 条鲁棒性路径 |
 | 测试复验 | 342/342 ✅ |
+
+## descent-20 清理（R35）
+
+| 项 | 说明 |
+|----|------|
+| 死代码 | `_guard_drift_exception` 删除（与 heal_drift 分叉的第二套实现） |
+| 单一实现 | 容忍逻辑集中到 `_tolerate`，硬停集中到 `_assert_exception_hard_stop` |
+| 异常映射 | 特例异常在 server 层转结构化 JSON，不再裸抛 |
+| 文档 | 四态伪代码、硬停表行、返回值键名、TUI 判定全部与实现对齐 |
+| 测试复验 | 354/354 ✅ |

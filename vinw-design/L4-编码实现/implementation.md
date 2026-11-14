@@ -341,3 +341,19 @@ updated_at: "2026-11-13T10:02:19.675591"
 评审 r23 发现 8 项（6 impl_bug / 2 design_gap），全部修复：
 围栏盲解析、CRLF 静默截断、change_type 未转义、反引号不对称剥离、
 `corrected` 返回字符串 `"False"`（真值判断出错）、MCP 侧双解析器、兼容性弱覆盖、死导入。
+
+## descent-20 实现：流程违规特例审批（v0.21 / R35）
+
+| 组件 | 内容 |
+|------|------|
+| `se_request_workflow_exception`（新） | 登记 pending 特例 + 创建**阻塞确认**；同 reason 去重；写回 `confirmation_id` 外键 |
+| `exception_state()` | 四态 none/pending/active/expired；过期 = 轮次超期 **或** 容忍次数 ≥ max_uses(3) |
+| `_assert_exception_hard_stop()` | baseline/descend 的**任何 force 分支之前**调用；pending/expired 一律拒绝（force 不可绕过） |
+| `_tolerate()` | 唯一容忍实现：无条件写 AC8 标志 + 计数 + changelog（changelog 受 log 控制，标志不受） |
+| `resolve_confirmation` | workflow-exception 分支：按 `confirmation_id` 精确匹配、仅接受 pending，否则报错 |
+| AC8 强制校验 | `_require_post_violation_audit()` 在 baseline/descend/complete 前置；与 policy 无关，force 不可绕过 |
+| `ascend` | 正规化动作：结转 pending/approved 特例为 regularized |
+| TUI | 过期（红）> 待批准（红）> 已批准（黄）；判定与引擎一致（含使用次数） |
+
+评审：r25 判 **failed**（2 critical：force 旁路、AC8 标志漏写），修复后 r26 判 **passed**
+（6 项漏洞逐一复核关闭）；r26 另指出 4 处文档未真正更新，已同步。

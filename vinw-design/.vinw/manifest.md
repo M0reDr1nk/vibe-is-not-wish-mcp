@@ -200,17 +200,17 @@ layer_states:
       decision: resolved
       escalations: []
       escalations_count: 0
-      findings: 8
-      report_id: 3c73011c-01
+      findings: 13
+      report_id: a45825fa-01
     baselined_at: '2026-11-14T13:52:03.009924+00:00'
     consistency:
       checked_at: '2026-11-14T13:52:02.999037+00:00'
-      code_fingerprint: 70178a521d721b35f45955de38fcc7d5f606f30c3150b7e4f37a0e1b932d6cc7
-      descent: 19
-      design_hash: 02b68497376b876f3af81aadf03a292c0f10a15a8e1e2448847a482af63909af
+      code_fingerprint: 924ed5e5ece6af42b389772d5ddb088b0bb4bf7b4211d35be0f4dafbee411200
+      descent: 20
+      design_hash: 4d1cdcf44dbe84c46d7c3f0ca0bd09b0158ff804435a77e1ad27055435521708
       design_hash_algo: layer-v1
       llm_auditor: reviewer
-      llm_report_id: 3c73011c-01
+      llm_report_id: a45825fa-01
       llm_verdict: warning
       overall: passed
       report_id: 396dad66-01
