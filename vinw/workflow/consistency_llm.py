@@ -98,6 +98,9 @@ def design_hash(design_path: Path) -> str:
         return ""
 
 
+DESIGN_HASH_ALGO = "layer-v1"
+
+
 def layer_design_hash(layer_dir: Path) -> str:
     """Digest over the layer's *design* documents.
 
@@ -355,8 +358,11 @@ class LLMConsistencyAuditor:
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "overall_status": overall,
             "code_fingerprint": fingerprint,
+            "design_hash_algo": DESIGN_HASH_ALGO,
             "kind": kind,
         }
+        if design_digest:
+            metadata["design_hash"] = design_digest
         if policy:
             metadata["policy"] = policy
         if auditor:

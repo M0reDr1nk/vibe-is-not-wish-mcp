@@ -857,3 +857,172 @@ class TestStrictRejectionIsSideEffectFree:
 
         assert detect_drift(proj)["state"] != "clean"
         assert changelog.read_text(encoding="utf-8").count("auto-audit") == before
+
+
+class TestClarificationFlow:
+    """v0.17 R31: LLM-driven alignment loop (ambiguity only)."""
+
+    def _payload(self, **over):
+        base = {
+            "question": "宏内核寄存器分块取 4x8 还是 6x16？",
+            "layer": "L3-方案细化",
+            "uncertainty": "两种分块在目标机器上性能接近，影响实现结构",
+            "assumption": "按参考实现取 4x8",
+            "deviation": "若你预期 6x16， packing 布局与基准口径都会不同",
+            "options": json.dumps([
+                {"id": "4x8", "label": "4x8", "impact": "packing 简单"},
+                {"id": "6x16", "label": "6x16", "impact": "1024³ 预计 +40%"},
+            ]),
+        }
+        base.update(over)
+        return base
+
+    def test_creates_clarification_with_auto_options(self, proj):
+        import vinw.server as server
+
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            result = json.loads(server.se_request_clarification(**self._payload()))
+        finally:
+            server._active_project = saved
+
+        assert result["status"] == "pending"
+        manifest = proj.read_manifest()
+        cfm = next(
+            c for c in manifest["pending_confirmations"]
+            if c["id"] == result["confirmation_id"]
+        )
+        assert cfm["item_type"] == "clarification"
+        ids = [o["id"] for o in cfm["options"]]
+        assert "assume-ok" in ids and "other" in ids
+        assert cfm["assumption"] and cfm["deviation"] and cfm["uncertainty"]
+
+    def test_empty_uncertainty_rejected(self, proj):
+        import vinw.server as server
+
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            result = json.loads(
+                server.se_request_clarification(**self._payload(uncertainty=""))
+            )
+        finally:
+            server._active_project = saved
+        assert "error" in result
+
+    def test_reserved_option_id_rejected(self, proj):
+        import vinw.server as server
+
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            result = json.loads(
+                server.se_request_clarification(**self._payload(options=json.dumps(
+                    [{"id": "modify", "label": "x"}, {"id": "b", "label": "y"}]
+                )))
+            )
+        finally:
+            server._active_project = saved
+        assert "error" in result
+
+    def test_resolve_assume_ok_vs_corrected(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        engine = WorkflowEngine(proj)
+        cfm_id = engine.require_confirmation(
+            item_type="clarification",
+            description="q",
+            options=["4x8", "6x16", "assume-ok", "other"],
+            blocking=False,
+            extra={
+                "layer": "L3-方案细化", "question": "q", "uncertainty": "u",
+                "assumption": "a", "deviation": "d", "topic_normalized": "t",
+                "options": [], "recommendation": None,
+            },
+        )
+        r1 = engine.resolve_confirmation(cfm_id, "assume-ok")
+        assert r1["corrected"] is False
+
+        cfm_id2 = engine.require_confirmation(
+            item_type="clarification", description="q2",
+            options=["x", "assume-ok", "other"], blocking=False,
+            extra={
+                "layer": "L3-方案细化", "question": "q2", "uncertainty": "u",
+                "assumption": "a", "deviation": "d", "topic_normalized": "t2",
+                "options": [], "recommendation": None,
+            },
+        )
+        r2 = engine.resolve_confirmation(cfm_id2, "6x16" if False else "x")
+        assert r2["corrected"] is True
+        changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
+        assert "alignment" in changelog
+
+    def test_other_requires_feedback(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+        import pytest
+
+        engine = WorkflowEngine(proj)
+        cfm_id = engine.require_confirmation(
+            item_type="clarification", description="q",
+            options=["a", "assume-ok", "other"], blocking=False,
+            extra={
+                "layer": "L1-需求拆解", "question": "q", "uncertainty": "u",
+                "assumption": "a", "deviation": "d", "topic_normalized": "t",
+                "options": [], "recommendation": None,
+            },
+        )
+        with pytest.raises(ValueError):
+            engine.resolve_confirmation(cfm_id, "other", "")
+        ok = engine.resolve_confirmation(cfm_id, "other", "我的意思是 8x8")
+        assert ok["corrected"] is True
+
+
+class TestDesignHashAlgoVersioning:
+    """R30-3: reports and anchors carry the algorithm tag; mismatch = stale."""
+
+    def test_report_carries_algo(self, proj):
+        import frontmatter
+
+        store_llm(proj)
+        from pathlib import Path
+
+        reports = sorted(
+            Path(proj.get_layer_dir("L4-编码实现") / "consistency-reports").glob("report-*.md"),
+            key=lambda p: p.stat().st_mtime,
+        )
+        meta = frontmatter.load(reports[-1]).metadata
+        assert meta.get("design_hash_algo") == "layer-v1"
+
+    def test_algo_mismatch_invalidates_verdict(self, proj):
+        store_llm(proj, overall="passed")
+        gate = ConsistencyGate(proj)
+        assert gate.llm_status()["satisfied"] is True
+
+        # simulate an old report written before the algo tag existed
+        from pathlib import Path
+
+        reports = sorted(
+            Path(proj.get_layer_dir("L4-编码实现") / "consistency-reports").glob("report-*.md"),
+            key=lambda p: p.stat().st_mtime,
+        )
+        import re
+
+        text = reports[-1].read_text(encoding="utf-8")
+        text = re.sub(r'design_hash_algo: layer-v1\n', '', text)
+        reports[-1].write_text(text, encoding="utf-8")
+
+        assert gate.llm_status()["satisfied"] is False
+        assert gate.freshness(kind="llm")["state"] == "stale_design"
+
+    def test_server_version_in_get_project(self, proj):
+        import vinw.server as server
+
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            payload = json.loads(server.se_get_project())
+        finally:
+            server._active_project = saved
+        assert "server_version" in payload
+        assert payload["server_version"]["commit"]

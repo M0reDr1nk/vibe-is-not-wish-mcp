@@ -1,14 +1,14 @@
 ---
 baseline_reason: descent-14 L3 v0.16：全阶段审计契约（任何转换漂移后必须出示匹配当前设计与代码的结论）
-baseline_version: v016
-baselined_at: '2026-11-14T04:18:09.972394+00:00'
+baseline_version: v018
+baselined_at: '2026-11-14T06:01:19.777322+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
 rolled_back_at: '2026-11-14T05:07:28.906056+00:00'
 rolled_back_from: v016
 se_version: '2.0'
-status: in_progress
+status: baselined
 todo_descent: 10
 ---
 

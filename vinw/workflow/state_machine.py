@@ -696,6 +696,7 @@ class WorkflowEngine:
         description: str,
         options: list[str] | None = None,
         blocking: bool = True,
+        extra: dict[str, Any] | None = None,
     ) -> str:
         manifest = self.project.read_manifest()
         pending = manifest.get("pending_confirmations", [])
@@ -703,7 +704,7 @@ class WorkflowEngine:
         cfm_id = f"cfm-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{len(pending) + 1:03d}"
         cfm = {
             "id": cfm_id,
-            "layer": manifest.get("current_layer"),
+            "layer": (extra or {}).get("layer") or manifest.get("current_layer"),
             "descent": manifest.get("current_descent"),
             "item_type": item_type,
             "description": description,
@@ -713,6 +714,8 @@ class WorkflowEngine:
             "resolved_at": None,
             "resolution": None,
         }
+        if extra:
+            cfm.update(extra)
         pending.append(cfm)
         manifest["pending_confirmations"] = pending
         self.project.write_manifest(manifest)
@@ -724,15 +727,42 @@ class WorkflowEngine:
         manifest = self.project.read_manifest()
         pending = manifest.get("pending_confirmations", [])
 
+        target = None
         for p in pending:
             if p["id"] == cfm_id:
-                p["resolved_at"] = datetime.now(timezone.utc).isoformat()
-                p["resolution"] = resolution
-                p["feedback"] = feedback
+                target = p
                 break
-        else:
+        if target is None:
             raise ValueError(f"Confirmation {cfm_id} not found")
 
+        if target.get("item_type") == "clarification":
+            if resolution == "other" and not feedback.strip():
+                raise ValueError("选择 other 时必须填写 feedback 说明")
+            corrected = resolution != "assume-ok"
+            target["resolved_at"] = datetime.now(timezone.utc).isoformat()
+            target["resolution"] = resolution
+            target["feedback"] = feedback
+            target["corrected"] = corrected
+            manifest["pending_confirmations"] = pending
+            self.project.write_manifest(manifest)
+            # v0.17: unified alignment changelog entry (engine layer, so the
+            # TUI and MCP resolution paths produce identical side effects)
+            self._append_changelog(
+                change_type="alignment",
+                scope=cfm_id,
+                reason=(
+                    f"澄清对齐：{target.get('question', '')[:60]} | "
+                    f"假设：{(target.get('assumption') or '')[:40]} | "
+                    f"选择：{resolution} | corrected={corrected}"
+                ),
+                after=feedback[:200],
+            )
+            return {"id": cfm_id, "resolution": resolution, "corrected": corrected}
+
+        target["resolved_at"] = datetime.now(timezone.utc).isoformat()
+        target["resolution"] = resolution
+        target["feedback"] = feedback
+        manifest["pending_confirmations"] = pending
         self.project.write_manifest(manifest)
         return {"id": cfm_id, "resolution": resolution}
 

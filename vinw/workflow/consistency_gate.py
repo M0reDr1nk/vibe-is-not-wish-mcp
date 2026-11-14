@@ -17,6 +17,7 @@ import frontmatter
 
 from ..store.project import Project
 from .consistency_llm import (
+    DESIGN_HASH_ALGO,
     LLMConsistencyAuditor,
     TextConsistencyChecker,
     aggregate_fingerprint,
@@ -122,6 +123,10 @@ class ConsistencyGate:
         if report is None:
             return {"state": MISSING, "fingerprint": current, "report": None}
 
+        # v0.17: algorithm tag mismatch or missing -> stale (fail-closed,
+        # intentionally tighter than the design_hash-missing handling below)
+        if report.get("design_hash_algo") != DESIGN_HASH_ALGO:
+            return {"state": STALE_DESIGN, "fingerprint": current, "report": report}
         stored_design = report.get("design_hash") or ""
         if stored_design and stored_design != current["design_hash"]:
             return {"state": STALE_DESIGN, "fingerprint": current, "report": report}
@@ -250,6 +255,8 @@ class ConsistencyGate:
             return False
         current = self.current_fingerprint()
         if report.get("code_fingerprint") != current["code_fingerprint"]:
+            return False
+        if report.get("design_hash_algo") != DESIGN_HASH_ALGO:
             return False
         stored_design = report.get("design_hash")
         # A verdict produced against older design text is stale as well; a
@@ -393,6 +400,7 @@ class ConsistencyGate:
                 or consistency.get("code_fingerprint"),
                 "design_hash": meta.get("design_hash")
                 or consistency.get("design_hash"),
+                "design_hash_algo": DESIGN_HASH_ALGO,
                 # (never overwrite an existing anchor with a missing value)
             }
         )
@@ -426,6 +434,7 @@ class ConsistencyGate:
             "checked_at": meta.get("checked_at"),
             "code_fingerprint": meta.get("code_fingerprint"),
             "design_hash": meta.get("design_hash"),
+            "design_hash_algo": DESIGN_HASH_ALGO,
         }
         # Never let a report missing a field erase an existing anchor value
         existing.update({k: v for k, v in anchor.items() if v is not None})

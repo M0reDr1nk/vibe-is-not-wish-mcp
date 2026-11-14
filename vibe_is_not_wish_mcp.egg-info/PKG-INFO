@@ -222,6 +222,13 @@ Steps:
    "$WORK_ROOT/$PROJECT/.vinw/manifest.md" already exists.
      .venv/bin/vinw init "$WORK_ROOT/$PROJECT" --name "$PROJECT" --desc "<one sentence>"
 
+3.5 **Restart the MCP server after every install.** The DSH-spawned
+   `vinw server` is a long-running process: `pip install` only changes
+   files on disk, never the modules already loaded in memory. After any
+   code change, kill the server process (DSH respawns it on the next tool
+   call) or reinstall the plugin bundle. A stale server silently runs old
+   gates — see the R30 incident record in vinw-design.
+
 4. Verify registration. `vinw init` registers the project automatically in
    current revisions (pass `--no-register` to opt out). Check:
      .venv/bin/vinw project list

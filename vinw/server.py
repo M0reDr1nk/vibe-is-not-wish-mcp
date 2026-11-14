@@ -256,9 +256,12 @@ def se_get_project(project: str | None = None) -> str:
         manifest.get("pending_confirmations", [])
     )
 
+    from . import __commit__, __dirty__
+
     return json.dumps(
         {
             "name": manifest.get("name"),
+            "server_version": {"commit": __commit__, "dirty": __dirty__},
             "current_layer": manifest.get("current_layer"),
             "current_descent": manifest.get("current_descent"),
             "layer_graph": layer_graph,
@@ -1193,6 +1196,200 @@ def se_sync_layer_readmes(project: str | None = None) -> str:
     return json.dumps(
         {"synced": synced, "count": len(synced)}, ensure_ascii=False, indent=2
     )
+
+
+# ── Clarification (L3 v0.17, R31 alignment loop) ────────────
+
+_RESERVED_OPTION_IDS = {"approve", "reject", "modify", "other", "assume-ok"}
+_AUTO_OPTIONS = [
+    {"id": "assume-ok", "label": "确认当前假设", "description": "按 assumption 继续"},
+    {"id": "other", "label": "其他（请说明）"},
+]
+
+
+def _normalize_options(options_raw: str) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """Parse + validate options. Returns (options, error)."""
+    try:
+        items = json.loads(options_raw or "[]")
+    except json.JSONDecodeError as e:
+        return None, f"options 不是合法 JSON: {e}"
+    if not isinstance(items, list) or len(items) < 2:
+        return None, "参考选项至少需要 2 个"
+    kinds = {"obj" if isinstance(i, dict) else "str" for i in items}
+    if len(kinds) > 1:
+        return None, "options 不允许字符串与对象混合"
+    out: list[dict[str, Any]] = []
+    for i in items:
+        if isinstance(i, str):
+            out.append({"id": i, "label": i})
+        else:
+            opt_id = str(i.get("id") or "").strip()
+            if not opt_id:
+                return None, "选项缺少 id"
+            if opt_id in _RESERVED_OPTION_IDS:
+                return None, f"选项 id '{opt_id}' 为保留字"
+            out.append(
+                {
+                    "id": opt_id,
+                    "label": str(i.get("label") or opt_id),
+                    "description": i.get("description", ""),
+                    "impact": i.get("impact", ""),
+                }
+            )
+    return out, None
+
+
+def _clarification_record(
+    *,
+    question: str,
+    layer: str,
+    uncertainty: str,
+    assumption: str,
+    deviation: str,
+    topic: str,
+    context: str,
+    options: list[dict[str, Any]],
+    recommendation: dict[str, Any] | None,
+    blocking: bool,
+    proj,
+) -> dict[str, Any]:
+    count = sum(
+        1
+        for c in proj.read_manifest().get("pending_confirmations", [])
+        if c.get("item_type") == "clarification"
+        and c.get("resolved_at")
+        and c.get("layer") == layer
+        and (c.get("topic_normalized") or "") == topic
+    )
+    warning = None
+    if count >= 2:
+        warning = (
+            f"该主题（{layer}/{topic[:24]}）已澄清 {count} 次仍重复出现，"
+            f"建议修订设计文档消除歧义源"
+        )
+    return {
+        "item_type": "clarification",
+        "question": question,
+        "layer": layer,
+        "uncertainty": uncertainty,
+        "assumption": assumption,
+        "deviation": deviation,
+        "topic_normalized": topic,
+        "context": context,
+        "options": options + list(_AUTO_OPTIONS),
+        "recommendation": recommendation,
+        "blocking": blocking,
+        "repeat_warning": warning,
+    }
+
+
+@mcp.tool()
+def se_request_clarification(
+    question: str,
+    layer: str,
+    uncertainty: str,
+    assumption: str,
+    deviation: str,
+    options: str,
+    topic: str = "",
+    context: str = "",
+    recommendation: str = "",
+    blocking: bool = False,
+    project: str | None = None,
+) -> str:
+    """Request user alignment on an ambiguous point (R31).
+
+    Only for genuine ambiguity: high-confidence decisions proceed autonomously.
+    LLM generates the reference options and analysis.
+    """
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+    for name, value in (("question", question), ("uncertainty", uncertainty),
+                        ("assumption", assumption), ("deviation", deviation)):
+        if not value.strip():
+            return json.dumps({"error": f"{name} 不能为空"}, ensure_ascii=False)
+    opts, opt_err = _normalize_options(options)
+    if opt_err:
+        return json.dumps({"error": opt_err}, ensure_ascii=False)
+    rec = None
+    if recommendation.strip():
+        try:
+            rec = json.loads(recommendation)
+        except json.JSONDecodeError:
+            return json.dumps({"error": "recommendation 需为 JSON 对象"}, ensure_ascii=False)
+        rec_id = rec.get("id")
+        valid = {o["id"] for o in opts or []}
+        if rec_id not in valid:
+            return json.dumps(
+                {"error": f"recommendation.id '{rec_id}' 必须是 options 之一"},
+                ensure_ascii=False,
+            )
+    topic_norm = topic.strip() or "".join(question.split())[:32]
+    record = _clarification_record(
+        question=question, layer=layer, uncertainty=uncertainty,
+        assumption=assumption, deviation=deviation, topic=topic_norm,
+        context=context, options=opts or [], recommendation=rec,
+        blocking=blocking, proj=proj,
+    )
+    engine = WorkflowEngine(proj)
+    cfm_id = engine.require_confirmation(
+        item_type="clarification",
+        description=question,
+        options=[o["id"] for o in record["options"]],
+        blocking=blocking,
+        extra=record,
+    )
+    result: dict[str, Any] = {"confirmation_id": cfm_id, "status": "pending",
+                              "auto_options": ["assume-ok", "other"]}
+    if record["repeat_warning"]:
+        result["warning"] = record["repeat_warning"]
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def se_request_clarification_from_finding(
+    finding_id: str,
+    layer: str,
+    question: str,
+    uncertainty: str,
+    options: str,
+    topic: str = "",
+    context: str = "",
+    recommendation: str = "",
+    blocking: bool = False,
+    project: str | None = None,
+) -> str:
+    """Convert an ambiguous audit finding into a clarification request.
+
+    assumption/deviation are prefilled from the finding's difference/analysis.
+    """
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+    from .workflow.triage import AuditTriage
+
+    finding = None
+    for f in AuditTriage(proj).findings():
+        if f.get("id") == finding_id:
+            finding = f
+            break
+    if finding is None:
+        return json.dumps(
+            {"error": f"未找到 finding: {finding_id}"}, ensure_ascii=False
+        )
+    if finding.get("classification") != "ambiguous":
+        return json.dumps(
+            {"error": f"finding {finding_id} 不是 ambiguous 分类"},
+            ensure_ascii=False,
+        )
+    payload = {
+        "question": question, "layer": layer, "uncertainty": uncertainty,
+        "assumption": finding.get("difference", ""), "deviation": finding.get("analysis", ""),
+        "options": options, "topic": topic, "context": context,
+        "recommendation": recommendation, "blocking": blocking, "project": project,
+    }
+    return se_request_clarification(**payload)
 
 
 # ── Guidance ────────────────────────────────────────────────

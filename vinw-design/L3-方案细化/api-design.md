@@ -7,7 +7,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 
 # 接口设计
 
-## MCP 工具清单（共 36 个，由 scripts/gen_tool_catalog.py 生成）
+## MCP 工具清单（共 38 个，由 scripts/gen_tool_catalog.py 生成）
 
 > 生成方式：解析 `vinw/server.py` 中所有 `se_*` 函数；`tests/test_contract_v014.py` 断言此处条目数 == 实际注册数。
 
@@ -38,6 +38,8 @@ updated_at: '2026-11-13T10:02:22.615842'
 | `se_register_project` | — | — |
 | `se_remove_project` | — | — |
 | `se_repair_state` | — | — |
+| `se_request_clarification` | — | — |
+| `se_request_clarification_from_finding` | — | — |
 | `se_require_confirmation` | — | — |
 | `se_resolve_confirmation` | — | — |
 | `se_search_proposals` | — | — |

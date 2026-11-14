@@ -105,7 +105,31 @@ class SEApp(App):
             current = f"当前工程: [b]{name}[/b] @ {self.project.root}"
         else:
             current = "当前工程: [i]未选择[/i]（按 p 选择）"
-        bar.update(f"工作目录: {self.workdir}    {current}")
+        from .. import __commit__, __dirty__, __source_repo__
+
+        version_note = ""
+        if __commit__ == "unknown":
+            version_note = " | server 版本未知"
+        elif __source_repo__:
+            import subprocess
+
+            head = subprocess.run(
+                ["git", "-C", __source_repo__, "rev-parse", "HEAD"],
+                capture_output=True, text=True, timeout=5,
+            ).stdout.strip()[:12]
+            dirty_tree = bool(
+                subprocess.run(
+                    ["git", "-C", __source_repo__, "status", "--porcelain"],
+                    capture_output=True, text=True, timeout=5,
+                ).stdout.strip()
+            )
+            if head and head != __commit__:
+                version_note = (
+                    " | ⚠ 运行代码与仓库 HEAD 不一致——pip install 后请重启"
+                )
+            elif __dirty__ or dirty_tree:
+                version_note = " | ⚠ 工作区有未提交改动"
+        bar.update(f"工作目录: {self.workdir}    {current}{version_note}")
 
     def action_select_project(self) -> None:
         entries = self.registry.list()
