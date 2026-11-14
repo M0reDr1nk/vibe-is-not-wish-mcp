@@ -1,0 +1,131 @@
+"""Stage boundaries must re-audit drifted work automatically (user requirement)."""
+
+import shutil
+
+import pytest
+
+from vinw.store.project import Project, replace_todo_section
+from vinw.workflow.consistency_gate import ConsistencyGate
+from vinw.workflow.consistency_llm import LLMConsistencyAuditor
+from vinw.workflow.drift import detect_drift
+from vinw.workflow.state_machine import ConsistencyGateError, WorkflowEngine
+
+
+@pytest.fixture
+def proj(tmp_path):
+    root = tmp_path / "heal-proj"
+    p = Project.init(root, "heal-proj", "")
+    (root / "main.py").write_text("def main():\n    return 0\n")
+    p.write_document("L3-方案细化", "api-design.md", "| 接口 |\n|------|\n| `main` |\n")
+    p.write_document("L3-方案细化", "design-doc.md", "# 设计\n")
+    for layer in ("L2-参考文献与方案搜证汇总", "L5-测试验证", "L6-检视清理"):
+        r = p.read_layer_readme(layer)
+        p.write_layer_readme(
+            layer,
+            {**r, "todo_descent": 1},
+            replace_todo_section(r["content"], "## 当前待办\n\n- [x] done"),
+        )
+    yield p
+    shutil.rmtree(root.parent, ignore_errors=True)
+
+
+def audit(proj):
+    ConsistencyGate(proj).ensure()
+
+
+def changelog(proj):
+    return (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
+
+
+class TestBaselineHealsDrift:
+    def test_baseline_triggers_reaudit_on_drift(self, proj):
+        audit(proj)
+        assert detect_drift(proj)["detected"] is False
+
+        (proj.root / "main.py").write_text("def main():\n    return 7\n")
+        assert detect_drift(proj)["detected"] is True
+
+        WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "stage end")
+
+        # drift healed automatically
+        assert detect_drift(proj)["detected"] is False
+        assert "auto-audit" in changelog(proj)
+
+    def test_baseline_blocked_when_reaudit_fails(self, proj):
+        audit(proj)
+        # rename the documented symbol away -> text check must fail
+        (proj.root / "main.py").write_text("def renamed_away():\n    return 0\n")
+
+        with pytest.raises(ConsistencyGateError) as exc:
+            WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "stage end")
+        assert "漂移" in str(exc.value)
+
+    def test_no_audit_history_means_no_heal_needed(self, proj):
+        # nothing audited yet -> no drift, no audit triggered
+        result = WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "first time")
+        assert result["status"] == "baselined"
+        assert "auto-audit" not in changelog(proj)
+
+
+class TestDescendHealsDrift:
+    def _at_l2(self, proj):
+        manifest = proj.read_manifest()
+        manifest["current_layer"] = "L2-参考文献与方案搜证汇总"
+        proj.write_manifest(manifest)
+
+    def test_descend_triggers_reaudit(self, proj):
+        audit(proj)
+        self._at_l2(proj)
+        (proj.root / "main.py").write_text("def main():\n    return 42\n")
+
+        WorkflowEngine(proj).descend("L3-方案细化", "stage end")
+
+        assert detect_drift(proj)["detected"] is False
+        assert "auto-audit" in changelog(proj)
+
+    def test_descend_blocked_when_reaudit_fails(self, proj):
+        audit(proj)
+        self._at_l2(proj)
+        (proj.root / "main.py").write_text("def nope():\n    return 0\n")
+
+        with pytest.raises(ConsistencyGateError):
+            WorkflowEngine(proj).descend("L3-方案细化", "stage end")
+
+
+class TestLlmMatching:
+    def test_llm_report_tracks_fingerprint(self, proj):
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            policy="text+llm",
+            auditor="reviewer",
+        )
+        assert gate.llm_status()["matches_current"] is True
+
+        (proj.root / "main.py").write_text("def main():\n    return 1\n")
+        assert gate.llm_status()["matches_current"] is False
+
+    def test_heal_requests_llm_when_stale(self, proj):
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            policy="text+llm",
+            auditor="reviewer",
+        )
+        (proj.root / "main.py").write_text("def main():\n    return 2\n")
+
+        result = WorkflowEngine(proj).heal_drift("baseline:test")
+        assert result["healed"] is True
+        assert result.get("needs_llm") is True

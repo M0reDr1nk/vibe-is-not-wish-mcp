@@ -129,11 +129,11 @@ layer_states:
       report_id: 7474b697
     baselined_at: '2026-11-14T02:42:32.784118+00:00'
     consistency:
-      checked_at: '2026-11-14T02:42:32.774567+00:00'
-      code_fingerprint: 9857f5a800480c6db5647e73303bc22c61743b829a633dd6cbe52cca038b3a0b
+      checked_at: '2026-11-14T02:53:28.667971+00:00'
+      code_fingerprint: 5660f9f92a66e1e6a7ee892747a6d2d1351ba834d2f86134a493cc6bf4e375d5
       descent: 12
       overall: passed
-      report_id: ae076f59
+      report_id: f01e70bf
     descent_count: 11
     latest_baseline: v011
     status: baselined

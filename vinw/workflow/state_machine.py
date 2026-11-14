@@ -13,6 +13,7 @@ from ..store.project import (
 )
 from ..store.changelog import append_changelog_entry
 from .consistency_gate import ConsistencyGate
+from .drift import detect_drift
 from .triage import AuditTriage
 
 L4_LAYER = 'L4-编码实现'
@@ -85,9 +86,59 @@ class WorkflowEngine:
             after=after,
         )
 
+    # ── Stage-end drift healing ───────────────────────────────
+
+    def heal_drift(self, stage: str) -> dict[str, Any] | None:
+        """Re-audit when the code drifted since the last passing check.
+
+        Called at the end of every stage transition: if the audited fingerprint
+        no longer matches the working tree, the check is re-run immediately so
+        a stale "passed" never survives a stage boundary. A failing re-check
+        blocks the transition; a passing one is recorded as an automatic repair.
+        """
+        drift = detect_drift(self.project)
+        if not drift.get("detected"):
+            return None
+
+        gate = ConsistencyGate(self.project)
+        status = gate.ensure()
+        overall = status.get("overall")
+
+        self._append_changelog(
+            change_type="auto-audit",
+            scope=stage,
+            reason=(
+                f"阶段结束时检测到工作区漂移（{str(drift.get('baseline_fingerprint'))[:12]}"
+                f"→{str(drift.get('current_fingerprint'))[:12]}），已自动重跑一致性检查"
+            ),
+            before=str(drift.get("baseline_fingerprint")),
+            after=str(drift.get("current_fingerprint")),
+        )
+
+        if overall == "config_error":
+            # No code to audit yet: not a drift problem, keep going
+            return {"stage": stage, "drift": drift, "overall": "config_error"}
+
+        if overall != "passed":
+            raise ConsistencyGateError(
+                f"{stage} 结束时检测到代码漂移，自动重审未通过"
+                f"（overall={overall}，{status.get('inconsistencies', 0)} 项不一致）；"
+                f"请修复后重试"
+            )
+
+        result = {"stage": stage, "healed": True, "overall": overall,
+                  "report_id": status.get("report_id")}
+        llm = gate.llm_status()
+        if llm["required"] and not llm.get("matches_current"):
+            result["needs_llm"] = True
+        return result
+
     # ── Baseline ──────────────────────────────────────────────
 
     def baseline(self, layer: str, reason: str = "", force: bool = False) -> dict[str, Any]:
+        if not force:
+            self.heal_drift(f"baseline:{layer}")
+
         if layer == L4_LAYER and not force:
             gate = ConsistencyGate(self.project)
             status = gate.ensure()
@@ -259,6 +310,13 @@ class WorkflowEngine:
             raise ValueError(
                 f"Descend only to lower layers; {to_layer} is not below {current_layer}"
             )
+
+        # Any stage boundary heals drift first; leaving L4 has extra checks.
+        # heal_drift writes the manifest, so re-read it afterwards to avoid
+        # clobbering the refreshed audit state with a stale snapshot.
+        self.heal_drift(f"descend:{current_layer}->{to_layer}")
+        manifest = self.project.read_manifest()
+        current_layer = manifest.get("current_layer", current_layer)
 
         # Consistency must be verified before leaving L4 (covers "never ran"
         # and "code changed after the check").

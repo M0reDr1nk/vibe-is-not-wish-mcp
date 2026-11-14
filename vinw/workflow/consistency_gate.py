@@ -226,6 +226,16 @@ class ConsistencyGate:
                 best = {**meta, "path": str(path)}
         return best
 
+    def llm_matches_current(self, descent: int | None = None) -> bool:
+        """Does the latest LLM report describe the *current* fingerprint?"""
+        if descent is None:
+            descent = self.project.read_manifest().get("current_descent", 1)
+        report = self.latest_llm(descent)
+        if report is None:
+            return False
+        current = self.current_fingerprint()["code_fingerprint"]
+        return report.get("code_fingerprint") == current
+
     def llm_status(self, descent: int | None = None) -> dict[str, Any]:
         """Whether an LLM audit is required, provided, and its raw verdict."""
         if descent is None:
@@ -238,6 +248,9 @@ class ConsistencyGate:
             "policy": policy,
             "required": required,
             "present": report is not None,
+            "matches_current": (report is not None)
+            and report.get("code_fingerprint")
+            == self.current_fingerprint()["code_fingerprint"],
             "overall": overall,
             "satisfied": (not required) or (report is not None and overall == "passed"),
             "report_id": (report or {}).get("report_id"),

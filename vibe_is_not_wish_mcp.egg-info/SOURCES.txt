@@ -9,6 +9,7 @@ tests/test_drift.py
 tests/test_project.py
 tests/test_registry.py
 tests/test_search.py
+tests/test_stage_heal.py
 tests/test_state_machine.py
 tests/test_symbols.py
 tests/test_todo_lifecycle.py
