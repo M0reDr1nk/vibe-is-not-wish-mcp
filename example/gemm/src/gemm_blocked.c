@@ -19,7 +19,7 @@
 #define MR 4
 #define NR 8
 
-#define MC_BLK 128
+#define MC_BLK 128  /* v004：回退到 128（64 实测更差） */
 #define KC_BLK 256
 #define NC_BLK 2048
 
@@ -164,11 +164,98 @@ static void *m_worker(void *raw) {
     return NULL;
 }
 
-/* 供 gemm_blocked_par 使用的区间划分（设计文档中的 parallel_for_m 契约） */
+/* 核心权重：P 核 2.0，E 核 1.0（探测失败则全部等权 1.0）
+ * 设计见 L3 v004 D2：按算力分配工作量以消除 E 核尾延迟 */
+#include <sys/sysctl.h>
+
+static void core_weights(int nt, double *w) {
+    int np = 0, ne = 0;
+    size_t len = sizeof(np);
+    for (int i = 0; i < nt; ++i) w[i] = 1.0;
+    if (sysctlbyname("hw.perflevel0.logicalcpu", &np, &len, NULL, 0) != 0 || np <= 0) {
+        return;
+    }
+    len = sizeof(ne);
+    if (sysctlbyname("hw.perflevel1.logicalcpu", &ne, &len, NULL, 0) != 0 || ne < 0) {
+        ne = 0;
+    }
+    /* perflevel0 = 高性能核；若线程数 ≤ P 核数，则全为 P 核 */
+    for (int i = 0; i < nt; ++i) {
+        w[i] = (i < np) ? 2.0 : 1.0;
+    }
+    /* 线程数少于 P 核数时全部按 P 核权重（等价于等分） */
+    if (nt <= np) {
+        for (int i = 0; i < nt; ++i) w[i] = 1.0;
+    }
+    (void)ne;
+}
+
+/* 供 gemm_blocked_par 使用的区间划分（设计文档中的 parallel_for_m 契约）
+ * v004：按权重 + 最大余数法分配；每线程保底 1 块（nblocks>=nt 时）。
+ * 曾用 round(累计比例) 导致最后一个 E 核线程分到 0 块，实测反而更慢。 */
 static void parallel_for_m(int nblocks, int nt, int worker,
                            int *lo, int *hi) {
-    *lo = (worker * nblocks) / nt;
-    *hi = ((worker + 1) * nblocks) / nt;
+    if (nt <= 0 || worker < 0 || worker >= nt) {
+        *lo = *hi = 0;
+        return;
+    }
+    if (nt > 32) nt = 32;
+
+    double w[32];
+    core_weights(nt, w);
+
+    /* 1) 每线程保底 1 块 */
+    int share[32];
+    int assigned = 0;
+    for (int i = 0; i < nt; ++i) {
+        share[i] = (nblocks >= nt) ? 1 : 0;
+        assigned += share[i];
+    }
+    /* 2) 余下按权重 + 最大余数分配 */
+    int left = nblocks - assigned;
+    if (left > 0) {
+        double total = 0.0;
+        for (int i = 0; i < nt; ++i) total += w[i];
+        if (total <= 0.0) {
+            int idx = 0;
+            while (left > 0) { share[idx % nt]++; left--; idx++; }
+        } else {
+            double frac[32];
+            int used = 0;
+            for (int i = 0; i < nt; ++i) {
+                double ideal = (double)left * w[i] / total;
+                int base = (int)ideal;
+                share[i] += base;
+                used += base;
+                frac[i] = ideal - (double)base;
+            }
+            int rest = left - used;
+            while (rest > 0) {
+                int best = -1;
+                for (int i = 0; i < nt; ++i) {
+                    if (best < 0 || frac[i] > frac[best]) best = i;
+                }
+                if (best < 0) break;
+                share[best]++;
+                frac[best] = -1.0;   /* 每线程至多再补一块，保证均匀 */
+                rest--;
+                if (rest > 0) {
+                    int any = 0;
+                    for (int i = 0; i < nt; ++i) if (frac[i] >= 0.0) any = 1;
+                    if (!any) {
+                        for (int i = 0; i < nt && rest > 0; ++i) { share[i]++; rest--; }
+                    }
+                }
+            }
+        }
+    }
+    /* 3) 前缀和求区间 */
+    int cum = 0;
+    for (int i = 0; i < worker; ++i) cum += share[i];
+    *lo = cum;
+    *hi = cum + share[worker];
+    if (*hi > nblocks) *hi = nblocks;
+    if (*lo > nblocks) *lo = nblocks;
 }
 
 /* 按 M 的 ic 块区间并行；T=1 时退化为单线程（gemm_blocked_1t） */
