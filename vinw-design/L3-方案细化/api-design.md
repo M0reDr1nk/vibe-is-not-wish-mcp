@@ -711,17 +711,45 @@ v0.14 只在 **L4→L5** 与 **项目完成前** 校验"审核结论是否匹配
 `heal_drift` 内部顺序**必须是**：
 
 1. `detect_drift` 取漂移快照（判定不依赖后续写盘）
-2. 无代码文件 → `config_error` 放行（不写报告）
-3. `design_lag` → `DesignLagError`
+2. `design_lag` → `DesignLagError`（**先于** config_error：代码整体消失时更可能是设计/实现脱节，
+   hint 同时提示检查 `code_root` / `code_extensions`）
+3. 无代码文件 → `config_error` 放行（不写报告）
 4. **LLM 结论校验**（策略要求且不满足 → `LLMAuditRequiredError`）
 5. 才执行 `gate.ensure()` 的 text 复查
 6. 全部通过后才 `sync_audited_state()` 重新锚定 + 写 `auto-audit`
 
 > 早期实现把第 6 步放在第 4 步之前，导致"被拒一次后重试即通过"的绕过（reviewer6 GAP-001）；`L4` 基线处 `ensure()` 抢在 heal 之前也会同样洗掉漂移（GAP-002），现已在 L4 分支先 heal。
 
+### 漂移基线的取值顺序（v0.15 补充）
+
+`detect_drift` 的审计基线依次尝试：
+
+1. `manifest.layer_states[L4].consistency.code_fingerprint` / `design_hash`
+2. 最近一份 LLM 报告的 `code_fingerprint` / `design_hash`
+3. 最近一份通过报告的指纹
+4. 都没有 → `unknown`（不得等同 clean）
+
+> 回退后若报告缺 `design_hash`，按 §1「设计未知」处理（`drifted`，要求重新审计）。
+
+### 结论复用条件（v0.15 补充）
+
+`se_check_consistency(method="llm")` 仅在下列条件**全部**满足时返回 `reused=true`：
+
+1. `freshness(kind="llm")` 为 `fresh`
+2. `llm_status().satisfied` 为真
+3. 调用方未传 `ignore_fresh=true`
+
+否则一律返回可执行的审核 prompt。`ignore_fresh` 用于"必须重新审一遍"的场景。
+
+### 失败重审不得锚定（v0.15 补充）
+
+`ensure()` 生成报告后：`overall == passed` 才刷新 `consistency.code_fingerprint/design_hash`；
+失败时只写 `last_failed_report/last_failed_overall/last_failed_at`，**不改锚点**——
+否则一次失败的重审会把漂移洗白，重试即可绕过全部检查。
+
 ### force 与已知限制
 
-- `force=true` **跳过 heal**（含 v0.15 结论要求），与 v0.14 §2 一致；该路径会在 `changelog` 的 baseline 条目保留原因文本，事后可辨
+- `force=true` **跳过 heal**（含 v0.15 结论要求）；该路径会在 `changelog` 的 baseline 条目以 `[force]` 前缀标注，事后可辨
 - 「结论指纹取入库时刻」（GAP-006）：审核 prompt 不含 nonce，若先改代码后补存结论，指纹仍会匹配。**声明式绑定，不可密码学验证**；缓解：先审核再改动，或改动后重审
 
 ### 与既有门控的关系

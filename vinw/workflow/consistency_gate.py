@@ -202,7 +202,14 @@ class ConsistencyGate:
 
         overall = result.get("overall", "unknown")
         meta = frontmatter.load(report_path).metadata
-        self._record_state(meta, overall)
+        # Anchor only on success: a failed re-check must not refresh the
+        # audited fingerprint, otherwise a retry would see a clean tree.
+        if overall == "passed":
+            self._record_state(meta, overall)
+        else:
+            # Keep the old anchor, but record which report failed so the tool
+            # response can point at it without re-anchoring the baseline.
+            self._record_failed_report(meta, overall)
 
         return {
             "state": status["state"],
@@ -388,6 +395,18 @@ class ConsistencyGate:
                 or consistency.get("design_hash"),
             }
         )
+        entry["consistency"] = consistency
+        manifest["layer_states"] = states
+        self.project.write_manifest(manifest)
+
+    def _record_failed_report(self, meta: dict[str, Any], overall: str) -> None:
+        manifest = self.project.read_manifest()
+        states = manifest.get("layer_states", {})
+        entry = states.setdefault(L4, {})
+        consistency = entry.get("consistency") or {}
+        consistency["last_failed_report"] = meta.get("report_id")
+        consistency["last_failed_overall"] = overall
+        consistency["last_failed_at"] = meta.get("checked_at")
         entry["consistency"] = consistency
         manifest["layer_states"] = states
         self.project.write_manifest(manifest)

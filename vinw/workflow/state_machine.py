@@ -315,12 +315,13 @@ class WorkflowEngine:
     def baseline(self, layer: str, reason: str = "", force: bool = False) -> dict[str, Any]:
         # heals run after the guards below (see the call site at the end):
         # a rejected transition must not leave an auto-audit trail.
+        l4_heal: dict[str, Any] | None = None
         if layer == L4_LAYER and not force:
             gate = ConsistencyGate(self.project)
-            # Heal first: ensure() re-anchors the audited fingerprint, so
-            # running it before the drift check would silently clear drift and
-            # skip the v0.15 verdict requirement.
-            self.heal_drift(f"baseline:{layer}")
+            # Heal first (so ensure() cannot wash the drift away before the
+            # verdict check), but defer the audit-trail entry: the placeholder
+            # guard below may still reject this transition.
+            l4_heal = self.heal_drift(f"baseline:{layer}", log=False)
             status = gate.ensure()
 
             if status.get("overall") == "config_error":
@@ -372,6 +373,26 @@ class WorkflowEngine:
         if not force and layer != L4_LAYER:
             # (the L4 branch above already healed, before its ensure())
             self.heal_drift(f"baseline:{layer}")
+
+        # All guards passed: commit the deferred audit-trail entry (L4 branch)
+        if not force and layer == L4_LAYER and l4_heal and l4_heal.get("healed"):
+            self._append_changelog(
+                change_type="auto-audit",
+                scope=f"baseline:{layer}",
+                reason=(
+                    f"阶段结束时检测到工作区漂移"
+                    f"（{str(l4_heal['drift'].get('baseline_fingerprint'))[:12]}"
+                    f"→{str(l4_heal['drift'].get('current_fingerprint'))[:12]}），"
+                    f"已自动重跑一致性检查并通过"
+                ),
+                before=str(l4_heal["drift"].get("baseline_fingerprint")),
+                after=str(l4_heal["drift"].get("current_fingerprint")),
+            )
+
+        if force:
+            # A forced baseline bypasses every consistency guard: make that
+            # visible in the audit trail instead of leaving no trace.
+            reason = f"[force] {reason or '跳过一致性/占位符守卫'}"
 
         version = self._generate_baseline_version(layer)
         self.project.freeze_baseline(layer, version, reason)

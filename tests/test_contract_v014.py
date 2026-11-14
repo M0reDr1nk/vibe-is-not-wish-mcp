@@ -699,3 +699,77 @@ class TestNoRetryBypass:
         consistency = proj.read_manifest()["layer_states"]["L4-编码实现"]["consistency"]
         assert consistency.get("code_fingerprint")
         assert consistency.get("design_hash")
+
+
+class TestFailedRecheckDoesNotAnchor:
+    """reviewer7 GAP-001 residue: a failing text re-check must not re-anchor."""
+
+    def _setup(self, proj, policy="text"):
+        manifest = proj.read_manifest()
+        manifest["consistency_policy"] = policy
+        proj.write_manifest(manifest)
+        ConsistencyGate(proj).ensure()
+
+    def test_retry_after_failed_text_check_still_blocked(self, proj):
+        self._setup(proj)
+        (proj.root / "main.py").write_text("def renamed():\n    return 0\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n改\n")
+
+        from vinw.workflow.drift import detect_drift
+
+        for _ in range(2):
+            with pytest.raises(Exception):
+                WorkflowEngine(proj).baseline("L5-测试验证", "retry")
+            # the failed attempt must not make the tree look clean
+            assert detect_drift(proj)["state"] != "clean"
+
+    def test_failed_report_recorded_without_anchoring(self, proj):
+        self._setup(proj)
+        gate = ConsistencyGate(proj)
+        anchored = proj.read_manifest()["layer_states"]["L4-编码实现"]["consistency"][
+            "code_fingerprint"
+        ]
+
+        (proj.root / "main.py").write_text("def renamed():\n    return 0\n")
+        result = gate.ensure()
+        assert result["overall"] != "passed"
+
+        consistency = proj.read_manifest()["layer_states"]["L4-编码实现"]["consistency"]
+        assert consistency.get("last_failed_report")
+        assert consistency["code_fingerprint"] == anchored  # unchanged
+
+
+class TestL4DeferredAuditLog:
+    """GAP-012: a rejected L4 baseline must not leave an auto-audit entry."""
+
+    def test_placeholder_rejection_leaves_no_audit(self, proj):
+        from vinw.workflow.state_machine import PlaceholderTodoError
+
+        ConsistencyGate(proj).ensure()
+        (proj.root / "main.py").write_text("def main():\n    return 6\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n改\n")
+
+        # L4 README starts with the template placeholder in a fresh project
+        readme = proj.read_layer_readme("L4-编码实现")
+        proj.write_layer_readme(
+            "L4-编码实现",
+            readme,
+            replace_todo_section(readme["content"], "## 当前待办\n\n- [ ] 初始化本层工作"),
+        )
+
+        changelog = proj.vinw_dir / "changelog.md"
+        before = changelog.read_text(encoding="utf-8").count("auto-audit")
+
+        with pytest.raises((PlaceholderTodoError, Exception)):
+            WorkflowEngine(proj).baseline("L4-编码实现", "rejected")
+
+        assert changelog.read_text(encoding="utf-8").count("auto-audit") == before
+
+
+class TestForceIsVisible:
+    """GAP-013: force must leave a trace in the changelog."""
+
+    def test_forced_baseline_marks_reason(self, proj):
+        WorkflowEngine(proj).baseline("L1-需求拆解", "forced for test", force=True)
+        changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
+        assert "[force]" in changelog

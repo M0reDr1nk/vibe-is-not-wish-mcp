@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from vinw.store.project import Project
+from vinw.workflow.consistency_gate import ConsistencyGate
 from vinw.workflow.consistency_llm import TextConsistencyChecker, LLMConsistencyAuditor
 
 
@@ -178,7 +179,15 @@ class TestGateErrorHints:
             assert "error" in result
             assert "todo" not in result["hint"].lower()
             assert "consistency-reports" in result["hint"]
-            assert result["consistency"] is not None
+            consistency = result["consistency"]
+            assert consistency is not None
+            # failing checks are recorded but must NOT re-anchor the baseline
+            assert consistency.get("last_failed_report")
+            assert consistency.get("code_fingerprint") != ConsistencyGate(
+                proj
+            ).current_fingerprint()["code_fingerprint"] or consistency.get(
+                "code_fingerprint"
+            ) is None
         finally:
             server._active_project = saved
 
