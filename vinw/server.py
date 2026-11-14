@@ -1299,7 +1299,9 @@ def se_request_clarification(
     topic: str = "",
     context: str = "",
     recommendation: str = "",
-    blocking: bool = False,
+    impact: str = "medium",
+    reversibility: str = "reversible",
+    blocking: bool | None = None,
     project: str | None = None,
 ) -> str:
     """Request user alignment on an ambiguous point (R31).
@@ -1334,12 +1336,41 @@ def se_request_clarification(
                 ensure_ascii=False,
             )
     topic_norm = topic.strip() or "".join(question.split())[:32]
+
+    # v0.18：按影响×可逆性自动决定是否阻塞（显式 blocking 优先）
+    if impact not in ("high", "medium", "low"):
+        return json.dumps({"error": "impact 需为 high/medium/low"}, ensure_ascii=False)
+    if reversibility not in ("reversible", "irreversible"):
+        return json.dumps(
+            {"error": "reversibility 需为 reversible/irreversible"}, ensure_ascii=False
+        )
+    auto_blocking = impact == "high" and reversibility == "irreversible"
+    if blocking is None:
+        blocking = auto_blocking
+
+    # v0.18：同 (layer, topic) 未裁决队列达 2 条 → 第 3 条强制阻塞
+    queue_depth = sum(
+        1
+        for c in proj.read_manifest().get("pending_confirmations", [])
+        if c.get("item_type") == "clarification"
+        and not c.get("resolved_at")
+        and c.get("layer") == layer
+        and (c.get("topic_normalized") or "") == topic_norm
+    )
+    escalated = False
+    if queue_depth >= 2 and not blocking:
+        blocking = True
+        escalated = True
+
     record = _clarification_record(
         question=question, layer=layer, uncertainty=uncertainty,
         assumption=assumption, deviation=deviation, topic=topic_norm,
         context=context, options=opts or [], recommendation=rec,
         blocking=blocking, proj=proj,
     )
+    record["impact"] = impact
+    record["reversibility"] = reversibility
+    record["blocking"] = blocking
     engine = WorkflowEngine(proj)
     cfm_id = engine.require_confirmation(
         item_type="clarification",
@@ -1348,10 +1379,41 @@ def se_request_clarification(
         blocking=blocking,
         extra=record,
     )
-    result: dict[str, Any] = {"confirmation_id": cfm_id, "status": "pending",
-                              "auto_options": ["assume-ok", "other"]}
+    result: dict[str, Any] = {
+        "confirmation_id": cfm_id,
+        "status": "pending",
+        "auto_options": ["assume-ok", "other"],
+        "blocking": blocking,
+        "impact": impact,
+        "reversibility": reversibility,
+    }
+    if escalated:
+        result["escalated"] = True
+        result["warning"] = (
+            f"该主题已有 {queue_depth} 条未裁决澄清，本条升级为阻塞（必须正面裁决）"
+        )
     if record["repeat_warning"]:
         result["warning"] = record["repeat_warning"]
+
+    # v0.18：非阻塞 → 记录「带假设推进」，承诺本层结束时复查
+    if not blocking:
+        try:
+            from .store.changelog import append_changelog_entry
+
+            append_changelog_entry(
+                proj.vinw_dir / "changelog.md",
+                change_type="assumption-taken",
+                layer=layer,
+                descent=proj.read_manifest().get("current_descent", 1),
+                scope=cfm_id,
+                reason=(
+                    f"按假设推进：{question[:60]} | 假设：{assumption[:60]} | "
+                    f"影响={impact} 可逆={reversibility} 复查点=本层结束"
+                ),
+            )
+        except Exception as e:  # 留痕失败不应阻断澄清创建
+            _log.warning("写 assumption-taken 记录失败: %s", e)
+
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
@@ -1431,6 +1493,55 @@ def se_request_clarification_from_finding(
         result["finding_marked"] = finding_id
         return json.dumps(result, ensure_ascii=False, indent=2)
     return result_raw
+
+
+@mcp.tool()
+def se_clarification_brief(project: str | None = None) -> str:
+    """One-shot digest of pending clarifications + assumptions taken (v0.18).
+
+    Lets the harness report at a checkpoint instead of interrupting per item.
+    """
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+    pending = proj.read_manifest().get("pending_confirmations", [])
+    blocking_items, queued_items = [], []
+    for c in pending:
+        if c.get("item_type") != "clarification" or c.get("resolved_at"):
+            continue
+        item = {
+            "id": c.get("id"),
+            "layer": c.get("layer"),
+            "question": c.get("question"),
+            "assumption": c.get("assumption"),
+            "deviation": c.get("deviation"),
+            "impact": c.get("impact"),
+            "reversibility": c.get("reversibility"),
+            "options": c.get("options"),
+            "recommendation": c.get("recommendation"),
+        }
+        (blocking_items if c.get("blocking") else queued_items).append(item)
+
+    assumptions = []
+    changelog = proj.vinw_dir / "changelog.md"
+    if changelog.exists():
+        for line in changelog.read_text(encoding="utf-8").splitlines():
+            if "assumption-taken" in line or line.startswith("| **原因** | 按假设推进"):
+                assumptions.append(line.strip()[:200])
+    return json.dumps(
+        {
+            "blocking": blocking_items,
+            "queued": queued_items,
+            "assumptions_taken": assumptions[-20:],
+            "summary": {
+                "blocking": len(blocking_items),
+                "queued": len(queued_items),
+                "assumptions": len(assumptions),
+            },
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 # ── Guidance ────────────────────────────────────────────────

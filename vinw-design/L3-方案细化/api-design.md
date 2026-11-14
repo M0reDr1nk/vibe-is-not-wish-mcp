@@ -7,7 +7,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 
 # 接口设计
 
-## MCP 工具清单（共 38 个，由 scripts/gen_tool_catalog.py 生成）
+## MCP 工具清单（共 39 个，由 scripts/gen_tool_catalog.py 生成）
 
 > 生成方式：解析 `vinw/server.py` 中所有 `se_*` 函数；`tests/test_contract_v014.py` 断言此处条目数 == 实际注册数。
 
@@ -17,6 +17,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 | `se_baseline` | — | — |
 | `se_can_descend` | — | — |
 | `se_check_consistency` | — | — |
+| `se_clarification_brief` | — | — |
 | `se_complete_project` | — | — |
 | `se_descend` | — | — |
 | `se_export_projects` | — | — |
@@ -1027,3 +1028,71 @@ decision_bias 本轮不进设计（L2 调研已定结论）；实现另行立项
 | 版本 | 下降轮 | 内容 |
 |------|--------|------|
 | v0.17 | descent-16 | 澄清对齐闭环（门槛/uncertainty/assumption/deviation/topic）、选项结构、R30 防护（server_version/design_hash_algo） |
+
+
+---
+
+# v0.18 澄清 harness（descent-17 / asc-016，R34）
+
+## 一、分级：impact × reversibility
+
+`se_request_clarification` 新增两个字段：
+
+| 字段 | 取值 | 含义 |
+|------|------|------|
+| `impact` | `high` / `medium` / `low` | 决策对产物方向的影响面 |
+| `reversibility` | `reversible` / `irreversible` | 做错后能否低成本回退 |
+
+**自动阻塞规则**（`blocking` 未显式给出时）：
+
+```
+blocking := (impact == "high" and reversibility == "irreversible")
+```
+
+显式传 `blocking` 时以参数为准（保留人工覆盖能力）。
+
+## 二、带假设推进（assumption-taken）
+
+非阻塞澄清创建时自动写 changelog 条目 `assumption-taken`：
+
+```
+{question, assumption, deviation, impact, reversibility, review_by: "layer-exit"}
+```
+
+即：agent 承诺按 assumption 继续，并在**本层结束时**复查。用户可在 `se_clarification_brief`
+看到全部"已按假设推进"的决策。
+
+## 三、批量呈报：`se_clarification_brief`
+
+```
+se_clarification_brief(project) -> {
+  blocking: [ {id, question, assumption, deviation, options, recommendation} ],
+  queued:   [ {...}, {...} ],
+  assumptions_taken: [ {question, assumption, recorded_at} ],   # 来自 changelog
+  summary: {blocking: n, queued: n, assumptions: n}
+}
+```
+
+用途：TUI 面板 / agent 在层转换时一次性呈报给用户，避免逐条打断。
+
+## 四、队列上限与升级
+
+同一 `(layer, topic_normalized)` 的**未裁决**澄清达到 2 条时，第 3 条强制 `blocking=true`
+并在返回体标 `escalated: true`（理由：反复延后说明该歧义影响收敛，必须正面裁决）。
+
+## 五、门控衔接
+
+- `blocking=true` 的澄清进入既有 `blocking_pending` 统计，阻断层转换（已实现）
+- `blocking=false` 的澄清**不阻断**，但出现在 `se_clarification_brief.queued`
+- 层转换时工具返回体附带 `pending_clarifications: {blocking: n, queued: n}`（提示但不改判定）
+
+## 六、与既有 R31 的关系
+
+R31 的主体（LLM 发起、参考选项、assumption/deviation、对齐闭环）不变；
+v0.18 只改**何时阻塞、如何收集、如何呈报**。
+
+## 版本历史补记
+
+| 版本 | 下降轮 | 内容 |
+|------|--------|------|
+| v0.18 | descent-17 | 澄清 harness：影响分级、自动阻塞规则、assumption-taken 留痕、批量 brief、队列升级 |

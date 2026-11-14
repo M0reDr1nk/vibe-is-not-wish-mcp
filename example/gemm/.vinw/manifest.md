@@ -26,7 +26,7 @@ ascent_history:
   reason: R4 扩展性实测 3.22× 未达 4× 门槛：需改设计为 MC=64 细粒度 + 按 perflevel 加权分块，消除 E 核尾延迟
   to_baseline: v003
   to_layer: L3-方案细化
-completed_at: '2026-11-14T08:28:30.729820+00:00'
+completed_at: '2026-11-14T09:31:25.298593+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 4
 current_layer: L7-终验
@@ -85,10 +85,10 @@ layer_states:
     latest_baseline: v002
     status: baselined
   L7-终验:
-    completed_at: '2026-11-14T08:28:30.729820+00:00'
+    completed_at: '2026-11-14T09:31:25.298593+00:00'
     descent_count: 2
     latest_baseline: null
-    status: in_progress
+    status: completed
 name: gemm
 pending_confirmations:
 - blocking: true

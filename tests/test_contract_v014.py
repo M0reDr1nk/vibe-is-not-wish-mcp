@@ -1155,3 +1155,66 @@ class TestClarificationEdgeCases:
             assert "error" in missing
         finally:
             server._active_project = saved
+
+
+class TestClarificationHarness:
+    """v0.18: ask-by-impact instead of always stopping."""
+
+    def _req(self, proj, **over):
+        import vinw.server as server
+
+        base = {
+            "question": "分块取 4x8 还是 6x16？", "layer": "L3-方案细化",
+            "uncertainty": "两种解读都合理", "assumption": "取 4x8",
+            "deviation": "若 6x16 则 packing 布局不同", "options": '["4x8","6x16"]',
+        }
+        base.update(over)
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            return json.loads(server.se_request_clarification(**base))
+        finally:
+            server._active_project = saved
+
+    def test_high_irreversible_blocks_automatically(self, proj):
+        r = self._req(proj, impact="high", reversibility="irreversible")
+        assert r["blocking"] is True
+        assert r["impact"] == "high"
+
+    def test_low_impact_queues_and_records_assumption(self, proj):
+        r = self._req(proj, impact="low", reversibility="reversible")
+        assert r["blocking"] is False
+        changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
+        assert "assumption-taken" in changelog
+
+    def test_explicit_blocking_overrides_auto(self, proj):
+        r = self._req(proj, impact="low", blocking=True)
+        assert r["blocking"] is True
+
+    def test_queue_escalates_after_two_pending(self, proj):
+        for _ in range(2):
+            self._req(proj, impact="low", topic="same-topic")
+        third = self._req(proj, impact="low", topic="same-topic")
+        assert third["blocking"] is True
+        assert third.get("escalated") is True
+
+    def test_brief_groups_and_reports(self, proj):
+        import vinw.server as server
+
+        self._req(proj, impact="high", reversibility="irreversible",
+                  question="阻塞问题")
+        self._req(proj, impact="low", question="排队问题")
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            brief = json.loads(server.se_clarification_brief())
+        finally:
+            server._active_project = saved
+        assert brief["summary"]["blocking"] == 1
+        assert brief["summary"]["queued"] == 1
+        assert brief["summary"]["assumptions"] >= 1
+        assert brief["blocking"][0]["question"] == "阻塞问题"
+
+    def test_invalid_impact_rejected(self, proj):
+        r = self._req(proj, impact="critical")
+        assert "error" in r
