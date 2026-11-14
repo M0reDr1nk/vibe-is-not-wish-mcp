@@ -9,28 +9,44 @@ ascent_history:
     pthreads 主实现 + OpenMP 可选
   to_baseline: v001
   to_layer: L3-方案细化
+- created_at: '2026-11-14T07:24:46.152850+00:00'
+  descent_after: 3
+  descent_before: 2
+  from_layer: L4-编码实现
+  id: asc-002
+  reason: R3/验收条款「相对 naive ikj ≥8×」经验证不可达：bench 基线 ikj 单线程已达 23.64 GFLOPS≈单核 NEON
+    峰值(25.6)，8×=189 GFLOPS≈整机峰值；而真·朴素 ijk 仅 3.56 GFLOPS（相对可达 30×）。需回 L1 重新定义性能基线口径
+  to_baseline: v001
+  to_layer: L1-需求拆解
 created_at: '2026-11-13T17:28:57.208978+00:00'
-current_descent: 2
-current_layer: L4-编码实现
-descent_started_at: '2026-11-13T17:36:31.069853+00:00'
+current_descent: 3
+current_layer: L1-需求拆解
+descent_started_at: '2026-11-14T07:24:46.155098+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
   L1-需求拆解:
+    active_ascent: asc-002
     baselined_at: '2026-11-13T17:32:39.993347+00:00'
-    descent_count: 1
+    descent_count: 2
     latest_baseline: v001
-    status: baselined
+    status: in_progress
   L2-参考文献与方案搜证汇总:
     baselined_at: '2026-11-13T17:33:42.323870+00:00'
     descent_count: 1
     latest_baseline: v001
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T07:24:46.155086+00:00'
+    superseded_by: asc-002
   L3-方案细化:
     active_ascent: asc-001
     baselined_at: '2026-11-13T17:36:40.807803+00:00'
     descent_count: 2
     latest_baseline: v002
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T07:24:46.155086+00:00'
+    superseded_by: asc-002
   L4-编码实现:
     consistency:
       checked_at: '2026-11-13T18:05:56.170574+00:00'
@@ -40,7 +56,10 @@ layer_states:
       report_id: 378340bc
     descent_count: 2
     latest_baseline: null
-    status: in_progress
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T07:24:46.155086+00:00'
+    superseded_by: asc-002
   L5-测试验证:
     descent_count: 0
     latest_baseline: null
@@ -94,5 +113,53 @@ pending_confirmations:
   proposed_at: '2026-11-13T17:33:04.104243+00:00'
   resolution: approve
   resolved_at: '2026-11-13T17:33:39.585184+00:00'
+- assumption: R3 的「相对 naive ikj ≥8×」中，基线指 bench 现有的 naive-ikj（ikj 循环序、全向量化，实测单线程 23.64
+    GFLOPS）。若按此口径，8× = 189 GFLOPS，接近 M3 整机 NEON 峰值（8 核 ×25.6），纯 C 实现不可达。
+  blocking: true
+  context: descent-3 实测（Apple M3，4P+4E）：真·朴素 ijk 3.56 GFLOPS / ikj 23.64 GFLOPS（≈单核峰值）/
+    当前 blocked 单线程 25.14、8 线程 109.19（vs ikj 3.9×，vs ijk 30.6×）。Accelerate 1597 GFLOPS
+    来自 AMX 协处理器，纯 C/NEON 不可比。
+  corrected: true
+  descent: 3
+  description: GEMM 性能验收基线应如何定义？当前 bench 的「naive-ikj」实测已达单核硬件峰值，8× 不可达。
+  deviation: 若基线本意为真·朴素 ijk，则交付当前已大幅超 8×（单线程 7.06×，略低于 8×；8 线程 30.6×）；若坚持 ikj 口径，则需求需改为可达目标（约
+    4~5×），否则永远无法验收。
+  feedback: 按推荐选择双基线方案：验收门槛用真·朴素 ijk（≥8×），ikj 作为性能上限参照展示
+  id: cfm-20261114-072455-003
+  item_type: clarification
+  layer: L1-需求拆解
+  options:
+  - description: bench 增加 ijk 参考实现（内部步长 N 的经典朴素版），性能条款改为「相对朴素 ijk ≥8×」，单线程与多线程分别验收
+    id: ijk-baseline
+    impact: 当前已 30.6×（MT）/7.06×（ST），只需微调 ST 使其过 8×，需求立即可达
+    label: 基线改为真·朴素 ijk
+  - description: 承认 ikj 基线已接近硬件峰值，条款改为「相对 ikj ≥4×」（MT）
+    id: ikj-lower-4x
+    impact: 当前 3.9× 已接近，小幅优化即可达标；但单线程 1.06× 无法宣称加速
+    label: 保留 ikj 基线但降至 4×
+  - description: 不再相对比较，改为「1024³ ≥120 GFLOPS（8 线程）、单线程 ≥24 GFLOPS」
+    id: absolute-gflops
+    impact: 目标清晰可验，需继续优化线程扩展（当前 109）
+    label: 改为绝对性能目标
+  - description: bench 同时给出真·朴素 ijk 与 ikj 两个参考，「≥8× vs 朴素 ijk」为验收门槛，ikj 作为性能上限参考展示
+    id: both-baselines
+    impact: 验收明确且信息完整，bench 输出更诚实
+    label: 双基线都要
+  - description: 按 assumption 继续
+    id: assume-ok
+    label: 确认当前假设
+  - id: other
+    label: 其他（请说明）
+  proposed_at: '2026-11-14T07:24:55.752568+00:00'
+  question: GEMM 性能验收基线应如何定义？当前 bench 的「naive-ikj」实测已达单核硬件峰值，8× 不可达。
+  recommendation:
+    id: both-baselines
+    reason: 双基线信息最完整：验收门槛用真·朴素 ijk（当前已 30.6×，可达），ikj 留作性能上限参照，避免「基线已达峰值」的误导
+  repeat_warning: null
+  resolution: both-baselines
+  resolved_at: '2026-11-14T07:26:23.975623+00:00'
+  topic_normalized: 性能验收基线口径
+  uncertainty: R3 写「相对 naive ikj ≥8×」，但 bench 里的 naive-ikj 实测 23.64 GFLOPS 已达单核峰值，按此口径
+    8×=189 GFLOPS 超出纯 C 可达范围；需求作者本意可能是经典朴素 ijk（3.56 GFLOPS）而非向量化的 ikj。
 se_version: '2.0'
 ---

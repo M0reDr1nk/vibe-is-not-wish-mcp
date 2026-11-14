@@ -1,9 +1,14 @@
 ---
+baseline_reason: L1 需求拆解 v001：R1-R7 + 非目标 + Q1-Q6，用户批准
+baseline_version: v001
+baselined_at: '2026-11-13T17:32:39.992319+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L1-需求拆解
+rolled_back_at: '2026-11-14T07:24:46.154677+00:00'
+rolled_back_from: v001
 se_version: '2.0'
-status: baselined
+status: in_progress
 todo_descent: 1
 ---
 
@@ -15,7 +20,6 @@ todo_descent: 1
 - [x] 拆解为 R1-R7 七项子需求（接口/正确性/单线程/多线程/基准/可移植/构建）
 - [x] 明确非目标（无 FP16/GPU/batched/转置）与 Q1-Q6 问题域
 - [x] 定义验收方式（make test / make bench / 8x 加速门槛）
-
 ## 阶段小结
 
 （阶段完成时填写）
