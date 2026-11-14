@@ -123,15 +123,19 @@ layer_states:
   L4-编码实现:
     audit:
       auto_fixable: 0
-      decision: auto_fixable
-      escalations: 0
-      findings: 14
-      report_id: 7474b697
+      decision: escalate
+      escalations: 9
+      findings: 21
+      report_id: f454649b
     baselined_at: '2026-11-14T02:42:32.784118+00:00'
     consistency:
       checked_at: '2026-11-14T02:53:28.667971+00:00'
       code_fingerprint: 5660f9f92a66e1e6a7ee892747a6d2d1351ba834d2f86134a493cc6bf4e375d5
+      descend: 12
       descent: 12
+      llm_auditor: reviewer
+      llm_report_id: f454649b
+      llm_verdict: warning
       overall: passed
       report_id: f01e70bf
     descent_count: 11

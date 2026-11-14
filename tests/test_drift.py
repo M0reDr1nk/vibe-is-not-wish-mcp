@@ -86,3 +86,43 @@ class TestApiExposure:
         finally:
             server._active_project = None
         assert payload["drift"]["detected"] is True
+
+
+class TestDriftDetails:
+    """Reviewer findings INC-010 / INC-011."""
+
+    def test_changed_lists_modified_files(self, proj):
+        import frontmatter
+
+        from vinw.workflow.consistency_llm import LLMConsistencyAuditor
+
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        (proj.root / "main.py").write_text("def main():\n    return 5\n")
+
+        result = detect_drift(proj)
+        assert result["changed"], "changed must not be empty when drift is detected"
+        assert any("main.py" in entry for entry in result["changed"])
+
+    def test_unknown_state_is_not_clean(self, proj, monkeypatch):
+        def boom(self):
+            raise RuntimeError("cannot fingerprint")
+
+        monkeypatch.setattr(ConsistencyGate, "current_fingerprint", boom)
+        result = detect_drift(proj)
+        assert result["state"] == "unknown"
+        assert drift_lines(proj), "unknown must surface a warning, not silence"
+
+    def test_clean_state_has_no_lines(self, proj):
+        ConsistencyGate(proj).ensure()
+        assert detect_drift(proj)["state"] == "clean"
+        assert drift_lines(proj) == []

@@ -42,8 +42,10 @@ def normalize_finding(raw: dict[str, Any]) -> dict[str, Any]:
         classification = "ambiguous"
     if confidence not in CONFIDENCES:
         confidence = "low"
+    finding_id = raw.get("id") or raw.get("finding_id") or "FINDING"
     return {
-        "id": raw.get("id") or "FINDING",
+        "id": finding_id,
+        "finding_id": finding_id,
         "kind": raw.get("kind") or ("gap" if raw.get("missing") else "inconsistency"),
         "classification": classification,
         "confidence": confidence,
@@ -64,6 +66,29 @@ def _difference_from(raw: dict[str, Any]) -> str:
     code = raw.get("code_ref") or "无对应实现"
     desc = raw.get("description") or raw.get("missing") or ""
     return f"设计侧: {design} | 代码侧: {code} | {desc}"
+
+
+def _untriaged(raw: dict[str, Any], kind: str, fallback_id: str) -> dict[str, Any]:
+    """A report finding with no verdict yet: always routable, never crashy."""
+    finding = {
+        "id": raw.get("id") or fallback_id,
+        "kind": kind,
+        "classification": raw.get("classification") or "untriaged",
+        "confidence": raw.get("confidence") or "untriaged",
+        "description": raw.get("description"),
+        "design_ref": raw.get("design_ref"),
+        "code_ref": raw.get("code_ref"),
+        "severity": raw.get("severity"),
+        "difference": raw.get("difference")
+        or _difference_from({**raw, "design_ref": raw.get("design_ref")}),
+        "analysis": raw.get("analysis") or raw.get("description") or "",
+        "recommendation": raw.get("recommendation") or "",
+        "impact": raw.get("impact") or "",
+        # A report finding that was never triaged is open by definition
+        "status": raw.get("status") or "open",
+    }
+    finding["finding_id"] = finding["id"]
+    return finding
 
 
 def _as_list(value: Any) -> list[dict[str, Any]]:
@@ -102,8 +127,12 @@ class AuditTriage:
             / f"report-{report_id}.md"
         )
 
-    def latest_llm_report(self) -> tuple[str, dict[str, Any]] | None:
-        """Newest kind=llm report carrying triage data."""
+    def latest_llm_report(
+        self, descent: int | None = None
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Newest kind=llm report for a descent (defaults to the current one)."""
+        if descent is None:
+            descent = self.project.read_manifest().get("current_descent", 1)
         reports_dir = self.project.get_layer_dir(L4) / "consistency-reports"
         best: tuple[str, dict[str, Any]] | None = None
         if not reports_dir.exists():
@@ -114,6 +143,8 @@ class AuditTriage:
             except Exception:
                 continue
             if (meta.get("kind") or "text") != "llm":
+                continue
+            if meta.get("descent") is None or int(meta["descent"]) != int(descent):
                 continue
             if best is None or str(meta.get("checked_at", "")) > str(
                 best[1].get("checked_at", "")
@@ -142,29 +173,17 @@ class AuditTriage:
         candidates: list[dict[str, Any]] = []
         for inc in _as_list(meta.get("inconsistencies")):
             candidates.append(
-                {
-                    "id": inc.get("id") or f"INC-{len(candidates) + 1:03d}",
-                    "kind": "inconsistency",
-                    "classification": None,  # untriaged
-                    "confidence": None,
-                    "description": inc.get("description"),
-                    "design_ref": inc.get("design_ref"),
-                    "code_ref": inc.get("code_ref"),
-                    "severity": inc.get("severity"),
-                }
+                _untriaged(
+                    inc,
+                    kind="inconsistency",
+                    fallback_id=f"INC-{len(candidates) + 1:03d}",
+                )
             )
         for gap in _as_list(meta.get("gaps")):
             candidates.append(
-                {
-                    "id": gap.get("id") or f"GAP-{len(candidates) + 1:03d}",
-                    "kind": "gap",
-                    "classification": None,
-                    "confidence": None,
-                    "description": gap.get("description"),
-                    "design_ref": gap.get("design_ref"),
-                    "code_ref": gap.get("code_ref"),
-                    "severity": gap.get("severity"),
-                }
+                _untriaged(
+                    gap, kind="gap", fallback_id=f"GAP-{len(candidates) + 1:03d}"
+                )
             )
         return candidates
 
@@ -184,7 +203,14 @@ class AuditTriage:
         if not isinstance(items, list):
             raise TriageError("triage 必须是数组")
 
-        findings = [normalize_finding(item) for item in items]
+        findings = []
+        for item in items:
+            finding = normalize_finding(item)
+            # status is system-maintained: a caller cannot self-certify
+            finding["status"] = "open"
+            finding.pop("decision", None)
+            finding.pop("decision_note", None)
+            findings.append(finding)
         post = frontmatter.load(path)
         post.metadata["triage"] = findings
         post.metadata["triage_counts"] = self._counts(findings)
@@ -239,10 +265,10 @@ class AuditTriage:
         if not findings:
             return {"decision": "clear", "report_id": report_id, "findings": 0}
 
-        open_findings = [f for f in findings if f["status"] == "open"]
+        open_findings = [f for f in findings if f.get("status") == "open"]
         auto = [f for f in findings if not requires_human(f)]
         human = [f for f in findings if requires_human(f)]
-        open_human = [f for f in human if f["status"] == "open"]
+        open_human = [f for f in human if f.get("status") == "open"]
 
         if open_human:
             return {
@@ -269,7 +295,7 @@ class AuditTriage:
         return [
             f
             for f in self.findings()
-            if requires_human(f) and f["status"] == "open"
+            if requires_human(f) and f.get("status") == "open"
         ]
 
     # ── Helpers ───────────────────────────────────────────────
@@ -290,12 +316,16 @@ class AuditTriage:
         states = manifest.get("layer_states", {})
         entry = states.setdefault(L4, {})
         decision = self.decision()
+        escalation_ids = [f["id"] for f in decision.get("escalations", []) or []]
+        auto_ids = [f["id"] for f in decision.get("auto_fixable", []) or []]
         entry["audit"] = {
             "report_id": report_id,
             "decision": decision.get("decision"),
             "findings": decision.get("findings", 0),
-            "escalations": len(decision.get("escalations", []) or []),
-            "auto_fixable": len(decision.get("auto_fixable", []) or []),
+            "escalations": escalation_ids,
+            "escalations_count": len(escalation_ids),
+            "auto_fixable": auto_ids,
+            "auto_fixable_count": len(auto_ids),
         }
         manifest["layer_states"] = states
         self.project.write_manifest(manifest)

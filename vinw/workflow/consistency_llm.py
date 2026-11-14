@@ -265,9 +265,17 @@ class LLMConsistencyAuditor:
         """Store a parsed LLM consistency report into the project."""
         if report_id is None:
             import hashlib
-            report_id = hashlib.sha256(
-                str(report_data).encode()
-            ).hexdigest()[:8]
+
+            # Content hash alone would collide on repeated identical verdicts and
+            # overwrite an existing report (losing its triage state).
+            digest = hashlib.sha256(str(report_data).encode()).hexdigest()[:8]
+            # Same content must still get a fresh slot: reports double as the
+            # carrier of triage state, so overwriting would lose decisions.
+            reports_dir = self.project.get_layer_dir("L4-编码实现") / "consistency-reports"
+            seq = 1
+            if reports_dir.exists():
+                seq = len(list(reports_dir.glob(f"report-{digest}-*.md"))) + 1
+            report_id = f"{digest}-{seq:02d}"
 
         layer_dir = self.project.get_layer_dir("L4-编码实现")
         reports_dir = layer_dir / "consistency-reports"

@@ -159,3 +159,32 @@ class TestAscendStateReset:
             assert states[layer]["status"] == "superseded", layer
         # reference baselines survive
         assert states["L4-编码实现"]["latest_baseline"] == "v001"
+
+
+class TestConfigErrorBranch:
+    """GAP-006: no code to audit must not block and must not write a report."""
+
+    def test_heal_without_code_files_is_config_error(self, tmp_path):
+        root = tmp_path / "nocode"
+        proj = Project.init(root, "nocode", "")
+        # no code files at all, and an audited fingerprint to compare against
+        manifest = proj.read_manifest()
+        manifest["layer_states"] = {
+            "L4-编码实现": {
+                "status": "baselined",
+                "consistency": {"code_fingerprint": "stale-value"},
+            }
+        }
+        proj.write_manifest(manifest)
+
+        reports_before = list(
+            (proj.get_layer_dir("L4-编码实现") / "consistency-reports").glob("report-*.md")
+        )
+        result = WorkflowEngine(proj).heal_drift("baseline:test")
+
+        assert result is not None
+        assert result["overall"] == "config_error"
+        reports_after = list(
+            (proj.get_layer_dir("L4-编码实现") / "consistency-reports").glob("report-*.md")
+        )
+        assert len(reports_after) == len(reports_before), "must not persist a report"

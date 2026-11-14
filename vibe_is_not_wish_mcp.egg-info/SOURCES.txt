@@ -1,6 +1,7 @@
 LICENSE
 README.md
 pyproject.toml
+tests/test_audit_persistence.py
 tests/test_audit_policy.py
 tests/test_bootstrap.py
 tests/test_consistency_gate.py

@@ -351,13 +351,19 @@ class ConsistencyGate:
         manifest = self.project.read_manifest()
         states = manifest.get("layer_states", {})
         entry = states.setdefault(L4, {})
-        entry["consistency"] = {
-            "report_id": meta.get("report_id"),
-            "overall": overall,
-            "descent": meta.get("descent"),
-            "checked_at": meta.get("checked_at"),
-            "code_fingerprint": meta.get("code_fingerprint"),
-        }
+        # Merge: llm_verdict / tooling_discrepancy are written by other code
+        # paths and must survive a text re-check.
+        existing = entry.get("consistency") or {}
+        existing.update(
+            {
+                "report_id": meta.get("report_id"),
+                "overall": overall,
+                "descent": meta.get("descent"),
+                "checked_at": meta.get("checked_at"),
+                "code_fingerprint": meta.get("code_fingerprint"),
+            }
+        )
+        entry["consistency"] = existing
         manifest["layer_states"] = states
         self.project.write_manifest(manifest)
 

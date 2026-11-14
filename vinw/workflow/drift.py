@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..store.project import Project
-from .consistency_gate import ConsistencyGate
+from .consistency_gate import ConsistencyGate, _parse_hashes
 
 
 def detect_drift(project: Project) -> dict[str, Any]:
@@ -37,6 +37,7 @@ def detect_drift(project: Project) -> dict[str, Any]:
         if not audited:
             return {
                 "detected": False,
+                "state": "unknown",
                 "reason": "no_audited_fingerprint",
                 "changed": [],
                 "baseline_fingerprint": None,
@@ -46,16 +47,27 @@ def detect_drift(project: Project) -> dict[str, Any]:
         if audited == current_fp:
             return {
                 "detected": False,
+                "state": "clean",
                 "reason": "in_sync",
                 "changed": [],
                 "baseline_fingerprint": audited,
                 "current_fingerprint": current_fp,
             }
 
-        changed: list[str] = []
         report = gate.latest_llm() or gate.latest_passing(kind="llm")
+        audited_hashes = _parse_hashes((report or {}).get("file_hashes"))
+        current_hashes = current["file_hashes"]
+        if audited_hashes:
+            changed = sorted(
+                f"{'added' if p not in audited_hashes else 'removed' if p not in current_hashes else 'modified'}:{p}"
+                for p in set(audited_hashes) | set(current_hashes)
+                if audited_hashes.get(p) != current_hashes.get(p)
+            )
+        else:
+            changed = []
         return {
             "detected": True,
+            "state": "drifted",
             "reason": "workspace_changed_since_audit",
             "changed": changed,
             "baseline_fingerprint": audited,
@@ -65,6 +77,7 @@ def detect_drift(project: Project) -> dict[str, Any]:
     except Exception as e:  # never let drift detection break the UI
         return {
             "detected": False,
+            "state": "unknown",
             "reason": f"unavailable: {e}",
             "changed": [],
             "baseline_fingerprint": None,
@@ -73,14 +86,28 @@ def detect_drift(project: Project) -> dict[str, Any]:
 
 
 def drift_lines(project: Project) -> list[str]:
-    """Human-readable drift notices for the TUI/CLI."""
+    """Human-readable drift notices for the TUI/CLI (clean yields nothing)."""
     drift = detect_drift(project)
-    if not drift["detected"]:
+    if drift.get("state") == "unknown":
+        return [
+            f"⚠ 无法判定工作区是否漂移（{drift.get('reason')}）；"
+            "指纹不可用不代表与基线一致",
+        ]
+    if not drift.get("detected"):
         return []
-    return [
+
+    lines = [
         "⚠ 工作区已偏离审计基线：当前代码与最近一次通过校验的指纹不一致",
         f"   审计指纹: {str(drift['baseline_fingerprint'])[:16]}…  "
         f"当前指纹: {str(drift['current_fingerprint'])[:16]}…",
-        "   建议：重跑 se_check_consistency（text 会标记 stale_files），"
-        "并按流程补齐审核后再推进",
     ]
+    changed = drift.get("changed") or []
+    if changed:
+        lines.append(f"   变更文件（{len(changed)}）: " + ", ".join(changed[:5]))
+        if len(changed) > 5:
+            lines.append(f"   … 另有 {len(changed) - 5} 个文件")
+    lines.append(
+        "   建议：重跑 se_check_consistency（text 会标记 stale_files），"
+        "并按流程补齐审核后再推进"
+    )
+    return lines

@@ -598,9 +598,27 @@ def se_store_consistency_report(
     descent_now = proj.read_manifest().get("current_descent", 1)
     fingerprint = gate.current_fingerprint()
 
+    # The LLM report must describe what was scanned, just like text reports
+    from .workflow.consistency_llm import (
+        _collect_code_files,
+        _resolve_code_root,
+        code_extensions,
+    )
+    from .workflow.symbols import extract_code_symbols_with_lines
+
+    scan_exts = code_extensions(proj)
+    code_root = _resolve_code_root(proj)
+    scanned_files = _collect_code_files(code_root, None, scan_exts)
+    symbol_count = sum(
+        len(extract_code_symbols_with_lines(f, scan_exts)) for f in scanned_files
+    )
+
     report_path = llm_auditor.store_report(
         report_data,
         descent=descent_now,
+        files_scanned=len(scanned_files),
+        extensions=scan_exts,
+        code_symbols_count=symbol_count,
         design_digest=fingerprint["design_hash"],
         hashes=fingerprint["file_hashes"],
         kind="llm",

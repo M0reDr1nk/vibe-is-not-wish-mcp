@@ -258,18 +258,15 @@ class SEApp(App):
             Columns(layers_render, equal=True),
             Text(""),
         ]
-        if drift.get("detected"):
+        if drift.get("detected") or drift.get("state") == "unknown":
+            from ..workflow.drift import drift_lines
+
+            note = "\n".join(drift_lines(self.project)) or "⚠ 无法判定漂移状态"
             children.append(
                 Panel(
-                    Text(
-                        "⚠ 工作区已偏离审计基线（下方绿标仅代表历史基线，不代表当前代码）\n"
-                        f"   审计指纹 {str(drift.get('baseline_fingerprint'))[:16]}… → "
-                        f"当前 {str(drift.get('current_fingerprint'))[:16]}…\n"
-                        "   建议：重跑 se_check_consistency 并按流程补齐审核",
-                        style="bold red",
-                    ),
-                    border_style="red",
-                    title="⚠ 漂移告警",
+                    Text(note, style="bold red" if drift.get("detected") else "yellow"),
+                    border_style="red" if drift.get("detected") else "yellow",
+                    title="⚠ 漂移告警" if drift.get("detected") else "⚠ 漂移未知",
                 )
             )
             children.append(Text(""))
