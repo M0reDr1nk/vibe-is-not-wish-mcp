@@ -1506,7 +1506,7 @@ class TestStructuredAlignmentEntry:
         entry = entries[-1]
         assert entry["question"] == "分块尺寸选哪种？"
         assert entry["chosen_option"] == "6x16"
-        assert entry["corrected"] == "True"
+        assert entry["corrected"] is True
         assert entry["feedback"] == "换成 6x16"
         assert entry["deviation"].startswith("若 6x16")
         # 管道符被转义，不会破坏表格
@@ -1522,7 +1522,7 @@ class TestStructuredAlignmentEntry:
             if e.get("变更类型") == "alignment"
         ][-1]
         assert entry["chosen_option"] == "assume-ok"
-        assert entry["corrected"] == "False"
+        assert entry["corrected"] is False
 
     def test_reader_handles_legacy_entries(self, proj):
         from vinw.store.changelog import read_changelog_entries
@@ -1532,3 +1532,89 @@ class TestStructuredAlignmentEntry:
         entries = read_changelog_entries(proj.vinw_dir / "changelog.md")
         baseline = [e for e in entries if e.get("变更类型") == "baseline"]
         assert baseline and "旧格式条目" in baseline[-1]["原因"]
+
+
+class TestChangelogParsingRobustness:
+    """r23: fences, CRLF, backticks, legacy entries, typed fields."""
+
+    def _append(self, proj, **kw):
+        from vinw.store.changelog import append_changelog_entry
+
+        defaults = dict(
+            change_type="alignment", layer="L3-方案细化", descent=1,
+            scope="cfm-x", reason="原因",
+        )
+        defaults.update(kw)
+        return append_changelog_entry(proj.vinw_dir / "changelog.md", **defaults)
+
+    def test_fenced_table_lines_are_not_parsed_as_fields(self, proj):
+        from vinw.store.changelog import read_changelog_entries
+
+        before = "| **变更类型** | `fake` |\n## chg-99999999-999999-999 [2026-01-01T00:00:00+00:00]"
+        self._append(proj, extra={"question": "真正的问题"}, before=before)
+        entries = read_changelog_entries(proj.vinw_dir / "changelog.md")
+        assert len(entries) == 1                       # 伪条目未被切出
+        assert entries[0]["变更类型"] == "alignment"    # 字段未被污染
+        assert entries[0]["question"] == "真正的问题"
+
+    def test_crlf_and_carriage_return_do_not_truncate(self, proj):
+        from vinw.store.changelog import read_changelog_entries
+
+        self._append(proj, extra={
+            "feedback": "第一行\r\n第二行\r第三行",
+            "assumption": "用\u2028分隔的行",
+        })
+        entry = read_changelog_entries(proj.vinw_dir / "changelog.md")[0]
+        assert entry["feedback"] == "第一行 第二行 第三行"
+        assert entry["assumption"] == "用 分隔的行"
+
+    def test_backticks_are_preserved_in_free_text(self, proj):
+        from vinw.store.changelog import read_changelog_entries
+
+        self._append(proj, extra={"feedback": "`6x16` 更省"}, reason="`code` 开头")
+        entry = read_changelog_entries(proj.vinw_dir / "changelog.md")[0]
+        assert entry["feedback"] == "`6x16` 更省"
+        assert entry["原因"] == "`code` 开头"
+        assert entry["变更类型"] == "alignment"      # code 字段仍剥反引号
+
+    def test_legacy_entry_without_extra_parses(self, proj):
+        from vinw.store.changelog import read_changelog_entries
+
+        legacy = (
+            "\n## chg-20260101-000000-001 [2026-01-01T00:00:00.123456]\n\n"
+            "| 字段 | 内容 |\n|------|------|\n"
+            "| **变更类型** | `alignment` |\n"
+            "| **下降轮次** | descent-1 |\n"
+            "| **层** | L3-方案细化 |\n"
+            "| **范围** | `cfm-legacy` |\n"
+            "| **原因** | 澄清对齐：旧问题 | 假设：旧假设 | 选择：x | corrected=False |\n"
+        )
+        (proj.vinw_dir / "changelog.md").write_text(legacy, encoding="utf-8")
+        entries = read_changelog_entries(proj.vinw_dir / "changelog.md")
+        assert len(entries) == 1
+        assert entries[0]["timestamp"].startswith("2026-01-01")
+        assert "旧问题" in entries[0]["原因"]
+        assert "|" in entries[0]["原因"]          # 未转义的管道符被拼回
+
+    def test_change_type_pipe_is_escaped(self, proj):
+        from vinw.store.changelog import read_changelog_entries
+
+        self._append(proj, change_type="weird|type")
+        entry = read_changelog_entries(proj.vinw_dir / "changelog.md")[0]
+        assert entry["变更类型"] == "weird|type"
+
+    def test_mcp_changelog_returns_structured_entries(self, proj):
+        import json
+
+        import vinw.server as server
+
+        self._append(proj, extra={"question": "机读问题", "corrected": False})
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            payload = json.loads(server.se_get_changelog(limit=1))
+        finally:
+            server._active_project = saved
+        entry = payload["entries"][0]
+        assert entry["question"] == "机读问题"
+        assert entry["corrected"] is False

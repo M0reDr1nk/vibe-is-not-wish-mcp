@@ -8,9 +8,15 @@ from pathlib import Path
 
 
 def _cell(value: object) -> str:
-    """Escape a value for a markdown table cell (pipes and newlines)."""
+    """Escape a value for a markdown table cell.
+
+    All line separators collapse to spaces: `str.splitlines()` on the read
+    side treats \r, \v, \f, \x1c-\x1e, \x85, U+2028/2029 as breaks too, so
+    only handling \n silently truncated CRLF content (r23 GAP-003).
+    """
     text = "" if value is None else str(value)
-    return text.replace("|", "\\|").replace("\n", " ").strip()
+    text = " ".join(text.splitlines())
+    return text.replace("|", "\\|").strip()
 
 
 def append_changelog_entry(
@@ -41,7 +47,7 @@ def append_changelog_entry(
 
 | 字段 | 内容 |
 |------|------|
-| **变更类型** | `{change_type}` |
+| **变更类型** | `{_cell(change_type)}` |
 | **下降轮次** | descent-{descent} |
 | **层** | {_cell(layer)} |
 | **范围** | `{_cell(scope)}` |
@@ -61,39 +67,58 @@ def append_changelog_entry(
     return change_id
 
 
+_CODE_FIELDS = {"变更类型", "范围"}
+_BOOL_FIELDS = {"corrected"}
+
+
 def read_changelog_entries(changelog_path: Path) -> list[dict[str, object]]:
     """Parse the changelog into structured entries (oldest first).
 
-    Entries are markdown tables; parsing them here keeps the TUI and any
-    machine consumer on one implementation instead of ad-hoc regexes
-    (R33-2: alignment entries used to be unparseable free text).
+    Line-based state machine: fence tracking happens *before* heading
+    detection, so a `## chg-` line or a table row pasted inside a
+    ```text Before/After block cannot create a bogus entry or overwrite a
+    real field (r23 GAP-001).
     """
-    import frontmatter  # noqa: F401  (kept out of the hot path below)
-
     if not changelog_path.exists():
         return []
     content = changelog_path.read_text(encoding="utf-8")
-    blocks = re.split(r"^## (chg-\S+)([^\n]*)$", content, flags=re.MULTILINE)
+
     entries: list[dict[str, object]] = []
-    for i in range(1, len(blocks), 3):
-        change_id = blocks[i]
-        title_rest = blocks[i + 1] if i + 1 < len(blocks) else ""
-        body = blocks[i + 2] if i + 2 < len(blocks) else ""
-        record: dict[str, object] = {"id": change_id}
-        m = re.search(r"\[(\d{4}-\d{2}-\d{2}T[^\]]+)\]", title_rest)
-        if m:
-            record["timestamp"] = m.group(1)
-        for line in body.splitlines():
-            if not line.startswith("|"):
-                continue
-            raw_cells = line.strip().strip("|").split("|")
-            if len(raw_cells) < 2:
-                continue
-            key = raw_cells[0].strip().strip("* ").strip()
-            value = "|".join(raw_cells[1:]).strip().strip("`").strip()
-            value = value.replace("\\|", "|")
-            if not key or key in ("字段", "------"):
-                continue
-            record[key] = value
-        entries.append(record)
+    current: dict[str, object] | None = None
+    in_fence = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if line.startswith("## chg-"):
+            if current is not None:
+                entries.append(current)
+            rest = line[3:].strip()
+            change_id = rest.split()[0]
+            current = {"id": change_id}
+            m = re.search(r"\[(\d{4}-\d{2}-\d{2}T[^\]]+)\]", rest)
+            if m:
+                current["timestamp"] = m.group(1)
+            continue
+        if current is None or not line.startswith("|"):
+            continue
+        raw_cells = line.strip().strip("|").split("|")
+        if len(raw_cells) < 2:
+            continue
+        key = raw_cells[0].strip().strip("* ").strip()
+        value = "|".join(raw_cells[1:]).strip()
+        if not key or key in ("字段", "------"):
+            continue
+        if key in _CODE_FIELDS:
+            value = value.strip("`").strip()
+        value = value.replace("\\|", "|")
+        if key in _BOOL_FIELDS:
+            current[key] = value == "True"
+        else:
+            current[key] = value
+    if current is not None:
+        entries.append(current)
     return entries

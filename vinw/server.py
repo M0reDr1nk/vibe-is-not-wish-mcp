@@ -605,17 +605,13 @@ def se_get_changelog(limit: int = 20, project: str | None = None) -> str:
     if not path.exists():
         return json.dumps({"entries": []}, ensure_ascii=False)
 
-    content = path.read_text(encoding="utf-8")
-    # Split by chg- headers
-    import re
+    # Shared structured parser (R33-2): one implementation for every consumer
+    from .store.changelog import read_changelog_entries
 
-    entries = re.split(r"\n## (chg-\S+)", content)
-    # entries[0] is preamble, then pairs of (id, body)
-    parsed = []
-    for i in range(1, len(entries), 2):
-        parsed.append({"id": entries[i], "body": entries[i + 1].strip()})
-
-    return json.dumps({"entries": parsed[-limit:][::-1]}, ensure_ascii=False, indent=2)
+    entries = read_changelog_entries(path)
+    return json.dumps(
+        {"entries": entries[-limit:][::-1]}, ensure_ascii=False, indent=2
+    )
 
 
 # ── Consistency check ───────────────────────────────────────
