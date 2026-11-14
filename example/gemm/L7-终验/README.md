@@ -1,10 +1,10 @@
 ---
-completed_at: '2026-11-14T13:15:14.904320+00:00'
+completed_at: '2026-11-14T14:12:11.431250+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
-status: in_progress
+status: completed
 todo_descent: 6
 ---
 

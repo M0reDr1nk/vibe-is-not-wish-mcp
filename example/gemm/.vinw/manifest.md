@@ -43,7 +43,7 @@ ascent_history:
   reason: 完成态下改了两处文档（R6/GAP-006 范围收缩、测量归因更正），按纪律补正规流程：回 L1 把范围收缩写成正式需求记录，再逐层重新收敛
   to_baseline: v003
   to_layer: L1-需求拆解
-completed_at: '2026-11-14T13:15:14.904320+00:00'
+completed_at: '2026-11-14T14:12:11.431250+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 6
 current_layer: L7-终验
@@ -102,10 +102,10 @@ layer_states:
     latest_baseline: v004
     status: baselined
   L7-终验:
-    completed_at: '2026-11-14T13:15:14.904320+00:00'
+    completed_at: '2026-11-14T14:12:11.431250+00:00'
     descent_count: 4
     latest_baseline: null
-    status: in_progress
+    status: completed
 name: gemm
 pending_confirmations:
 - blocking: true

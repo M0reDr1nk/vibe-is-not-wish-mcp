@@ -153,32 +153,46 @@ ascent_history:
   reason: R33-2 结构化 alignment 条目：先改代码后补设计（design_lag），上升回 L3 把契约写入设计并重新下降验证
   to_baseline: v020
   to_layer: L3-方案细化
+- created_at: '2026-11-14T14:12:16.855245+00:00'
+  descent_after: 20
+  descent_before: 19
+  from_layer: L7-终验
+  id: asc-019
+  reason: R35（用户新需求）：增加显式流程违规特例审批——必须告知用户确认、默认非必要不允许违规；需从 L1 立需求、L3 定契约后实现
+  to_baseline: v007
+  to_layer: L1-需求拆解
 code_root: ..
 completed_at: '2026-11-14T13:52:50.450933+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 19
-current_layer: L7-终验
-descent_started_at: '2026-11-14T13:40:10.784519+00:00'
+current_descent: 20
+current_layer: L1-需求拆解
+descent_started_at: '2026-11-14T14:12:16.858133+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
-    active_ascent: asc-016
+    active_ascent: asc-019
     baselined_at: '2026-11-14T09:45:08.274465+00:00'
-    descent_count: 7
+    descent_count: 8
     latest_baseline: v007
-    status: baselined
+    status: in_progress
   L2-参考文献与方案搜证汇总:
     active_ascent: asc-007
     baselined_at: '2026-11-14T09:45:24.561365+00:00'
     descent_count: 8
     latest_baseline: v008
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T14:12:16.858120+00:00'
+    superseded_by: asc-019
   L3-方案细化:
     active_ascent: asc-018
     baselined_at: '2026-11-14T13:51:56.541388+00:00'
     descent_count: 19
     latest_baseline: v021
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T14:12:16.858120+00:00'
+    superseded_by: asc-019
   L4-编码实现:
     audit:
       auto_fixable: []
@@ -202,23 +216,35 @@ layer_states:
       report_id: 396dad66-01
     descent_count: 18
     latest_baseline: v018
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T14:12:16.858120+00:00'
+    superseded_by: asc-019
   L5-测试验证:
     abandoned_at: '2026-11-14T04:16:39.686081+00:00'
     baselined_at: '2026-11-14T13:52:09.827219+00:00'
     descent_count: 17
     latest_baseline: v016
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T14:12:16.858120+00:00'
+    superseded_by: asc-019
   L6-检视清理:
     baselined_at: '2026-11-14T13:52:14.642734+00:00'
     descent_count: 17
     latest_baseline: v016
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T14:12:16.858120+00:00'
+    superseded_by: asc-019
   L7-终验:
     completed_at: '2026-11-14T13:52:50.450933+00:00'
     descent_count: 16
     latest_baseline: null
-    status: completed
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T14:12:16.858120+00:00'
+    superseded_by: asc-019
 name: vinw-self-design
 pending_confirmations:
 - blocking: true
