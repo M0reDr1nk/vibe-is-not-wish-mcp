@@ -14,6 +14,30 @@ from ..store.project import Project
 from .consistency_gate import ConsistencyGate, _parse_hashes
 
 
+def _result(
+    *,
+    state: str,
+    reason: str,
+    baseline: str | None,
+    current: str | None,
+    changed: list[str] | None = None,
+    design_changed: bool | None = None,
+    audited_report: str | None = None,
+) -> dict[str, Any]:
+    """Single constructor: every drift answer carries the same key set."""
+    return {
+        "state": state,
+        "detected": state == "drifted",
+        "needs_reaudit": state != "clean",
+        "reason": reason,
+        "changed": changed or [],
+        "design_changed": design_changed,
+        "baseline_fingerprint": baseline,
+        "current_fingerprint": current,
+        "audited_report": audited_report,
+    }
+
+
 def _audited_report(gate, state: dict[str, Any]) -> dict[str, Any] | None:
     """The report that produced the audited fingerprint, if still on disk."""
     report_id = state.get("report_id")
@@ -52,24 +76,17 @@ def detect_drift(project: Project) -> dict[str, Any]:
         current_fp = current["code_fingerprint"]
 
         if not audited:
-            return {
-                "detected": False,
-                "state": "unknown",
-                "reason": "no_audited_fingerprint",
-                "changed": [],
-                "baseline_fingerprint": None,
-                "current_fingerprint": current_fp,
-            }
+            return _result(
+                state="unknown",
+                reason="no_audited_fingerprint",
+                baseline=None,
+                current=current_fp,
+            )
 
         if audited == current_fp:
-            return {
-                "detected": False,
-                "state": "clean",
-                "reason": "in_sync",
-                "changed": [],
-                "baseline_fingerprint": audited,
-                "current_fingerprint": current_fp,
-            }
+            return _result(
+                state="clean", reason="in_sync", baseline=audited, current=current_fp
+            )
 
         # Use the report that actually produced the audited state (text or llm),
         # otherwise `changed` stays empty in the default text+llm flow.
@@ -107,27 +124,19 @@ def detect_drift(project: Project) -> dict[str, Any]:
         else:
             state = "design_lag"
             reason = "code_changed_without_design_update"
-        return {
-            # design says: detected <=> state == "drifted"
-            "detected": state == "drifted",
-            "needs_reaudit": True,
-            "state": state,
-            "design_changed": design_changed,
-            "reason": reason,
-            "changed": changed,
-            "baseline_fingerprint": audited,
-            "current_fingerprint": current_fp,
-            "audited_report": (report or {}).get("report_id"),
-        }
+        return _result(
+            state=state,
+            reason=reason,
+            baseline=audited,
+            current=current_fp,
+            changed=changed,
+            design_changed=design_changed,
+            audited_report=(report or {}).get("report_id"),
+        )
     except Exception as e:  # never let drift detection break the UI
-        return {
-            "detected": False,
-            "state": "unknown",
-            "reason": f"unavailable: {e}",
-            "changed": [],
-            "baseline_fingerprint": None,
-            "current_fingerprint": None,
-        }
+        return _result(
+            state="unknown", reason=f"unavailable: {e}", baseline=None, current=None
+        )
 
 
 def drift_lines(project: Project) -> list[str]:

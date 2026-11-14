@@ -68,6 +68,15 @@ def _difference_from(raw: dict[str, Any]) -> str:
     return f"设计侧: {design} | 代码侧: {code} | {desc}"
 
 
+def finding_id(raw: dict[str, Any], kind: str, index: int) -> str:
+    """Stable id shared by findings() and store() so coverage can match."""
+    existing = raw.get("id") or raw.get("finding_id")
+    if existing:
+        return str(existing)
+    prefix = "GAP" if kind == "gap" else "INC"
+    return f"{prefix}-{index:03d}"
+
+
 def _untriaged(raw: dict[str, Any], kind: str, fallback_id: str) -> dict[str, Any]:
     """A report finding with no verdict yet: always routable, never crashy."""
     finding = {
@@ -89,6 +98,17 @@ def _untriaged(raw: dict[str, Any], kind: str, fallback_id: str) -> dict[str, An
     }
     finding["finding_id"] = finding["id"]
     return finding
+
+
+def _report_findings(meta: dict[str, Any]) -> list[dict[str, Any]]:
+    """Report findings with ids normalised the same way store() validates."""
+    out: list[dict[str, Any]] = []
+    for kind, key in (("inconsistency", "inconsistencies"), ("gap", "gaps")):
+        for idx, raw in enumerate(_as_list(meta.get(key)), 1):
+            out.append(
+                _untriaged(raw, kind=kind, fallback_id=finding_id(raw, kind, idx))
+            )
+    return out
 
 
 def _as_list(value: Any) -> list[dict[str, Any]]:
@@ -182,22 +202,7 @@ class AuditTriage:
             return [normalize_finding(r) for r in raw]
 
         # No verdicts yet: expose the raw findings so triage can be performed
-        candidates: list[dict[str, Any]] = []
-        for inc in _as_list(meta.get("inconsistencies")):
-            candidates.append(
-                _untriaged(
-                    inc,
-                    kind="inconsistency",
-                    fallback_id=f"INC-{len(candidates) + 1:03d}",
-                )
-            )
-        for gap in _as_list(meta.get("gaps")):
-            candidates.append(
-                _untriaged(
-                    gap, kind="gap", fallback_id=f"GAP-{len(candidates) + 1:03d}"
-                )
-            )
-        return candidates
+        return _report_findings(meta)
 
     def store(self, report_json: dict[str, Any], report_id: str | None = None) -> dict[str, Any]:
         """Attach triage verdicts to the latest LLM report (or a given one)."""
@@ -218,13 +223,7 @@ class AuditTriage:
         # Partial triage silently drops the rest, which is worse than a forged
         # status: every finding in the report must be adjudicated.
         report_meta = frontmatter.load(path).metadata
-        expected_ids: list[str] = []
-        for idx, raw in enumerate(
-            _as_list(report_meta.get("inconsistencies"))
-            + _as_list(report_meta.get("gaps"))
-        ):
-            expected_ids.append(str(raw.get("id") or f"anon-{idx}"))
-        expected = set(expected_ids)
+        expected = {f["id"] for f in _report_findings(report_meta)}
         provided = {str(item.get("id")) for item in items if item.get("id")}
         missing = sorted(expected - provided)
         if missing:

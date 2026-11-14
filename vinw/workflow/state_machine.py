@@ -102,6 +102,7 @@ class WorkflowEngine:
         clear_supersede: bool = False,
         clear_redo: bool = False,
         mirror: bool = True,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """Write a layer status to the manifest and mirror it to README.
 
@@ -114,6 +115,11 @@ class WorkflowEngine:
             if readme.exists():
                 post = frontmatter.load(readme)
                 post.metadata["status"] = status
+                for key, value in (extra or {}).items():
+                    if value is None:
+                        post.metadata.pop(key, None)
+                    else:
+                        post.metadata[key] = value
                 if clear_supersede:
                     for key in ("superseded_at", "superseded_by"):
                         post.metadata.pop(key, None)
@@ -168,10 +174,11 @@ class WorkflowEngine:
             return {"repaired": [], "ascent_id": None, "reason": "no ascent history"}
 
         record = history[-1]
-        if ascent_id and record.get("id") != ascent_id:
-            record = next(
-                (h for h in history if h.get("id") == ascent_id), record
-            )
+        if ascent_id:
+            match = next((h for h in history if h.get("id") == ascent_id), None)
+            if match is None:
+                raise ValueError(f"未找到上升记录: {ascent_id}")
+            record = match
 
         to_layer = record["to_layer"]
         to_idx = self._layer_index(to_layer)
@@ -183,12 +190,25 @@ class WorkflowEngine:
         current = manifest.get("current_layer")
         if current and current in layer_states and layer_states[current].get("status") == "superseded":
             layer_states[current]["status"] = "in_progress"
-            layer_states[current].pop("needs_redo", None)
+            for key in ("needs_redo", "superseded_at", "superseded_by"):
+                layer_states[current].pop(key, None)
             if current in marked:
                 marked.remove(current)
 
         manifest["layer_states"] = layer_states
         self.project.write_manifest(manifest)
+
+        # Repair must also fix the README mirrors it just invalidated
+        for layer, state in layer_states.items():
+            status = state.get("status")
+            if not status:
+                continue
+            self._sync_layer_status(
+                layer,
+                status,
+                clear_supersede=status in ("in_progress", "baselined"),
+                clear_redo=status in ("in_progress", "baselined"),
+            )
 
         if marked:
             self._append_changelog(
@@ -203,7 +223,7 @@ class WorkflowEngine:
 
     # ── Stage-end drift healing ───────────────────────────────
 
-    def heal_drift(self, stage: str) -> dict[str, Any] | None:
+    def heal_drift(self, stage: str, log: bool = True) -> dict[str, Any] | None:
         """Re-audit when the code drifted since the last passing check.
 
         Called at the end of every stage transition: if the audited fingerprint
@@ -242,19 +262,20 @@ class WorkflowEngine:
             )
 
         # Only a successful re-audit may leave an audit-trail entry
-        self._append_changelog(
-            change_type="auto-audit",
-            scope=stage,
-            reason=(
-                f"阶段结束时检测到工作区漂移（{str(drift.get('baseline_fingerprint'))[:12]}"
-                f"→{str(drift.get('current_fingerprint'))[:12]}），已自动重跑一致性检查并通过"
-            ),
-            before=str(drift.get("baseline_fingerprint")),
-            after=str(drift.get("current_fingerprint")),
-        )
+        if log:
+            self._append_changelog(
+                change_type="auto-audit",
+                scope=stage,
+                reason=(
+                    f"阶段结束时检测到工作区漂移（{str(drift.get('baseline_fingerprint'))[:12]}"
+                    f"→{str(drift.get('current_fingerprint'))[:12]}），已自动重跑一致性检查并通过"
+                ),
+                before=str(drift.get("baseline_fingerprint")),
+                after=str(drift.get("current_fingerprint")),
+            )
 
         result = {"stage": stage, "healed": True, "overall": overall,
-                  "report_id": status.get("report_id")}
+                  "report_id": status.get("report_id"), "logged": log}
         llm = gate.llm_status()
         if llm["required"] and not llm.get("matches_current"):
             result["needs_llm"] = True
@@ -335,7 +356,16 @@ class WorkflowEngine:
 
         manifest["layer_states"] = layer_states
         self.project.write_manifest(manifest)
-        self._sync_layer_status(layer, "baselined", clear_supersede=True, clear_redo=True)
+        self._sync_layer_status(
+            layer,
+            "baselined",
+            clear_supersede=True,
+            clear_redo=True,
+            extra={
+                "baseline_version": version,
+                "baselined_at": layer_states[layer].get("baselined_at"),
+            },
+        )
 
         self._append_changelog(
             change_type="baseline",
@@ -397,6 +427,8 @@ class WorkflowEngine:
         if to_layer not in layer_states:
             layer_states[to_layer] = {}
         layer_states[to_layer]["status"] = "in_progress"
+        for key in ("superseded_at", "superseded_by", "needs_redo"):
+            layer_states[to_layer].pop(key, None)
         layer_states[to_layer]["active_ascent"] = ascent_id
         layer_states[to_layer]["descent_count"] = (
             layer_states[to_layer].get("descent_count", 0) + 1
@@ -524,6 +556,15 @@ class WorkflowEngine:
         manifest = self.project.read_manifest()
         layer_states = manifest.get("layer_states", {})
 
+        # Leaving a layer without freezing it must not leave two layers
+        # "in progress": the abandoned layer returns to pending.
+        src = layer_states.get(current_layer)
+        abandoned = False
+        if src is not None and src.get("status") == "in_progress":
+            src["status"] = "pending"
+            src["abandoned_at"] = datetime.now(timezone.utc).isoformat()
+            abandoned = True
+
         if to_layer in layer_states:
             layer_states[to_layer]["status"] = "in_progress"
             layer_states[to_layer]["descent_count"] = (
@@ -541,6 +582,8 @@ class WorkflowEngine:
         self._sync_layer_status(
             to_layer, "in_progress", clear_supersede=True, clear_redo=True
         )
+        if abandoned:
+            self._sync_layer_status(current_layer, "pending")
 
         self._append_changelog(
             change_type="descend",

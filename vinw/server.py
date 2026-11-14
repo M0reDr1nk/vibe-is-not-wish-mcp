@@ -298,6 +298,16 @@ def se_baseline(layer: str, reason: str = "", force: bool = False, project: str 
             ensure_ascii=False,
             indent=2,
         )
+    except DesignLagError as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "hint": "先 se_ascend 回到 L3 补设计并基线，再重新审计",
+                "drift": detect_drift(proj),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     except AuditEscalationError as e:
         return json.dumps(
             {
@@ -365,6 +375,16 @@ def se_descend(to_layer: str, reason: str = "", project: str | None = None) -> s
     try:
         result = engine.descend(to_layer, reason)
         return json.dumps(result, ensure_ascii=False, indent=2)
+    except DesignLagError as e:
+        return json.dumps(
+            {
+                "error": str(e),
+                "hint": "先 se_ascend 回到 L3 补设计并基线，再重新审计",
+                "drift": detect_drift(proj),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     except ValueError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 
@@ -760,6 +780,14 @@ def se_complete_project(project: str | None = None) -> str:
                 f"{layer} 未基线化（status={state.get('status', 'pending')}）"
             )
 
+    # Design lag is a guard, not a repair: refuse before touching anything
+    drift = detect_drift(proj)
+    if drift.get("state") == "design_lag":
+        errors.append(
+            "检测到实现先于设计：代码已改动但 L3 设计未同步。"
+            "请先 se_ascend 回到 L3 补设计并基线"
+        )
+
     # Placeholder todos mean the layer was never really worked on
     for layer in LAYERS:
         readme = proj.read_layer_readme(layer)
@@ -785,22 +813,6 @@ def se_complete_project(project: str | None = None) -> str:
             {"error": "完成前置条件未满足", "details": errors},
             ensure_ascii=False,
             indent=2,
-        )
-
-    try:
-        healed = WorkflowEngine(proj).heal_drift("complete_project")
-        if healed:
-            manifest = proj.read_manifest()
-    except (
-        ConsistencyGateError,
-        DesignLagError,
-        AuditEscalationError,
-        LLMAuditRequiredError,
-        ToolingDiscrepancyError,
-        ConsistencyConfigError,
-    ) as e:
-        return json.dumps(
-            {"error": str(e), "details": [str(e)]}, ensure_ascii=False, indent=2
         )
 
     gate = ConsistencyGate(proj)
@@ -846,6 +858,32 @@ def se_complete_project(project: str | None = None) -> str:
         )
 
     engine = WorkflowEngine(proj)
+    # All guards passed: heal drift now, and only then record the audit trail
+    try:
+        healed = engine.heal_drift("complete_project", log=False)
+    except (
+        ConsistencyGateError,
+        DesignLagError,
+        AuditEscalationError,
+        LLMAuditRequiredError,
+        ToolingDiscrepancyError,
+        ConsistencyConfigError,
+    ) as e:
+        return json.dumps(
+            {"error": str(e), "details": [str(e)]}, ensure_ascii=False, indent=2
+        )
+    if healed and healed.get("healed"):
+        from .store.changelog import append_changelog_entry
+
+        append_changelog_entry(
+            proj.vinw_dir / "changelog.md",
+            change_type="auto-audit",
+            layer="L7-终验",
+            descent=descent_now,
+            scope="complete_project",
+            reason="完成前检测到工作区漂移，自动重跑一致性检查并通过",
+        )
+
     # Stale non-blocking gates from earlier rounds are settled, not blocking
     purged = engine.purge_confirmations(only_non_blocking=True)
     engine.mark_layer_completed("L7-终验")

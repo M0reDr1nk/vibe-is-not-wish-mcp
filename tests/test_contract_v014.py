@@ -301,3 +301,127 @@ class TestAmbiguousRoutedToResolved:
         decision = triage.decision()
         assert decision["decision"] == "resolved"
         assert "INC-1" in decision["design_followups"]
+
+
+class TestStateInvariants:
+    """reviewer4: descend must not leave two layers in_progress."""
+
+    def _in_progress(self, proj):
+        states = proj.read_manifest()["layer_states"]
+        return [l for l, s in states.items() if s.get("status") == "in_progress"]
+
+    def test_descend_from_unfrozen_layer_keeps_single_in_progress(self, proj):
+        WorkflowEngine(proj).descend("L2-参考文献与方案搜证汇总", "move on")
+        layers = self._in_progress(proj)
+        assert len(layers) == 1
+        assert layers[0] == "L2-参考文献与方案搜证汇总"
+        # the abandoned layer is reset, not left 'in progress'
+        assert proj.read_manifest()["layer_states"]["L1-需求拆解"]["status"] == "pending"
+
+    def test_completed_only_on_l7(self, proj):
+        from vinw.store.project import LAYERS
+
+        for layer in LAYERS:
+            readme = proj.read_layer_readme(layer)
+            proj.write_layer_readme(
+                layer,
+                readme,
+                replace_todo_section(readme["content"], "## 当前待办\n\n- [x] done"),
+            )
+        ConsistencyGate(proj).ensure()
+        manifest = proj.read_manifest()
+        manifest["current_layer"] = "L7-终验"
+        audited = manifest["layer_states"].get("L4-编码实现", {}).get("consistency")
+        manifest["layer_states"] = {
+            layer: {"status": "baselined", "latest_baseline": "v001"}
+            for layer in LAYERS[:-1]
+        }
+        manifest["layer_states"]["L4-编码实现"]["consistency"] = audited
+        manifest["layer_states"]["L7-终验"] = {"status": "in_progress"}
+        proj.write_manifest(manifest)
+
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            json.loads(server.se_complete_project())
+        finally:
+            server._active_project = saved
+
+        states = proj.read_manifest()["layer_states"]
+        completed = [l for l, s in states.items() if s.get("status") == "completed"]
+        # completion may be refused for other reasons (e.g. missing LLM verdict),
+        # but no layer other than L7 may ever be 'completed'
+        assert set(completed) <= {"L7-终验"}
+
+
+class TestRepairSyncsReadmes:
+    """GAP-001: repair must not leave the README mirror behind."""
+
+    def test_repair_mirrors_and_clears_markers(self, proj):
+        import frontmatter
+
+        engine = WorkflowEngine(proj)
+        engine.baseline("L1-需求拆解", "t", force=True)
+        engine.descend("L2-参考文献与方案搜证汇总")
+        engine.baseline("L2-参考文献与方案搜证汇总", "t", force=True)
+        engine.ascend("L2-参考文献与方案搜证汇总", "L1-需求拆解", "v001", "t")
+
+        # simulate old-bug state: lower layer left baselined, manifest dirty
+        manifest = proj.read_manifest()
+        manifest["layer_states"]["L2-参考文献与方案搜证汇总"]["status"] = "baselined"
+        manifest["layer_states"]["L2-参考文献与方案搜证汇总"]["superseded_by"] = "asc-001"
+        manifest["current_layer"] = "L1-需求拆解"
+        proj.write_manifest(manifest)
+
+        engine.repair_ascend_state()
+
+        states = proj.read_manifest()["layer_states"]
+        assert states["L2-参考文献与方案搜证汇总"]["status"] == "superseded"
+        assert "superseded_at" not in states["L1-需求拆解"]
+        readme = frontmatter.load(proj.get_layer_dir("L2-参考文献与方案搜证汇总") / "README.md")
+        assert readme.metadata["status"] == "superseded"
+
+    def test_unknown_ascent_id_raises(self, proj):
+        engine = WorkflowEngine(proj)
+        engine.baseline("L1-需求拆解", "t", force=True)
+        engine.descend("L2-参考文献与方案搜证汇总")
+        engine.baseline("L2-参考文献与方案搜证汇总", "t", force=True)
+        engine.ascend("L2-参考文献与方案搜证汇总", "L1-需求拆解", "v001", "t")
+
+        with pytest.raises(ValueError):
+            engine.repair_ascend_state("asc-999")
+
+
+class TestAnonymousFindingsCoverage:
+    """GAP-003: ids synthesised by findings() must match store()'s expectation."""
+
+    def test_report_without_ids_can_be_triaged(self, proj):
+        store_llm(proj, findings=[{"description": "no id here"}, {"description": "nor here"}])
+        triage = AuditTriage(proj)
+        ids = [f["id"] for f in triage.findings()]
+        assert ids == ["INC-001", "INC-002"]
+
+        result = triage.store(
+            {
+                "triage": [
+                    {"id": "INC-001", "classification": "impl_bug", "confidence": "high"},
+                    {"id": "INC-002", "classification": "ambiguous", "confidence": "low"},
+                ]
+            }
+        )
+        assert result["total"] == 2
+
+
+class TestBaselineMetadataMirror:
+    """GAP-005: README must carry the current baseline version."""
+
+    def test_readme_baseline_version_matches_manifest(self, proj):
+        import frontmatter
+
+        engine = WorkflowEngine(proj)
+        engine.baseline("L1-需求拆解", "t", force=True)
+
+        manifest_state = proj.read_manifest()["layer_states"]["L1-需求拆解"]
+        readme = frontmatter.load(proj.get_layer_dir("L1-需求拆解") / "README.md")
+        assert readme.metadata["baseline_version"] == manifest_state["latest_baseline"]
+        assert readme.metadata["baselined_at"] == manifest_state["baselined_at"]

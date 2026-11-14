@@ -473,8 +473,9 @@ CREATE INDEX IF NOT EXISTS idx_events_path ON project_events(path, id DESC);
 
 ```
 ensure(kind="text"): 指纹判定 → 非 fresh 跑 text 并落盘 kind=text
-llm_status(): policy != "text" → 查 latest_passing(descent, kind="llm")
-              缺失/非 passed → needs_llm=true
+llm_status(): policy != "text" → 查 latest_llm(descent)
+              ⚠ 本节为 v0.11 旧口径，已被 v0.14 §3 取代：
+              以 present + matches_current 判定 satisfied，不再看 overall
 tooling_discrepancy: 最新 text=warning 且同指纹 llm=passed → 拒绝放行并列冲突原因
 ```
 
@@ -588,7 +589,7 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 | 执行顺序 | **在所有前置校验之后、状态写入之前**（INC-012）。被拒绝的迁移不得留下 `auto-audit` 记录 |
 | `force=true` | 跳过 heal，与跳过其余基线守卫一致 |
 | 重审动作 | `gate.ensure()`（text）；命中 `config_error`（无代码可审）时**放行但不写报告、不记日志** |
-| 失败语义 | text 不通过 → 抛 `ConsistencyGateError`，转换中止 |
+| 失败语义 | text 不通过 → `ConsistencyGateError`；design_lag → `DesignLagError`（先 ascend 补设计）；转换中止 |
 | 通过后 | 刷新 `consistency.code_fingerprint`；若策略要求 LLM 且报告指纹与当前不符 → 结果标 `needs_llm=true` |
 | 变更日志 | 仅成功重审时写 `auto-audit` 条目，before/after 记录指纹 |
 
@@ -649,6 +650,13 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 「设计侧符号的 required / advisory 二分（v0.13）」小节与 manifest 配置表；
 本节仅作版本索引，避免按版本号查找时缺失。
 
+## 已知限制（v0.14 记录）
+
+| 编号 | 限制 | 影响 | 后续 |
+|------|------|------|------|
+| L-01 | **设计正文不在基线快照内**：`freeze_baseline` 只快照 README，ascend 回滚也只恢复 README | 设计正文（api-design.md 等）在基线后仍可被原地改写而不留版本痕迹；「先改代码后补设计」的顺序不可从数据判定 | 待做：把层内全部文档纳入基线快照，或要求设计正文变更必须先 `se_log_change` |
+| L-02 | `design_synced` 只表示"两者都变了"，不表示先后顺序 | 无法区分"设计先行"与"代码先行后补设计" | 待做：manifest 记录 code_fp/design_fp 的变更时间，或结合 ascent 时间戳判定 |
+
 ## 版本历史补记
 
 | 版本 | 日期 | 变更 |
@@ -659,13 +667,13 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 
 ## 9. 设计-实现同步契约（v0.14 补充，回应「代码不应跑在设计前面」）
 
-漂移分三态，**不得把"代码改了设计没改"当成正常漂移**：
+漂移分五态（与 §1 一致），**不得把"代码改了设计没改"当成正常漂移**：
 
 | state | 条件 | 处置 |
 |-------|------|------|
 | `design_synced` | 代码与 L3 设计**都**变了 | 允许，但必须重新审计 |
 | `design_lag` | 代码变了、L3 设计**未**变 | **拒绝**：先把变更补进设计（走 ascend），再审计 |
-| `drifted` | 代码变了，且**无法判定设计是否变**（无已记录 design_hash） | 提示"需重新建立审计基线"，不臆断为 lag |
+| `drifted` | ① 代码变了但**无法判定设计是否变**（无 design_hash）→ reason `code_changed_since_audit_design_unknown`；② **仅设计变、代码未变** → reason `design_changed_since_audit` | 提示"需重新审计"，不臆断为 lag |
 | `clean` / `unknown` | 一致 / 指纹不可用 | 见第 1 节 |
 
 判定依据：`layer_states[L4].consistency.design_hash`（审计时记录的 L3 全层哈希）与当前 L3 全层哈希比对；缺失时回退到最近一份 LLM 报告的 `design_hash`。
