@@ -46,7 +46,7 @@ ascent_history:
 completed_at: '2026-11-14T13:15:14.904320+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 6
-current_layer: L1-需求拆解
+current_layer: L4-编码实现
 descent_started_at: '2026-11-14T14:08:45.775906+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
@@ -57,22 +57,16 @@ layer_states:
     latest_baseline: v004
     status: baselined
   L2-参考文献与方案搜证汇总:
-    baselined_at: '2026-11-14T12:46:45.123272+00:00'
-    descent_count: 3
-    latest_baseline: v003
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T14:08:45.775892+00:00'
-    superseded_by: asc-005
+    baselined_at: '2026-11-14T14:09:00.270995+00:00'
+    descent_count: 4
+    latest_baseline: v004
+    status: baselined
   L3-方案细化:
     active_ascent: asc-003
-    baselined_at: '2026-11-14T12:54:52.898888+00:00'
-    descent_count: 5
-    latest_baseline: v005
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T14:08:45.775892+00:00'
-    superseded_by: asc-005
+    baselined_at: '2026-11-14T14:09:03.981503+00:00'
+    descent_count: 6
+    latest_baseline: v006
+    status: baselined
   L4-编码实现:
     audit:
       auto_fixable: []
@@ -82,24 +76,21 @@ layer_states:
       escalations_count: 0
       findings: 2
       report_id: 9b7b63cf-01
-    baselined_at: '2026-11-14T12:59:25.180426+00:00'
+    baselined_at: '2026-11-14T14:09:07.359786+00:00'
     consistency:
-      checked_at: '2026-11-14T12:59:25.168064+00:00'
+      checked_at: '2026-11-14T14:09:07.349111+00:00'
       code_fingerprint: 119f123f5db7debecf790334095b0b4b7401edd8d3985b8f9600859b4565bc14
-      descent: 5
+      descent: 6
       design_hash: fe3b082b7f3c1231de88b66701357cb099827356bc52af7c1fb74d8cec7ec9b8
       design_hash_algo: layer-v1
       llm_auditor: self
       llm_report_id: 9b7b63cf-01
       llm_verdict: warning
       overall: passed
-      report_id: ac246cbf-01
-    descent_count: 5
-    latest_baseline: v003
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T14:08:45.775892+00:00'
-    superseded_by: asc-005
+      report_id: ac246cbf-02
+    descent_count: 6
+    latest_baseline: v004
+    status: baselined
   L5-测试验证:
     baselined_at: '2026-11-14T13:00:17.653949+00:00'
     descent_count: 3

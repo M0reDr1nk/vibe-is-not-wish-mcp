@@ -6,17 +6,19 @@ doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
 status: superseded
-todo_descent: 5
+todo_descent: 6
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
+- [x] descent-6：范围收缩与文档重新收敛（无内容变更）
+
 - [x] 588/588、593/593 两种构建全绿
 - [x] gate-delivery 四个尺寸 PASS（154-406×）
 - [x] gate-st 保持 PASS（19-88×）
-- [x] 测量条件披露（热降频）
+- [x] 测量条件披露（后台进程竞争，非热降频）
 
 ## 阶段小结
 

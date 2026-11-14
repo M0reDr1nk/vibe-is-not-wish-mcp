@@ -6,12 +6,14 @@ doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
 status: superseded
-todo_descent: 5
+todo_descent: 6
 ---
 
 # L6-检视清理
 
 ## 当前待办
+
+- [x] descent-6：范围收缩与文档重新收敛（无内容变更）
 
 - [x] bench 临时改动已恢复
 - [x] 线程标签修正
