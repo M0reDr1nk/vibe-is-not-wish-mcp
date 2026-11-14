@@ -218,14 +218,13 @@ class AuditTriage:
         # Partial triage silently drops the rest, which is worse than a forged
         # status: every finding in the report must be adjudicated.
         report_meta = frontmatter.load(path).metadata
-        expected = {
-            str(f.get("id"))
-            for f in (
-                _as_list(report_meta.get("inconsistencies"))
-                + _as_list(report_meta.get("gaps"))
-            )
-            if f.get("id")
-        }
+        expected_ids: list[str] = []
+        for idx, raw in enumerate(
+            _as_list(report_meta.get("inconsistencies"))
+            + _as_list(report_meta.get("gaps"))
+        ):
+            expected_ids.append(str(raw.get("id") or f"anon-{idx}"))
+        expected = set(expected_ids)
         provided = {str(item.get("id")) for item in items if item.get("id")}
         missing = sorted(expected - provided)
         if missing:
@@ -331,8 +330,11 @@ class AuditTriage:
         # Everything decided. Distinguish "we fixed/blessed everything" from
         # "the remainder needs design work" (they used to collapse into
         # auto_fixable, which reads as the opposite of what it meant).
+        # design_* and ambiguous all need follow-up, not "auto fixed"
         needs_design = [
-            f for f in findings if f["classification"] in ("design_bug", "design_gap")
+            f
+            for f in findings
+            if f["classification"] in ("design_bug", "design_gap", "ambiguous")
         ]
         if needs_design:
             return {

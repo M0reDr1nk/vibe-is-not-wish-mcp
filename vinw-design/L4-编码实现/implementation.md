@@ -231,3 +231,16 @@ updated_at: "2026-11-13T10:02:19.675591"
 1. `llm_status.satisfied` 初版把 `overall=="passed"` 写进条件，与设计第 3 节不符，导致 warning 结论被误判为"未提供审核" → 按设计修正
 2. `drift` 判定 design_hash 时依赖"当前轮 LLM 报告"，跨轮时取不到会误判 design_lag → 改为 manifest 优先、报告回退、缺失降级为 drifted
 3. TUI 内局部的 `from ..workflow.drift import drift_lines` 造成整函数作用域遮蔽，页面渲染报错 → 提为模块级导入
+
+### descent-13 追加：状态机同步（审查后修复）
+
+| 缺陷 | 修复 |
+|------|------|
+| manifest 与 README status 各自为政（实测 6/7 层分歧） | manifest 为唯一状态机，README 为镜像；`_sync_layer_status()` 在所有转移点同步，`sync_all_layer_readmes()` 修历史分歧 |
+| `descend` 未清 `needs_redo`/`superseded_by` | 进入层时清除 |
+| `baseline` 未清 supersede 标记 | 冻结时清除 |
+| `layer_design_hash` 含 README → 同步状态即"设计变了" | 设计哈希排除 README.md |
+| `get_todos` 按 README 过滤 superseded（死代码） | 改按 manifest 状态 |
+| `repair_ascend_state` 误把当前层标 superseded | 保留 current 为 in_progress |
+
+不变量测试：恰好一层 in_progress 且 == current_layer；completed 仅 L7；superseded 必带 superseded_by；重做清除残留标记。

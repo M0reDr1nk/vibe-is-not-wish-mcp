@@ -37,28 +37,42 @@ def changelog(proj):
     return (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
 
 
-class TestBaselineHealsDrift:
-    def test_baseline_triggers_reaudit_on_drift(self, proj):
-        audit(proj)
-        assert detect_drift(proj)["detected"] is False
+def sync_design(proj):
+    """Move the design along with the code (both hashes change)."""
+    proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n同步更新\n")
 
+
+class TestBaselineHealsDrift:
+    def test_code_only_change_is_refused(self, proj):
+        """L3 §9: implementation must not run ahead of the design."""
+        audit(proj)
         (proj.root / "main.py").write_text("def main():\n    return 7\n")
-        assert detect_drift(proj)["detected"] is True
+        assert detect_drift(proj)["state"] == "design_lag"
+
+        from vinw.workflow.state_machine import DesignLagError
+
+        with pytest.raises(DesignLagError):
+            WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "stage end")
+
+    def test_design_and_code_change_is_reaudited(self, proj):
+        audit(proj)
+        (proj.root / "main.py").write_text("def main():\n    return 7\n")
+        sync_design(proj)
+        assert detect_drift(proj)["state"] == "design_synced"
 
         WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "stage end")
 
-        # drift healed automatically
-        assert detect_drift(proj)["detected"] is False
+        assert detect_drift(proj)["state"] == "clean"
         assert "auto-audit" in changelog(proj)
 
     def test_baseline_blocked_when_reaudit_fails(self, proj):
         audit(proj)
         # rename the documented symbol away -> text check must fail
         (proj.root / "main.py").write_text("def renamed_away():\n    return 0\n")
+        sync_design(proj)
 
-        with pytest.raises(ConsistencyGateError) as exc:
+        with pytest.raises(ConsistencyGateError):
             WorkflowEngine(proj).baseline("L2-参考文献与方案搜证汇总", "stage end")
-        assert "漂移" in str(exc.value)
 
     def test_no_audit_history_means_no_heal_needed(self, proj):
         # nothing audited yet -> no drift, no audit triggered
@@ -73,20 +87,32 @@ class TestDescendHealsDrift:
         manifest["current_layer"] = "L2-参考文献与方案搜证汇总"
         proj.write_manifest(manifest)
 
-    def test_descend_triggers_reaudit(self, proj):
+    def test_descend_reaudits_when_design_and_code_moved(self, proj):
+        audit(proj)
+        self._at_l2(proj)
+        (proj.root / "main.py").write_text("def main():\n    return 42\n")
+        sync_design(proj)
+
+        WorkflowEngine(proj).descend("L3-方案细化", "stage end")
+
+        assert detect_drift(proj)["state"] == "clean"
+        assert "auto-audit" in changelog(proj)
+
+    def test_descend_refuses_code_only_change(self, proj):
+        from vinw.workflow.state_machine import DesignLagError
+
         audit(proj)
         self._at_l2(proj)
         (proj.root / "main.py").write_text("def main():\n    return 42\n")
 
-        WorkflowEngine(proj).descend("L3-方案细化", "stage end")
-
-        assert detect_drift(proj)["detected"] is False
-        assert "auto-audit" in changelog(proj)
+        with pytest.raises(DesignLagError):
+            WorkflowEngine(proj).descend("L3-方案细化", "stage end")
 
     def test_descend_blocked_when_reaudit_fails(self, proj):
         audit(proj)
         self._at_l2(proj)
         (proj.root / "main.py").write_text("def nope():\n    return 0\n")
+        sync_design(proj)
 
         with pytest.raises(ConsistencyGateError):
             WorkflowEngine(proj).descend("L3-方案细化", "stage end")
@@ -125,6 +151,7 @@ class TestLlmMatching:
             auditor="reviewer",
         )
         (proj.root / "main.py").write_text("def main():\n    return 2\n")
+        sync_design(proj)
 
         result = WorkflowEngine(proj).heal_drift("baseline:test")
         assert result["healed"] is True

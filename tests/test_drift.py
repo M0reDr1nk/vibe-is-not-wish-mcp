@@ -33,17 +33,15 @@ class TestDriftDetection:
         assert result["detected"] is False
         assert result["reason"] == "in_sync"
 
-    def test_detected_after_code_change(self, proj):
+    def test_code_only_change_is_design_lag_not_detected(self, proj):
+        """detected <=> state == 'drifted' (design §1); lag is its own state."""
         ConsistencyGate(proj).ensure()
         (proj.root / "main.py").write_text("def main():\n    return 1\n")
         result = detect_drift(proj)
-        assert result["detected"] is True
+        assert result["state"] == "design_lag"
+        assert result["detected"] is False
+        assert result["needs_reaudit"] is True
         assert result["baseline_fingerprint"] != result["current_fingerprint"]
-        # a code-only change is design lag (see TestDesignLag)
-        assert result["reason"] in (
-            "workspace_changed_since_audit",
-            "code_changed_without_design_update",
-        )
 
     def test_detected_after_design_change(self, proj):
         ConsistencyGate(proj).ensure()
@@ -54,10 +52,8 @@ class TestDriftDetection:
         ConsistencyGate(proj).ensure()
         (proj.root / "main.py").write_text("# changed\n")
         lines = drift_lines(proj)
-        assert any("偏离审计基线" in line for line in lines)
-        # code-only change is reported as design lag, with its own guidance
-        assert any("实现跑在设计前面" in line or "se_check_consistency" in line
-                   for line in lines)
+        assert any("实现跑在设计前面" in line for line in lines)
+        assert any("ascend" in line for line in lines)
 
     def test_no_lines_when_clean(self, proj):
         ConsistencyGate(proj).ensure()
@@ -83,7 +79,7 @@ class TestApiExposure:
             payload = json.loads(server.se_get_project())
         finally:
             server._active_project = None
-        assert payload["drift"]["detected"] is False
+        assert payload["drift"]["state"] == "clean"
 
         (proj.root / "main.py").write_text("# edit\n")
         server._active_project = proj
@@ -91,7 +87,8 @@ class TestApiExposure:
             payload = json.loads(server.se_get_project())
         finally:
             server._active_project = None
-        assert payload["drift"]["detected"] is True
+        assert payload["drift"]["state"] == "design_lag"
+        assert payload["drift"]["needs_reaudit"] is True
 
 
 class TestDriftDetails:

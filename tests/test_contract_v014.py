@@ -166,7 +166,9 @@ class TestHealOrdering:
     def test_successful_baseline_records_auto_audit_only_on_drift(self, proj):
         gate = ConsistencyGate(proj)
         gate.ensure()
+        # code-only change is refused (design lag); move both to trigger a heal
         (proj.root / "main.py").write_text("def main():\n    return 9\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n同步\n")
 
         WorkflowEngine(proj).baseline("L5-测试验证", "ok")
         changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
@@ -195,3 +197,107 @@ class TestToolCatalog:
 
         assert listed == tools, f"missing in design: {tools - listed}, stale: {listed - tools}"
         assert f"共 {len(tools)} 个" in design
+
+
+class TestDesignLagEnforcement:
+    """GAP-001: §9 says design lag must be refused, not just displayed."""
+
+    def test_baseline_refuses_code_only_change(self, proj):
+        from vinw.workflow.state_machine import DesignLagError
+
+        ConsistencyGate(proj).ensure()
+        (proj.root / "main.py").write_text("def main():\n    return 5\n")
+        with pytest.raises(DesignLagError):
+            WorkflowEngine(proj).baseline("L5-测试验证", "should refuse")
+
+    def test_descend_refuses_code_only_change(self, proj):
+        from vinw.workflow.state_machine import DesignLagError
+
+        ConsistencyGate(proj).ensure()
+        manifest = proj.read_manifest()
+        manifest["current_layer"] = "L2-参考文献与方案搜证汇总"
+        proj.write_manifest(manifest)
+        (proj.root / "main.py").write_text("def main():\n    return 6\n")
+        with pytest.raises(DesignLagError):
+            WorkflowEngine(proj).descend("L3-方案细化", "should refuse")
+
+    def test_complete_refuses_code_only_change(self, proj):
+        from vinw.store.project import LAYERS
+
+        # completion also requires real todo lists on every layer
+        for layer in LAYERS:
+            readme = proj.read_layer_readme(layer)
+            proj.write_layer_readme(
+                layer,
+                readme,
+                replace_todo_section(readme["content"], "## 当前待办\n\n- [x] done"),
+            )
+        ConsistencyGate(proj).ensure()
+        manifest = proj.read_manifest()
+        manifest["current_layer"] = "L7-终验"
+        audited = manifest["layer_states"].get("L4-编码实现", {}).get("consistency")
+        manifest["layer_states"] = {
+            layer: {"status": "baselined", "latest_baseline": "v001"}
+            for layer in LAYERS[:-1]
+        }
+        # keep the audited fingerprint so drift detection has a baseline
+        manifest["layer_states"]["L4-编码实现"]["consistency"] = audited
+        manifest["layer_states"]["L7-终验"] = {"status": "in_progress"}
+        proj.write_manifest(manifest)
+
+        (proj.root / "main.py").write_text("def main():\n    return 8\n")
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            result = json.loads(server.se_complete_project())
+        finally:
+            server._active_project = saved
+        assert "error" in result
+        details = " ".join(result.get("details", []))
+        assert "设计" in details or "漂移" in details
+
+
+class TestAuditLogDiscipline:
+    """GAP-002: only a successful re-audit may log auto-audit."""
+
+    def _auto_audit_count(self, proj):
+        changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
+        return changelog.count("auto-audit")
+
+    def test_config_error_writes_no_auto_audit(self, tmp_path):
+        root = tmp_path / "nocode-log"
+        proj = Project.init(root, "nocode-log", "")
+        manifest = proj.read_manifest()
+        manifest["layer_states"] = {
+            "L4-编码实现": {"status": "baselined", "consistency": {"code_fingerprint": "x"}}
+        }
+        proj.write_manifest(manifest)
+
+        before = self._auto_audit_count(proj)
+        WorkflowEngine(proj).heal_drift("test")
+        assert self._auto_audit_count(proj) == before
+
+    def test_failed_reaudit_writes_no_auto_audit(self, proj):
+        ConsistencyGate(proj).ensure()
+        (proj.root / "main.py").write_text("def renamed_away():\n    return 0\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n同步\n")
+
+        before = self._auto_audit_count(proj)
+        with pytest.raises(Exception):
+            WorkflowEngine(proj).heal_drift("test")
+        assert self._auto_audit_count(proj) == before
+
+
+class TestAmbiguousRoutedToResolved:
+    """INC-006: ambiguous needs design follow-up, not 'auto fixable'."""
+
+    def test_ambiguous_accepted_is_resolved(self, proj):
+        store_llm(proj, findings=[{"id": "INC-1", "description": "a"}])
+        triage = AuditTriage(proj)
+        triage.store(
+            {"triage": [{"id": "INC-1", "classification": "ambiguous", "confidence": "medium"}]}
+        )
+        triage.record_decision("INC-1", "accept_as_is", "可接受")
+        decision = triage.decision()
+        assert decision["decision"] == "resolved"
+        assert "INC-1" in decision["design_followups"]

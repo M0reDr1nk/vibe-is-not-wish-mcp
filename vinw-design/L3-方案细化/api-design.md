@@ -7,9 +7,9 @@ updated_at: '2026-11-13T10:02:22.615842'
 
 # 接口设计
 
-## MCP 工具清单（共 34 个，由代码生成，禁止手工计数）
+## MCP 工具清单（共 34 个，由 scripts/gen_tool_catalog.py 生成）
 
-> 生成方式：解析 `vinw/server.py` 中所有 `se_*` 函数；测试 `test_tool_catalog.py` 断言此处条目数 == 实际注册数。
+> 生成方式：解析 `vinw/server.py` 中所有 `se_*` 函数；`tests/test_contract_v014.py` 断言此处条目数 == 实际注册数。
 
 | 工具 | 输入 | 输出 |
 |------|------|------|
@@ -47,96 +47,6 @@ updated_at: '2026-11-13T10:02:22.615842'
 | `se_triage_prompt` | — | — |
 | `se_update_todo` | — | — |
 | `se_use_project` | — | — |
-
-### 项目生命周期
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_init_project` | name, path, description | project_id, layers, current_layer, descent；**若目标已含 `.vinw/manifest.md` 则接管（adopted=true）** |
-| `se_get_project` | — | full state + layer_graph + ascent_history + pending |
-
-### 基线管理
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_baseline` | layer, reason, **force** | layer, version, status；占位符未清理时返回 error（v0.6） |
-| `se_list_baselines` | layer(可选) | {layer: [versions]} |
-
-### 上升/下降
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_ascend` | from_layer, to_layer, to_baseline, reason | ascent_id, new_descent |
-| `se_descend` | to_layer, reason | from_layer, to_layer, current_descent |
-| `se_can_descend` | — | can_descend, message, next_layer |
-
-### 门控确认
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_require_confirmation` | item_type, description, options, blocking | confirmation_id |
-| `se_resolve_confirmation` | confirmation_id, resolution, feedback | id, resolution |
-
-### 文档 CRUD
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_store_document` | layer, filename, content, doc_type | path, status |
-| `se_read_document` | layer, filename | frontmatter + content |
-| `se_list_documents` | layer(可选) | {layer: [filenames]} |
-
-### 变更追踪
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_log_change` | change_type, scope, reason, before, after | change_id |
-| `se_get_changelog` | limit | {entries: [...]} |
-
-### 一致性检查
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_check_consistency` | design_layer, design_doc, code_scope, method="llm" | report_id, matched, inconsistencies, overall |
-
-`method` 参数:
-- `"llm"` (默认): 将设计文档 + 代码全文传给 LLM 做语义级比对，返回结构化报告
-- `"text"`: 本地文本字符串匹配（函数名存在性检查），无 LLM 依赖
-- `"ast"`: tree-sitter AST 结构化比对（**预留扩展**，当前 fallback 到 llm）
-
-报告格式写入 `L4-编码实现/consistency-reports/report-{id}.md`。
-
-**代码定位规则（v0.3 修订）**：
-- manifest 支持可选字段 `code_root`：代码仓根目录，相对项目根解析（自举场景下设计工程位于代码仓子目录，如 `".."`）；缺省默认为项目根本身
-- `code_scope` 支持文件与目录混合：文件条目直接纳入扫描，目录条目递归 `rglob("*.py")`；`code_scope` 为空时扫描 `code_root`（若存在 `code_root/src` 则仅扫描 `src`）
-
-### 方案检索（L2 层）
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_search_proposals` | query, search_scope="local", method="rg" | [{source, relevance, excerpt}] |
-
-`search_scope`:
-- `"local"`: 当前项目的历史层文档
-- `"archive"`: 指定的历史项目归档目录
-
-`method`:
-- `"rg"` (默认): ripgrep 文本搜索，按关键词匹配
-- `"tfidf"`: TF-IDF 余弦相似度排序（历史项目 > 50 个时自动建议切换）
-
-### Todo 管理
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_get_todos` | — | [{layer, descent, done, text}] |
-| `se_update_todo` | layer, todos_json | layer, todo_count |
-
-### 指导
-
-| 接口名 | 输入 | 输出 |
-|--------|------|------|
-| `se_get_next_steps` | — | current_layer, suggested_work, gate, can_descend, special_instruction |
-| `se_complete_project` | — | status, completed_at, purged_confirmations；**完成态迁移（v0.4 新增，v0.6 增强）** |
-| `se_purge_confirmations` | before_descent, resolution | purged, ids；**过期门控清理（v0.6 新增）** |
 
 ## TUI 布局契约（v0.5 新增）
 
@@ -586,12 +496,15 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 
 | 字段 | 取值 | 必填 |
 |------|------|------|
-| `classification` | `impl_bug` / `design_bug` / `design_gap` / `ambiguous` | 是 |
-| `confidence` | `high` / `medium` / `low` | 是 |
-| `recommendation` | 推荐处置文本 | 是 |
+| `classification` | `impl_bug` / `design_bug` / `design_gap` / `ambiguous` | 由**裁定阶段**必填；审计报告本身可不含 |
+| `confidence` | `high` / `medium` / `low` | 同上 |
+| `recommendation` | 推荐处置文本 | 同上 |
 | `status` | `open` / `fixed` / `decided` / `accepted` | 由系统维护 |
 
-## 裁定提示词（PROMPT v3 追加段）
+## 裁定提示词（**不入 PROMPT_TEMPLATE**，由 `se_triage_prompt` 单独下发）
+
+> v0.14 §6 已裁定：审计与裁定分两轮。审计 prompt 保持 v2（只描述缺口与偏差），
+> 裁定问题（classification/confidence/recommendation）由 `se_triage_prompt` 提供。
 
 ```
 对每条发现，先判断"设计本身是否合理"，再判断"实现是否偏离设计"：
@@ -652,9 +565,10 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 
 | 字段 | 类型 | 语义 |
 |------|------|------|
-| `state` | `clean` / `drifted` / `unknown` | **三态**。`unknown` 表示无法判定（指纹不可用、无审计历史），**不得等同于 clean** |
-| `detected` | bool | 兼容字段：等价于 `state == "drifted"` |
-| `reason` | str | `in_sync` / `workspace_changed_since_audit` / `no_audited_fingerprint` / `unavailable: ...` |
+| `state` | `clean` / `drifted` / `design_lag` / `design_synced` / `unknown` | **五态**（v0.14 §9 起）。`unknown` 表示无法判定，**不得等同于 clean** |
+| `detected` | bool | 等价于 `state == "drifted"`（仅此一态） |
+| `needs_reaudit` | bool | `state != "clean"` 时为真：需要重新审计 |
+| `reason` | str | `in_sync` / `code_changed_without_design_update`（→design_lag）/ `code_and_design_changed_since_audit`（→design_synced）/ `design_changed_since_audit`（→drifted）/ `code_changed_since_audit_design_unknown`（→drifted）/ `no_audited_fingerprint` / `unavailable: ...` |
 | `changed` | list[str] | 变更条目，格式 `added|removed|modified:<相对路径>`；无审计哈希时为空 |
 | `baseline_fingerprint` | str \| null | 最近一次通过审计的指纹 |
 | `current_fingerprint` | str \| null | 当前工作区指纹 |
@@ -701,6 +615,7 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 
 | decision | 条件 | 门控 |
 |----------|------|------|
+| `clear` | 报告中没有任何 findings | 放行 |
 | `no_llm_report` | 本轮无 LLM 报告 | 阻断（要求先审核） |
 | `escalate` | 存在**未裁定**项（classification 缺失或 confidence 缺失），或存在需人工项且 status=open | 阻断 + 列升级项 |
 | `auto_fix_pending` | 全部已裁定为 impl_bug/high，但有 open | 阻断 + 列待修项 |
@@ -723,7 +638,16 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 
 ## 8. 版本编号统一（GAP-003）
 
-以 **L3 基线与 changelog 为准**：章节号 = 基线号 - 1（v0.14 ↔ 基线 v015）。历史缺口补齐，正文内联引用统一。
+以 **L3 基线与 changelog 为准**：自 v0.14 起章节号 = 基线号 - 1（v0.14 ↔ 基线 v015）。
+
+历史特例（不回填，仅记录）：descent-11 章节 v0.11 ↔ 基线 v013、descent-12 章节 v0.12 ↔ 基线 v014，
+二者差 2（当时按"章节号 = 基线号 - 2"编号）。**规则自 v0.14 起生效**，历史记录保留原样以免伪造。
+
+## 附：v0.13 独立节（原内联于 v0.10）
+
+**required / advisory 二分**与**默认扩展名补 .tsx/.js** 两项内容见前文
+「设计侧符号的 required / advisory 二分（v0.13）」小节与 manifest 配置表；
+本节仅作版本索引，避免按版本号查找时缺失。
 
 ## 版本历史补记
 

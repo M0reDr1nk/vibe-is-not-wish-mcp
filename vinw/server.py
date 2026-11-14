@@ -16,6 +16,7 @@ from .store.registry import ProjectRegistry, ProjectNotFound
 from .store.document import DocumentStore
 from .workflow.state_machine import (
     AuditEscalationError,
+    DesignLagError,
     ConsistencyConfigError,
     ConsistencyGateError,
     LLMAuditRequiredError,
@@ -777,17 +778,29 @@ def se_complete_project(project: str | None = None) -> str:
             f"{[p['id'] for p in unresolved]}"
         )
 
-    # Completion is a stage boundary too: heal drift before judging readiness
-    try:
-        healed = WorkflowEngine(proj).heal_drift("complete_project")
-        if healed:
-            manifest = proj.read_manifest()
-    except ConsistencyGateError as e:
-        errors.append(str(e))
+    # Home the completion guards first: a rejected completion must not leave
+    # an auto-audit trail (L3 §2).
+    if errors:
         return json.dumps(
             {"error": "完成前置条件未满足", "details": errors},
             ensure_ascii=False,
             indent=2,
+        )
+
+    try:
+        healed = WorkflowEngine(proj).heal_drift("complete_project")
+        if healed:
+            manifest = proj.read_manifest()
+    except (
+        ConsistencyGateError,
+        DesignLagError,
+        AuditEscalationError,
+        LLMAuditRequiredError,
+        ToolingDiscrepancyError,
+        ConsistencyConfigError,
+    ) as e:
+        return json.dumps(
+            {"error": str(e), "details": [str(e)]}, ensure_ascii=False, indent=2
         )
 
     gate = ConsistencyGate(proj)

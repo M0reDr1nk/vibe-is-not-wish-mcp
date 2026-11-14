@@ -14,6 +14,23 @@ from ..store.project import Project
 from .consistency_gate import ConsistencyGate, _parse_hashes
 
 
+def _audited_report(gate, state: dict[str, Any]) -> dict[str, Any] | None:
+    """The report that produced the audited fingerprint, if still on disk."""
+    report_id = state.get("report_id")
+    if not report_id:
+        return None
+    reports_dir = gate.project.get_layer_dir("L4-编码实现") / "consistency-reports"
+    path = reports_dir / f"report-{report_id}.md"
+    if not path.exists():
+        return None
+    try:
+        import frontmatter
+
+        return dict(frontmatter.load(path).metadata)
+    except Exception:
+        return None
+
+
 def detect_drift(project: Project) -> dict[str, Any]:
     """Compare the live code/design fingerprint against the audited one.
 
@@ -54,7 +71,9 @@ def detect_drift(project: Project) -> dict[str, Any]:
                 "current_fingerprint": current_fp,
             }
 
-        report = gate.latest_llm() or gate.latest_passing(kind="llm")
+        # Use the report that actually produced the audited state (text or llm),
+        # otherwise `changed` stays empty in the default text+llm flow.
+        report = _audited_report(gate, state) or gate.latest_llm() or gate.latest_passing()
         audited_hashes = _parse_hashes((report or {}).get("file_hashes"))
 
         # Did the *design* move with the code? Prefer the hash recorded with the
@@ -74,17 +93,24 @@ def detect_drift(project: Project) -> dict[str, Any]:
             changed = []
         # Without a recorded design hash we cannot claim the design lagged;
         # say "drifted" and let the next audit establish the baseline.
+        code_changed = bool(changed)
         if not audited_design:
             state = "drifted"
             reason = "code_changed_since_audit_design_unknown"
-        elif design_changed:
+        elif design_changed and code_changed:
             state = "design_synced"
             reason = "code_and_design_changed_since_audit"
+        elif design_changed and not code_changed:
+            # only the design moved: a re-audit is needed, but nothing ran ahead
+            state = "drifted"
+            reason = "design_changed_since_audit"
         else:
             state = "design_lag"
             reason = "code_changed_without_design_update"
         return {
-            "detected": True,
+            # design says: detected <=> state == "drifted"
+            "detected": state == "drifted",
+            "needs_reaudit": True,
             "state": state,
             "design_changed": design_changed,
             "reason": reason,
@@ -105,38 +131,60 @@ def detect_drift(project: Project) -> dict[str, Any]:
 
 
 def drift_lines(project: Project) -> list[str]:
-    """Human-readable drift notices for the TUI/CLI (clean yields nothing)."""
+    """Human-readable notices for the TUI/CLI, keyed by drift state."""
     drift = detect_drift(project)
-    if drift.get("state") == "unknown":
+    state = drift.get("state")
+
+    if state == "clean":
+        return []
+    if state == "unknown":
         return [
             f"⚠ 无法判定工作区是否漂移（{drift.get('reason')}）；"
             "指纹不可用不代表与基线一致",
         ]
-    if not drift.get("detected"):
-        return []
-
-    lines = [
-        "⚠ 工作区已偏离审计基线：当前代码与最近一次通过校验的指纹不一致",
-        f"   审计指纹: {str(drift['baseline_fingerprint'])[:16]}…  "
-        f"当前指纹: {str(drift['current_fingerprint'])[:16]}…",
-    ]
-    changed = drift.get("changed") or []
-    if changed:
-        lines.append(f"   变更文件（{len(changed)}）: " + ", ".join(changed[:5]))
-        if len(changed) > 5:
-            lines.append(f"   … 另有 {len(changed) - 5} 个文件")
-    if drift.get("state") == "design_lag":
-        lines.insert(
-            0,
+    if state == "design_lag":
+        lines = [
             "🚫 实现跑在设计前面：代码已改动，但 L3 设计文档未同步更新",
-        )
+            f"   审计指纹: {str(drift.get('baseline_fingerprint'))[:16]}…  "
+            f"当前指纹: {str(drift.get('current_fingerprint'))[:16]}…",
+        ]
+        lines.extend(_changed_lines(drift))
         lines.append(
             "   处置：先把变更补进 L3 设计（走 ascend 改设计），再重新审计；"
             "不接受「只改代码不改设计」"
         )
-    else:
-        lines.append(
-            "   建议：重跑 se_check_consistency（text 会标记 stale_files），"
-            "并按流程补齐审核后再推进"
-        )
+        return lines
+    if state == "design_synced":
+        lines = [
+            "⚠ 代码与设计都变了：需要在新代码上重新审计",
+            f"   审计指纹: {str(drift.get('baseline_fingerprint'))[:16]}…  "
+            f"当前指纹: {str(drift.get('current_fingerprint'))[:16]}…",
+        ]
+        lines.extend(_changed_lines(drift))
+        lines.append("   建议：重跑 se_check_consistency 并补齐 LLM 审核")
+        return lines
+
+    # state == "drifted"
+    lines = [
+        "⚠ 工作区已偏离审计基线：当前代码与最近一次通过校验的指纹不一致",
+        f"   审计指纹: {str(drift.get('baseline_fingerprint'))[:16]}…  "
+        f"当前指纹: {str(drift.get('current_fingerprint'))[:16]}…",
+    ]
+    lines.extend(_changed_lines(drift))
+    lines.append(
+        "   建议：重跑 se_check_consistency（text 会标记 stale_files），"
+        "并按流程补齐审核后再推进"
+    )
     return lines
+
+
+def _changed_lines(drift: dict[str, Any]) -> list[str]:
+    changed = drift.get("changed") or []
+    if not changed:
+        return []
+    lines = [f"   变更文件（{len(changed)}）: " + ", ".join(changed[:5])]
+    if len(changed) > 5:
+        lines.append(f"   … 另有 {len(changed) - 5} 个文件")
+    return lines
+
+

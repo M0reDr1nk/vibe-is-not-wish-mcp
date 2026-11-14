@@ -46,6 +46,10 @@ class AuditEscalationError(ValueError):
     """Audit findings need a human decision before the gate can open."""
 
 
+class DesignLagError(ValueError):
+    """Code moved ahead of the design: update L3 (ascend) before proceeding."""
+
+
 class WorkflowEngine:
     def __init__(self, project: Project):
         self.project = project
@@ -208,26 +212,26 @@ class WorkflowEngine:
         blocks the transition; a passing one is recorded as an automatic repair.
         """
         drift = detect_drift(self.project)
-        if not drift.get("detected"):
+        state = drift.get("state")
+
+        if state in ("clean", "unknown", None):
+            # unknown means we cannot fingerprint: nothing actionable here
             return None
+
+        # Implementation must not run ahead of the design (L3 §9): a code
+        # change with no design change has to go through an ascent first.
+        if state == "design_lag":
+            raise DesignLagError(
+                "检测到实现先于设计：代码已改动但 L3 设计未同步。"
+                "请先 se_ascend 回到 L3 补设计并基线，再继续推进"
+            )
 
         gate = ConsistencyGate(self.project)
         status = gate.ensure()
         overall = status.get("overall")
 
-        self._append_changelog(
-            change_type="auto-audit",
-            scope=stage,
-            reason=(
-                f"阶段结束时检测到工作区漂移（{str(drift.get('baseline_fingerprint'))[:12]}"
-                f"→{str(drift.get('current_fingerprint'))[:12]}），已自动重跑一致性检查"
-            ),
-            before=str(drift.get("baseline_fingerprint")),
-            after=str(drift.get("current_fingerprint")),
-        )
-
         if overall == "config_error":
-            # No code to audit yet: not a drift problem, keep going
+            # No code to audit yet: not a drift problem, keep going. No log.
             return {"stage": stage, "drift": drift, "overall": "config_error"}
 
         if overall != "passed":
@@ -236,6 +240,18 @@ class WorkflowEngine:
                 f"（overall={overall}，{status.get('inconsistencies', 0)} 项不一致）；"
                 f"请修复后重试"
             )
+
+        # Only a successful re-audit may leave an audit-trail entry
+        self._append_changelog(
+            change_type="auto-audit",
+            scope=stage,
+            reason=(
+                f"阶段结束时检测到工作区漂移（{str(drift.get('baseline_fingerprint'))[:12]}"
+                f"→{str(drift.get('current_fingerprint'))[:12]}），已自动重跑一致性检查并通过"
+            ),
+            before=str(drift.get("baseline_fingerprint")),
+            after=str(drift.get("current_fingerprint")),
+        )
 
         result = {"stage": stage, "healed": True, "overall": overall,
                   "report_id": status.get("report_id")}
@@ -285,6 +301,10 @@ class WorkflowEngine:
                 if triage["decision"] == "escalate":
                     raise AuditEscalationError(
                         f"{len(triage.get('escalations', []))} 条审计发现需人工裁定"
+                    )
+                if triage["decision"] == "auto_fix_pending":
+                    raise AuditEscalationError(
+                        f"{len(triage.get('auto_fixable', []))} 条高置信实现缺陷待修正"
                     )
 
         if not force:

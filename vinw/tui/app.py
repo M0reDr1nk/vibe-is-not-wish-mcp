@@ -233,9 +233,21 @@ class SEApp(App):
             # Auditor state is only meaningful on the L4 block
             if layer == "L4-编码实现" and consistency:
                 extra += self._consistency_suffix(consistency)
-            if layer == "L4-编码实现" and drift.get("detected"):
-                extra += " 🚫设计滞后" if drift.get("state") == "design_lag" else " ⚠漂移"
+            if layer == "L4-编码实现" and drift.get("state") in (
+                "drifted",
+                "design_lag",
+                "design_synced",
+            ):
+                extra += (
+                    " 🚫设计滞后"
+                    if drift.get("state") == "design_lag"
+                    else " ⚠需重审"
+                    if drift.get("state") == "design_synced"
+                    else " ⚠漂移"
+                )
                 color = "bold red"
+            elif layer == "L4-编码实现" and drift.get("state") == "unknown":
+                extra += " ⚠漂移未知"
 
             is_current = " [当前]" if is_current_layer else ""
             text = Text(f"{icon} {layer}{extra}{is_current}", style=color)
@@ -270,7 +282,7 @@ class SEApp(App):
                 )
             )
             children.append(Text(""))
-        elif drift.get("detected") or drift.get("state") == "unknown":
+        elif drift.get("state") in ("drifted", "design_synced", "unknown"):
             note = "\n".join(drift_lines(self.project)) or "⚠ 无法判定漂移状态"
             children.append(
                 Panel(
