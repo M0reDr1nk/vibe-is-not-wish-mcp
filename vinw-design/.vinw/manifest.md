@@ -165,25 +165,22 @@ code_root: ..
 completed_at: '2026-11-14T13:52:50.450933+00:00'
 created_at: '2026-11-13T10:02:18.532679'
 current_descent: 20
-current_layer: L1-需求拆解
+current_layer: L2-参考文献与方案搜证汇总
 descent_started_at: '2026-11-14T14:12:16.858133+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
     active_ascent: asc-019
-    baselined_at: '2026-11-14T09:45:08.274465+00:00'
+    baselined_at: '2026-11-14T14:32:46.776303+00:00'
     descent_count: 8
-    latest_baseline: v007
-    status: in_progress
+    latest_baseline: v008
+    status: baselined
   L2-参考文献与方案搜证汇总:
     active_ascent: asc-007
     baselined_at: '2026-11-14T09:45:24.561365+00:00'
-    descent_count: 8
+    descent_count: 9
     latest_baseline: v008
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T14:12:16.858120+00:00'
-    superseded_by: asc-019
+    status: in_progress
   L3-方案细化:
     active_ascent: asc-018
     baselined_at: '2026-11-14T13:51:56.541388+00:00'

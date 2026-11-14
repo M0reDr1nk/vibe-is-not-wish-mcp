@@ -9,12 +9,14 @@ rolled_back_at: '2026-11-14T13:40:10.784204+00:00'
 rolled_back_from: v020
 se_version: '2.0'
 status: superseded
-todo_descent: 19
+todo_descent: 20
 ---
 
 # L3-方案细化
 
 ## 当前待办
+
+- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
 
 - [x] changelog extra 字段与转义规则
 - [x] 共享解析器契约（围栏/反引号/分隔符/类型）

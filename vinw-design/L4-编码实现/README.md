@@ -7,12 +7,14 @@ layer: L4-编码实现
 se_version: '2.0'
 started_at: '2026-11-13T10:15:00Z'
 status: superseded
-todo_descent: 19
+todo_descent: 20
 ---
 
 # L4-编码实现
 
 ## 当前待办
+
+- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
 
 - [x] extra 写入 + 转义 + 行分隔符归一
 - [x] 行级状态机解析器（围栏优先）

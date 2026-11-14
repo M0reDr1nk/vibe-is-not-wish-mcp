@@ -8,13 +8,15 @@ layer: L2-参考文献与方案搜证汇总
 rolled_back_at: '2026-11-13T17:00:41.343599+00:00'
 rolled_back_from: v002
 se_version: '2.0'
-status: superseded
-todo_descent: 17
+status: in_progress
+todo_descent: 20
 ---
 
 # L2-参考文献与方案搜证汇总
 
 ## 当前待办
+
+- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
 
 - [x] 调研澄清异步化/批量化的三种模式（同步阻塞/队列/全自动）
 - [x] 采集业界参照（PR review 分级、SRE 变更分级）

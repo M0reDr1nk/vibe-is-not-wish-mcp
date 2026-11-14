@@ -6,12 +6,14 @@ doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
 status: superseded
-todo_descent: 19
+todo_descent: 20
 ---
 
 # L6-检视清理
 
 ## 当前待办
+
+- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
 
 - [x] 死导入与误导弹注释清除
 - [x] 双解析器统一

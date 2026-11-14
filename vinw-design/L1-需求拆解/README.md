@@ -1,14 +1,14 @@
 ---
 baseline_reason: descent-17 L1 v007：R34 澄清 harness（影响分级/自动阻塞/带假设推进/批量呈报/队列升级）
-baseline_version: v007
-baselined_at: '2026-11-14T09:45:08.272947+00:00'
+baseline_version: v008
+baselined_at: '2026-11-14T14:32:46.776303+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L1-需求拆解
 rolled_back_at: '2026-11-14T14:12:16.857588+00:00'
 rolled_back_from: v007
 se_version: '2.0'
-status: in_progress
+status: baselined
 todo_descent: 17
 ---
 

@@ -6,12 +6,14 @@ doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
 status: superseded
-todo_descent: 19
+todo_descent: 20
 ---
 
 # L5-测试验证
 
 ## 当前待办
+
+- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
 
 - [x] 342/342 全绿
 - [x] 围栏/CRLF/反引号/旧格式/MCP 机读 6 类鲁棒性用例
