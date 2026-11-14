@@ -317,7 +317,8 @@ class LLMConsistencyAuditor:
         if not matched:
             matched_table += "| — | — | — | — |\n"
 
-        fingerprint = aggregate_fingerprint(hashes or {}, design_digest)
+        # code-only fingerprint (design lives in its own field)
+        fingerprint = aggregate_fingerprint(hashes or {}, "")
 
         body = f"""
 # 一致性检查报告 ({report_id})

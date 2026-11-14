@@ -43,10 +43,17 @@ class TestDriftDetection:
         assert result["needs_reaudit"] is True
         assert result["baseline_fingerprint"] != result["current_fingerprint"]
 
-    def test_detected_after_design_change(self, proj):
+    def test_design_only_change_is_drifted_not_detected(self, proj):
+        """Design-only edits are 'drifted' (re-audit needed), not a code drift."""
         ConsistencyGate(proj).ensure()
         proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n变更\n")
-        assert detect_drift(proj)["detected"] is True
+        result = detect_drift(proj)
+        assert result["state"] == "drifted"
+        assert result["reason"] == "design_changed_since_audit"
+        # detected is defined as state == "drifted", so a design-only change
+        # counts as drifted (a re-audit is required, nothing ran ahead)
+        assert result["detected"] is True
+        assert result["needs_reaudit"] is True
 
     def test_drift_lines_explain(self, proj):
         ConsistencyGate(proj).ensure()

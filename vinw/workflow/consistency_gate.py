@@ -98,7 +98,9 @@ class ConsistencyGate:
         return {
             "file_hashes": hashes,
             "design_hash": d_hash,
-            "code_fingerprint": aggregate_fingerprint(hashes, d_hash),
+            # code only: mixing the design digest in here made "code matched"
+            # false whenever only the design changed
+            "code_fingerprint": aggregate_fingerprint(hashes, ""),
             "code_root": code_root,
         }
 
@@ -231,14 +233,18 @@ class ConsistencyGate:
         return best
 
     def llm_matches_current(self, descent: int | None = None) -> bool:
-        """Does the latest LLM report describe the *current* fingerprint?"""
+        """Does the latest LLM report describe the current code *and* design?"""
         if descent is None:
             descent = self.project.read_manifest().get("current_descent", 1)
         report = self.latest_llm(descent)
         if report is None:
             return False
-        current = self.current_fingerprint()["code_fingerprint"]
-        return report.get("code_fingerprint") == current
+        current = self.current_fingerprint()
+        if report.get("code_fingerprint") != current["code_fingerprint"]:
+            return False
+        stored_design = report.get("design_hash")
+        # A verdict produced against older design text is stale as well
+        return not stored_design or stored_design == current["design_hash"]
 
     def llm_status(self, descent: int | None = None) -> dict[str, Any]:
         """Whether an LLM audit is required, provided, and its raw verdict."""
@@ -252,18 +258,11 @@ class ConsistencyGate:
             "policy": policy,
             "required": required,
             "present": report is not None,
-            "matches_current": (report is not None)
-            and report.get("code_fingerprint")
-            == self.current_fingerprint()["code_fingerprint"],
+            "matches_current": self.llm_matches_current(descent),
             "overall": overall,
             # A verdict only counts for the code it was produced on; whether
             # a non-passing verdict blocks is the triage layer's decision.
-            "satisfied": (not required)
-            or (
-                report is not None
-                and report.get("code_fingerprint")
-                == self.current_fingerprint()["code_fingerprint"]
-            ),
+            "satisfied": (not required) or self.llm_matches_current(descent),
             "report_id": (report or {}).get("report_id"),
             "auditor": (report or {}).get("auditor"),
         }

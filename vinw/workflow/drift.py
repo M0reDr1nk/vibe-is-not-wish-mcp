@@ -83,7 +83,10 @@ def detect_drift(project: Project) -> dict[str, Any]:
                 current=current_fp,
             )
 
-        if audited == current_fp:
+        audited_design = state.get("design_hash")
+        code_same = audited == current_fp
+        design_same = (not audited_design) or audited_design == current["design_hash"]
+        if code_same and design_same:
             return _result(
                 state="clean", reason="in_sync", baseline=audited, current=current_fp
             )
@@ -95,7 +98,7 @@ def detect_drift(project: Project) -> dict[str, Any]:
 
         # Did the *design* move with the code? Prefer the hash recorded with the
         # audited state — the newest LLM report may belong to another descent.
-        audited_design = state.get("design_hash") or (report or {}).get("design_hash")
+        audited_design = audited_design or (report or {}).get("design_hash")
         design_changed = bool(
             audited_design and audited_design != current["design_hash"]
         )

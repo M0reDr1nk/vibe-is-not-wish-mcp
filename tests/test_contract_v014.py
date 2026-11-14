@@ -538,3 +538,66 @@ class TestReviewer5Regressions:
             state = states.get(layer, {})
             if state.get("status") == "superseded":
                 assert state.get("superseded_by"), layer
+
+
+class TestVerdictInvalidatedByDesignChange:
+    """A verdict is only valid for the design text it reviewed.
+
+    Without this, a stage-end text re-check could 'wash' drift clean and let
+    the project advance on a verdict that never saw the new design.
+    """
+
+    def test_design_change_invalidates_satisfied(self, proj):
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        assert gate.llm_status()["satisfied"] is True
+
+        # design text changes -> the old verdict no longer covers it
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n新约束\n")
+        status = gate.llm_status()
+        assert status["present"] is True
+        assert status["matches_current"] is False
+        assert status["satisfied"] is False
+
+    def test_descend_blocked_after_design_change(self, proj):
+        from vinw.workflow.state_machine import LLMAuditRequiredError
+
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        fp = gate.current_fingerprint()
+        LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+        manifest = proj.read_manifest()
+        manifest["current_layer"] = "L4-编码实现"
+        proj.write_manifest(manifest)
+
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n新约束\n")
+
+        with pytest.raises((LLMAuditRequiredError, Exception)):
+            WorkflowEngine(proj).descend("L5-测试验证", "stale verdict")
+
+    def test_code_fingerprint_excludes_design(self, proj):
+        gate = ConsistencyGate(proj)
+        gate.ensure()  # establish an audited baseline first
+        before = gate.current_fingerprint()["code_fingerprint"]
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n改\n")
+        after = gate.current_fingerprint()
+        assert after["code_fingerprint"] == before
+        from vinw.workflow.drift import detect_drift
+
+        assert detect_drift(proj)["state"] == "drifted"
