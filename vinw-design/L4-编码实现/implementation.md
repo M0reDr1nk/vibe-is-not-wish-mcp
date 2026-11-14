@@ -281,7 +281,7 @@ updated_at: "2026-11-13T10:02:19.675591"
 | 缺陷 | 修复 |
 |------|------|
 | ensure() 失败仍锚定指纹 → 重试绕过 | 仅在 `overall == passed` 时 `_record_state`；失败只写 `last_failed_report/overall/at` |
-| L4 基线先 heal 后占位符守卫 → 被拒迁移仍留 auto-audit | **首版修复不完整**（日志延迟但状态已锚定，reviewer8 指出）：现把无副作用的占位符守卫前移到所有一致性分支之前，被拒迁移零写入 |
+| L4 基线先 heal 后守卫 → 被拒迁移仍留痕 | **两次修复才完整**：reviewer8 指出日志延迟但状态已锚定；reviewer9 指出 strict/triage 路径同样。现把占位符守卫与 strict/triage 只读校验全部前移到 heal 之前，**被拒基线零写入**（唯一例外是 heal 之后不会再有守卫拒绝） |
 | force 基线无可辨识痕迹 | reason 加 `[force]` 前缀 |
 | 漂移基线回退/结论复用规则未进设计 | v0.15 补三节：回退顺序、复用三条件、失败不锚定 |
 | design_lag 与 config_error 判定顺序与文档不符 | 文档改为 design_lag 优先，并说明 hint |

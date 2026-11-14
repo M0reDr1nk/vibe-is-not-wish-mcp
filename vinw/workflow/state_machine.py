@@ -329,9 +329,27 @@ class WorkflowEngine:
                 )
         if layer == L4_LAYER and not force:
             gate = ConsistencyGate(self.project)
-            # Heal first (so ensure() cannot wash the drift away before the
-            # verdict check), but defer the audit-trail entry: the placeholder
-            # guard below may still reject this transition.
+            # Read-only checks first: strict policy and triage must be able to
+            # reject before healing anchors anything.
+            if gate.policy() == "strict":
+                llm = gate.llm_status()
+                if not llm["satisfied"]:
+                    raise LLMAuditRequiredError(
+                        "策略 strict 要求基线前提供与当前代码匹配的 LLM 语义审核结论"
+                    )
+                triage = AuditTriage(self.project).decision()
+                if triage["decision"] == "escalate":
+                    raise AuditEscalationError(
+                        f"{len(triage.get('escalations', []))} 条审计发现需人工裁定"
+                    )
+                if triage["decision"] == "auto_fix_pending":
+                    raise AuditEscalationError(
+                        f"{len(triage.get('auto_fixable', []))} 条高置信实现缺陷待修正"
+                    )
+
+            # Then heal (verdict check -> text -> anchor). The placeholder and
+            # strict/triage guards already ran above, so nothing can reject
+            # between healing and the state write; the log is still deferred.
             l4_heal = self.heal_drift(f"baseline:{layer}", log=False)
             status = gate.ensure()
 
@@ -356,22 +374,6 @@ class WorkflowEngine:
                     f"请修复后重试，或以 force=true 跳过"
                 )
 
-            # strict: baseline also demands a semantic verdict
-            if gate.policy() == "strict":
-                llm = gate.llm_status()
-                if not llm["satisfied"]:
-                    raise LLMAuditRequiredError(
-                        "策略 strict 要求基线前提供与当前代码匹配的 LLM 语义审核结论"
-                    )
-                triage = AuditTriage(self.project).decision()
-                if triage["decision"] == "escalate":
-                    raise AuditEscalationError(
-                        f"{len(triage.get('escalations', []))} 条审计发现需人工裁定"
-                    )
-                if triage["decision"] == "auto_fix_pending":
-                    raise AuditEscalationError(
-                        f"{len(triage.get('auto_fixable', []))} 条高置信实现缺陷待修正"
-                    )
 
         if not force and layer != L4_LAYER:
             # (the L4 branch above already healed, before its ensure())

@@ -760,7 +760,7 @@ class TestL4DeferredAuditLog:
         changelog = proj.vinw_dir / "changelog.md"
         before = changelog.read_text(encoding="utf-8").count("auto-audit")
 
-        with pytest.raises((PlaceholderTodoError, Exception)):
+        with pytest.raises(PlaceholderTodoError):
             WorkflowEngine(proj).baseline("L4-编码实现", "rejected")
 
         assert changelog.read_text(encoding="utf-8").count("auto-audit") == before
@@ -823,3 +823,37 @@ class TestRejectedBaselineIsFullySideEffectFree:
         assert detect_drift(proj)["state"] == "clean"
         changelog = (proj.vinw_dir / "changelog.md").read_text(encoding="utf-8")
         assert "auto-audit" in changelog
+
+
+class TestStrictRejectionIsSideEffectFree:
+    """reviewer9: strict/triage rejections must also precede healing."""
+
+    def test_strict_rejection_keeps_drift_and_log(self, proj):
+        from vinw.workflow.drift import detect_drift
+        from vinw.workflow.state_machine import LLMAuditRequiredError
+
+        manifest = proj.read_manifest()
+        manifest["consistency_policy"] = "strict"
+        proj.write_manifest(manifest)
+
+        readme = proj.read_layer_readme("L4-编码实现")
+        proj.write_layer_readme(
+            "L4-编码实现",
+            {**readme, "todo_descent": 1},
+            replace_todo_section(readme["content"], "## 当前待办\n\n- [x] done"),
+        )
+
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        # strict needs a verdict; leave it missing so the gate must reject
+        (proj.root / "main.py").write_text("def main():\n    return 9\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n改\n")
+
+        changelog = proj.vinw_dir / "changelog.md"
+        before = changelog.read_text(encoding="utf-8").count("auto-audit")
+
+        with pytest.raises(LLMAuditRequiredError):
+            WorkflowEngine(proj).baseline("L4-编码实现", "strict reject")
+
+        assert detect_drift(proj)["state"] != "clean"
+        assert changelog.read_text(encoding="utf-8").count("auto-audit") == before
