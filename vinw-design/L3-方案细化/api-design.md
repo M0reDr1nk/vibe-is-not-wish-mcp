@@ -1320,3 +1320,18 @@ def _exception_state(manifest) -> "none" | "active" | "expired":
 | 上升正规化 | 结转特例为 `regularized`，但**不豁免**校验要求 |
 
 设计意图：特例只允许"先跳过流程"，不允许"永久跳过验证"——跳过的那段必须在收尾前补审。
+
+## 八、评审 r25 后的修订（v0.21 定稿）
+
+| 发现 | 修订 |
+|------|------|
+| GAP-001 `force=True` 可绕过待批准特例 | `_assert_exception_hard_stop()` 在 baseline/descend 的**任何 force 分支之前**无条件调用；force 不能跳过"用户批准" |
+| GAP-002 `log=False` 路径不写 AC8 标志 | AC8 标志与使用计数集中在 `_tolerate()`，**不受 log 影响**；只有 changelog 受 log 控制 |
+| GAP-003 死代码 `_guard_drift_exception` | 删除；`_tolerate` + `_assert_exception_hard_stop` 为唯一实现 |
+| GAP-004 完成态漏 expired / 异常未被捕获 | 完成守卫覆盖 pending+active+expired；`WorkflowExceptionRequiredError/ExpiredError` 转为结构化 JSON |
+| GAP-005 期限不可达 | 过期条件改为「轮次超期 **或** 容忍次数 ≥ max_uses（默认 3）」，两者任一即过期 |
+| GAP-006 特例与确认无外键 | 特例记录保存 `confirmation_id`；resolve 按 id 精确匹配，且仅接受 `status=pending`，否则报错（不再静默成功） |
+| INC-002 deadline 写入时机 | 设计改为 request 时定死（实现与设计一致） |
+| INC-003 四态 | §三 伪代码更新为 none/pending/active/expired |
+| INC-001 clean + pending/expired | 明确为**硬停**（需用户裁决或 reject 解除），文档补行 |
+| GAP-007 agent 可自行批准 | **架构级限制**：MCP 无法区分调用者身份，agent 仍可自行调用 `se_resolve_confirmation`。已记录为已知限制；缓解：特例与裁决均写 changelog + 结构化字段（含 `decision`/`exception_id`），事后可审计；真正强制需由宿主（TUI 人类通道/一次性令牌）实现 |

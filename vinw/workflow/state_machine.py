@@ -253,41 +253,23 @@ class WorkflowEngine:
         drift = detect_drift(self.project)
         state = drift.get("state")
 
+        # R35: 特例判定（pending/expired 硬停；active 容忍 + AC8 标志）
         exc_state, exc = self.exception_state(self.project.read_manifest())
-        # 过期/未批准是硬停：即便漂移状态未知也不允许推进
         if exc_state == "expired" and exc is not None:
             raise WorkflowExceptionExpiredError(
-                f"流程违规特例 {exc.get('id')} 已于 descent-{exc.get('deadline_descent')} "
-                f"过期，必须先 se_ascend 回对应层正规化"
+                f"流程违规特例 {exc.get('id')} 已过期（descent-"
+                f"{exc.get('deadline_descent')} / 已容忍 {exc.get('tolerated_uses', 0)} 次），"
+                f"必须先 se_ascend 回对应层正规化"
             )
         if exc_state == "pending" and exc is not None:
             raise WorkflowExceptionRequiredError(
-                f"流程违规特例 {exc.get('id')} 尚待用户批准（se_resolve_confirmation），"
-                f"未批准前不允许带漂移推进"
+                f"流程违规特例 {exc.get('id')} 尚待用户批准（se_resolve_confirmation）"
             )
         if state in ("clean", "unknown", None):
             return None
-
         if exc_state == "active" and exc is not None:
-            self._require_post_violation_audit()
-            if log:
-                manifest = self.project.read_manifest()
-                manifest["post_violation_audit_required"] = {
-                    "exception_id": exc.get("id"),
-                    "since_descent": manifest.get("current_descent", 1),
-                    "reason": "违约流程结束后必须做一致性校验（R35 AC8）",
-                }
-                self.project.write_manifest(manifest)
-                self._append_changelog(
-                    change_type="violation-tolerated",
-                    scope=str(exc.get("id", "")),
-                    reason=(
-                        f"已批准特例容忍 {stage} 带漂移推进：{exc.get('reason', '')}"
-                        f"（须于 descent-{exc.get('deadline_descent')} 前正规化，"
-                        f"且结束前必须完成一致性校验）"
-                    ),
-                )
-            return {"stage": stage, "drift": drift, "tolerated": exc}
+            return {"stage": stage, "drift": drift,
+                    "tolerated": self._tolerate(exc, stage, log=log)}
 
         if state == "design_lag":
             raise DesignLagError(
@@ -436,12 +418,58 @@ class WorkflowEngine:
         if approved:
             latest = approved[-1]
             deadline = latest.get("deadline_descent", descent)
-            if descent > int(deadline):
+            uses = int(latest.get("tolerated_uses", 0))
+            max_uses = int(latest.get("max_uses", 3))
+            # 过期可由轮次或使用次数任一触发（后者在正常流程中可达，r25 GAP-005）
+            if descent > int(deadline) or uses >= max_uses:
                 return "expired", latest
             return "active", latest
         if pending:
             return "pending", pending[-1]
         return "none", None
+
+    def _tolerate(self, exc: dict[str, Any], action: str, log: bool = True) -> dict[str, Any]:
+        """Record one tolerated use + the mandatory follow-up audit (AC8)."""
+        manifest = self.project.read_manifest()
+        manifest["post_violation_audit_required"] = {
+            "exception_id": exc.get("id"),
+            "since_descent": manifest.get("current_descent", 1),
+            "reason": "违约流程结束后必须做一致性校验（R35 AC8）",
+        }
+        exceptions = manifest.get("workflow_exceptions", [])
+        updated = dict(exc)
+        for item in exceptions:
+            if item.get("id") == exc.get("id"):
+                item["tolerated_uses"] = int(item.get("tolerated_uses", 0)) + 1
+                updated = item
+                break
+        manifest["workflow_exceptions"] = exceptions
+        self.project.write_manifest(manifest)
+        if log:
+            self._append_changelog(
+                change_type="violation-tolerated",
+                scope=str(updated.get("id", "")),
+                reason=(
+                    f"已批准特例容忍{action}：{updated.get('reason', '')}"
+                    f"（已用 {updated.get('tolerated_uses')} 次；结束前必须完成一致性校验）"
+                ),
+            )
+        return updated
+
+    def _assert_exception_hard_stop(self, action: str) -> None:
+        """pending/expired exceptions stop every transition, even force=True."""
+        state, exc = self.exception_state(self.project.read_manifest())
+        if state == "expired" and exc is not None:
+            raise WorkflowExceptionExpiredError(
+                f"流程违规特例 {exc.get('id')} 已过期（descent-"
+                f"{exc.get('deadline_descent')} / 已容忍 {exc.get('tolerated_uses', 0)} 次）；"
+                f"请先 se_ascend 正规化，不能继续{action}"
+            )
+        if state == "pending" and exc is not None:
+            raise WorkflowExceptionRequiredError(
+                f"流程违规特例 {exc.get('id')} 尚待用户批准；未批准前不能继续{action}"
+                f"（force 也不能绕过）"
+            )
 
     def _require_post_violation_audit(self) -> None:
         """After a tolerated violation, a matching audit verdict is mandatory.
@@ -465,45 +493,6 @@ class WorkflowEngine:
             f"违约流程结束前必须完成一致性校验：特例 {pending.get('exception_id')} "
             f"之后尚无与当前代码+设计匹配的审核结论。请提交 se_store_consistency_report "
             f"（auditor 可为 reviewer/self）后再继续"
-        )
-
-    def _guard_drift_exception(self, action: str) -> dict[str, Any] | None:
-        """Drift blocks transitions unless a user-approved exception is active.
-
-        Returns the tolerated exception (and logs it) or raises. Default deny:
-        absence of an exception keeps the pre-R35 behaviour.
-        """
-        from .drift import detect_drift
-
-        manifest = self.project.read_manifest()
-        state, exc = self.exception_state(manifest)
-        drift = detect_drift(self.project)
-        if drift.get("state") in (None, "clean"):
-            return None
-        if state == "active" and exc is not None:
-            self._append_changelog(
-                change_type="violation-tolerated",
-                scope=str(exc.get("id", "")),
-                reason=(
-                    f"已批准特例容忍带漂移{action}：{exc.get('reason', '')}"
-                    f"（须于 descent-{exc.get('deadline_descent')} 前正规化）"
-                ),
-            )
-            return exc
-        if state == "expired" and exc is not None:
-            raise WorkflowExceptionExpiredError(
-                f"流程违规特例 {exc.get('id')} 已于 descent-{exc.get('deadline_descent')} "
-                f"过期，必须先 se_ascend 回对应层正规化，不能继续{action}"
-            )
-        if state == "pending" and exc is not None:
-            raise WorkflowExceptionRequiredError(
-                f"流程违规特例 {exc.get('id')} 尚待用户批准；请先让用户用 "
-                f"se_resolve_confirmation 明确 approve/reject，不能继续{action}"
-            )
-        raise WorkflowExceptionRequiredError(
-            f"检测到工作区漂移（{drift.get('state')}），默认不允许{action}。"
-            f"请先 se_ascend 走正规流程；若确属必要，先用 se_request_workflow_exception "
-            f"申请特例并由用户批准"
         )
 
     def _assert_no_blocking_clarifications(self, action: str) -> None:
@@ -531,6 +520,7 @@ class WorkflowEngine:
         # state) happens only after them, so a rejected baseline writes nothing.
         l4_heal: dict[str, Any] | None = None
 
+        self._assert_exception_hard_stop("基线化")
         self._require_post_violation_audit()
 
         if not force:
@@ -848,6 +838,7 @@ class WorkflowEngine:
                     f"修正后调用 se_record_triage_decision(decision=fix_impl)"
                 )
 
+        self._assert_exception_hard_stop("下降")
         self._require_post_violation_audit()
         self._assert_no_blocking_clarifications("下降")
 
@@ -993,17 +984,17 @@ class WorkflowEngine:
                 )
             exceptions = manifest.get("workflow_exceptions", [])
             matched = None
-            for exc in reversed(exceptions):
-                if exc.get("status") == "pending" and (
-                    exc.get("reason", "") in target.get("description", "")
-                ):
+            cfm = target.get("id")
+            for exc in exceptions:
+                if exc.get("confirmation_id") == cfm:
                     matched = exc
                     break
-            if matched is None:
-                for exc in reversed(exceptions):
-                    if exc.get("status") == "pending":
-                        matched = exc
-                        break
+            if matched is None or matched.get("status") != "pending":
+                raise ValueError(
+                    f"确认 {cfm} 未关联任何待批准的流程违规特例"
+                    f"（当前状态：{(matched or {}).get('status', '未找到')}；"
+                    f"可能已被 ascend 正规化，请重新申请）"
+                )
             target["resolved_at"] = datetime.now(timezone.utc).isoformat()
             target["resolution"] = decision
             target["feedback"] = feedback

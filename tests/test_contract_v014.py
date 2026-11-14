@@ -1727,3 +1727,115 @@ class TestWorkflowExceptionApproval:
         manifest = proj.read_manifest()
         exc = [e for e in manifest["workflow_exceptions"] if e["id"] == payload["exception_id"]][0]
         assert exc["status"] == "regularized"
+
+
+class TestWorkflowExceptionHardening:
+    """r25 findings: force bypass, log=False flag, complete guards, linking."""
+
+    def _request(self, proj, **kw):
+        import vinw.server as server
+
+        args = dict(reason="修报告", files="a.md", necessity="必要", impact="low")
+        args.update(kw)
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            return json.loads(server.se_request_workflow_exception(**args))
+        finally:
+            server._active_project = saved
+
+    def test_force_cannot_bypass_pending_exception(self, proj):
+        from vinw.workflow.state_machine import (
+            WorkflowEngine, WorkflowExceptionRequiredError,
+        )
+
+        self._request(proj)
+        with pytest.raises(WorkflowExceptionRequiredError):
+            WorkflowEngine(proj).baseline("L1-需求拆解", "强行", force=True)
+
+    def test_force_cannot_bypass_expired_exception(self, proj):
+        from vinw.workflow.state_machine import (
+            WorkflowEngine, WorkflowExceptionExpiredError,
+        )
+
+        payload = self._request(proj, expires_in_descents=0)
+        engine = WorkflowEngine(proj)
+        engine.resolve_confirmation(payload["confirmation_id"], "approve", "ok")
+        manifest = proj.read_manifest()
+        manifest["current_descent"] += 1
+        proj.write_manifest(manifest)
+        with pytest.raises(WorkflowExceptionExpiredError):
+            engine.baseline("L1-需求拆解", "强行", force=True)
+
+    def test_tolerate_records_audit_flag_and_use_count(self, proj):
+        from vinw.workflow.consistency_gate import ConsistencyGate
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        ConsistencyGate(proj).ensure()
+        payload = self._request(proj)
+        engine = WorkflowEngine(proj)
+        engine.resolve_confirmation(payload["confirmation_id"], "approve", "ok")
+        (proj.root / "main.py").write_text("def main():\n    return 1\n")
+
+        healed = engine.heal_drift("baseline", log=False)   # L4 路径用 log=False
+        assert healed and healed.get("tolerated")
+        manifest = proj.read_manifest()
+        # AC8 标志不受 log 影响
+        assert manifest.get("post_violation_audit_required")
+        exc = [e for e in manifest["workflow_exceptions"]
+               if e["id"] == payload["exception_id"]][0]
+        assert exc["tolerated_uses"] == 1
+
+    def test_expiry_reachable_by_use_count(self, proj):
+        from vinw.workflow.consistency_gate import ConsistencyGate
+        from vinw.workflow.state_machine import (
+            WorkflowEngine, WorkflowExceptionExpiredError,
+        )
+
+        ConsistencyGate(proj).ensure()
+        payload = self._request(proj)
+        engine = WorkflowEngine(proj)
+        engine.resolve_confirmation(payload["confirmation_id"], "approve", "ok")
+
+        manifest = proj.read_manifest()
+        for item in manifest["workflow_exceptions"]:
+            if item["id"] == payload["exception_id"]:
+                item["tolerated_uses"] = 3        # 达到 max_uses
+        proj.write_manifest(manifest)
+        (proj.root / "main.py").write_text("def main():\n    return 2\n")
+        with pytest.raises(WorkflowExceptionExpiredError):
+            engine.heal_drift("baseline")
+
+    def test_resolution_requires_linked_confirmation(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        payload = self._request(proj)
+        manifest = proj.read_manifest()
+        for item in manifest["workflow_exceptions"]:
+            item["status"] = "regularized"          # 已正规化（关联失效）
+        proj.write_manifest(manifest)
+        with pytest.raises(ValueError):
+            WorkflowEngine(proj).resolve_confirmation(
+                payload["confirmation_id"], "approve", "ok"
+            )
+
+    def test_complete_rejects_expired_exception(self, proj):
+        import vinw.server as server
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        payload = self._request(proj, expires_in_descents=0)
+        WorkflowEngine(proj).resolve_confirmation(
+            payload["confirmation_id"], "approve", "ok"
+        )
+        manifest = proj.read_manifest()
+        manifest["current_descent"] += 1
+        manifest["layer_states"]["L7-终验"] = {"status": "in_progress"}
+        proj.write_manifest(manifest)
+
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            payload = json.loads(server.se_complete_project())
+        finally:
+            server._active_project = saved
+        assert "error" in payload or payload.get("status") != "completed"

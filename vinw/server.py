@@ -24,6 +24,8 @@ from .workflow.state_machine import (
     ConsistencyGateError,
     LLMAuditRequiredError,
     PlaceholderTodoError,
+    WorkflowExceptionExpiredError,
+    WorkflowExceptionRequiredError,
     ToolingDiscrepancyError,
     WorkflowEngine,
 )
@@ -339,6 +341,11 @@ def se_baseline(layer: str, reason: str = "", force: bool = False, project: str 
             },
             ensure_ascii=False,
             indent=2,
+        )
+    except (WorkflowExceptionRequiredError, WorkflowExceptionExpiredError) as e:
+        return json.dumps(
+            {"error": str(e), "hint": "特例需用户批准；或先 se_ascend 正规化"},
+            ensure_ascii=False, indent=2,
         )
     except LLMAuditRequiredError as e:
         return json.dumps(
@@ -877,10 +884,10 @@ def se_complete_project(project: str | None = None) -> str:
 
     # R35: 完成态不得有未正规化的流程违规特例
     exc_state, exc = WorkflowEngine.exception_state(proj.read_manifest())
-    if exc_state in ("pending", "active") and exc is not None:
+    if exc_state in ("pending", "active", "expired") and exc is not None:
         errors.append(
             f"流程违规特例 {exc.get('id')} 尚未正规化（状态 {exc.get('status')}，"
-            f"期限 descent-{exc.get('deadline_descent')}）。"
+            f"期限 descent-{exc.get('deadline_descent')}，已容忍 {exc.get('tolerated_uses', 0)} 次）。"
             f"请先 se_ascend 把变更正规化，再完成项目"
         )
 
@@ -1404,6 +1411,13 @@ def se_request_workflow_exception(
         options=["approve", "reject", "modify"],
         blocking=True,
     )
+    # 记录关联（r25 GAP-006：确认为特例的唯一外键，避免按 reason 猜）
+    manifest = proj.read_manifest()
+    for item in manifest.get("workflow_exceptions", []):
+        if item.get("id") == exc_id:
+            item["confirmation_id"] = cfm_id
+            break
+    proj.write_manifest(manifest)
     return json.dumps(
         {
             "exception_id": exc_id,
