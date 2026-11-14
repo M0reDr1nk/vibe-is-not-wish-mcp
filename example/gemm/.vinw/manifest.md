@@ -29,7 +29,7 @@ ascent_history:
 completed_at: '2026-11-14T08:28:30.729820+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 4
-current_layer: L3-方案细化
+current_layer: L5-测试验证
 descent_started_at: '2026-11-14T08:53:37.128569+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
@@ -46,10 +46,10 @@ layer_states:
     status: baselined
   L3-方案细化:
     active_ascent: asc-003
-    baselined_at: '2026-11-14T08:27:10.872478+00:00'
+    baselined_at: '2026-11-14T09:30:54.479228+00:00'
     descent_count: 4
-    latest_baseline: v003
-    status: in_progress
+    latest_baseline: v004
+    status: baselined
   L4-编码实现:
     audit:
       auto_fixable: []
@@ -59,9 +59,9 @@ layer_states:
       escalations_count: 0
       findings: 9
       report_id: 5dffb92d-01
-    baselined_at: '2026-11-14T08:27:17.685640+00:00'
+    baselined_at: '2026-11-14T09:30:59.021288+00:00'
     consistency:
-      checked_at: '2026-11-14T08:27:17.680909+00:00'
+      checked_at: '2026-11-14T09:30:59.015940+00:00'
       code_fingerprint: 8ff363515627b6726b344f88611a3f1034b32954b0bad3209b724d5c779ed8bc
       descent: 4
       design_hash: 936c049147d721b1a2e2c1b863c371e17e85f7444ea05f2d27f58cfef53b30bc
@@ -70,21 +70,15 @@ layer_states:
       llm_report_id: 5dffb92d-01
       llm_verdict: warning
       overall: passed
-      report_id: 98889932-01
-    descent_count: 3
-    latest_baseline: v001
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T08:53:37.128561+00:00'
-    superseded_by: asc-003
+      report_id: 9a884b54-01
+    descent_count: 4
+    latest_baseline: v002
+    status: baselined
   L5-测试验证:
     baselined_at: '2026-11-14T08:27:33.890092+00:00'
-    descent_count: 1
+    descent_count: 2
     latest_baseline: v001
-    needs_redo: true
-    status: superseded
-    superseded_at: '2026-11-14T08:53:37.128561+00:00'
-    superseded_by: asc-003
+    status: in_progress
   L6-检视清理:
     baselined_at: '2026-11-14T08:27:58.938156+00:00'
     descent_count: 1

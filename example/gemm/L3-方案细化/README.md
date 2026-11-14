@@ -1,15 +1,15 @@
 ---
 baseline_reason: descent-3 L3 v004：v003 双基线验收 + AMX 后端设计小节（tile/打包/哨兵行/ABI/平台限制）+
   接口与构建布局同步
-baseline_version: v003
-baselined_at: '2026-11-14T08:27:10.871610+00:00'
+baseline_version: v004
+baselined_at: '2026-11-14T09:30:54.479228+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
 rolled_back_at: '2026-11-14T08:53:37.128319+00:00'
 rolled_back_from: v003
 se_version: '2.0'
-status: in_progress
+status: baselined
 todo_descent: 1
 ---
 
