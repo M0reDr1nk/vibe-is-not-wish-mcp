@@ -1,14 +1,15 @@
 ---
-baseline_reason: L3 v001：五层循环 + 4x8 微内核 + 打包布局 + OpenMP 并行 + 接口冻结，用户批准
+baseline_reason: descent-3 L3 v004：v003 双基线验收 + AMX 后端设计小节（tile/打包/哨兵行/ABI/平台限制）+
+  接口与构建布局同步
 baseline_version: v003
-baselined_at: '2026-11-14T08:27:10.872478+00:00'
+baselined_at: '2026-11-14T08:27:10.871610+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-13T17:36:31.069455+00:00'
-rolled_back_from: v001
+rolled_back_at: '2026-11-14T08:53:37.128319+00:00'
+rolled_back_from: v003
 se_version: '2.0'
-status: baselined
+status: in_progress
 todo_descent: 1
 ---
 

@@ -18,11 +18,19 @@ ascent_history:
     峰值(25.6)，8×=189 GFLOPS≈整机峰值；而真·朴素 ijk 仅 3.56 GFLOPS（相对可达 30×）。需回 L1 重新定义性能基线口径
   to_baseline: v001
   to_layer: L1-需求拆解
+- created_at: '2026-11-14T08:53:37.127671+00:00'
+  descent_after: 4
+  descent_before: 3
+  from_layer: L7-终验
+  id: asc-003
+  reason: R4 扩展性实测 3.22× 未达 4× 门槛：需改设计为 MC=64 细粒度 + 按 perflevel 加权分块，消除 E 核尾延迟
+  to_baseline: v003
+  to_layer: L3-方案细化
 completed_at: '2026-11-14T08:28:30.729820+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
-current_descent: 3
-current_layer: L7-终验
-descent_started_at: '2026-11-14T07:24:46.155098+00:00'
+current_descent: 4
+current_layer: L3-方案细化
+descent_started_at: '2026-11-14T08:53:37.128569+00:00'
 description: 本机 CPU GEMM 加速实现（NEON/多线程/分块），含正确性测试与性能基准
 layer_states:
   L1-需求拆解:
@@ -37,11 +45,11 @@ layer_states:
     latest_baseline: v002
     status: baselined
   L3-方案细化:
-    active_ascent: asc-001
+    active_ascent: asc-003
     baselined_at: '2026-11-14T08:27:10.872478+00:00'
-    descent_count: 3
+    descent_count: 4
     latest_baseline: v003
-    status: baselined
+    status: in_progress
   L4-编码实现:
     audit:
       auto_fixable: []
@@ -65,22 +73,34 @@ layer_states:
       report_id: 98889932-01
     descent_count: 3
     latest_baseline: v001
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T08:53:37.128561+00:00'
+    superseded_by: asc-003
   L5-测试验证:
     baselined_at: '2026-11-14T08:27:33.890092+00:00'
     descent_count: 1
     latest_baseline: v001
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T08:53:37.128561+00:00'
+    superseded_by: asc-003
   L6-检视清理:
     baselined_at: '2026-11-14T08:27:58.938156+00:00'
     descent_count: 1
     latest_baseline: v001
-    status: baselined
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T08:53:37.128561+00:00'
+    superseded_by: asc-003
   L7-终验:
     completed_at: '2026-11-14T08:28:30.729820+00:00'
     descent_count: 1
     latest_baseline: null
-    status: completed
+    needs_redo: true
+    status: superseded
+    superseded_at: '2026-11-14T08:53:37.128561+00:00'
+    superseded_by: asc-003
 name: gemm
 pending_confirmations:
 - blocking: true

@@ -4,7 +4,7 @@ descent_count: 0
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
-status: completed
+status: superseded
 todo_descent: 3
 ---
 
