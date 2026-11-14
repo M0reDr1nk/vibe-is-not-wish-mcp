@@ -7,7 +7,46 @@ updated_at: '2026-11-13T10:02:22.615842'
 
 # 接口设计
 
-## MCP 工具清单（18个）
+## MCP 工具清单（共 34 个，由代码生成，禁止手工计数）
+
+> 生成方式：解析 `vinw/server.py` 中所有 `se_*` 函数；测试 `test_tool_catalog.py` 断言此处条目数 == 实际注册数。
+
+| 工具 | 输入 | 输出 |
+|------|------|------|
+| `se_ascend` | — | — |
+| `se_baseline` | — | — |
+| `se_can_descend` | — | — |
+| `se_check_consistency` | — | — |
+| `se_complete_project` | — | — |
+| `se_descend` | — | — |
+| `se_export_projects` | — | — |
+| `se_get_changelog` | — | — |
+| `se_get_escalations` | — | — |
+| `se_get_next_steps` | — | — |
+| `se_get_project` | — | — |
+| `se_get_todos` | — | — |
+| `se_init_project` | — | — |
+| `se_list_baselines` | — | — |
+| `se_list_documents` | — | — |
+| `se_list_projects` | — | — |
+| `se_log_change` | — | — |
+| `se_project_history` | — | — |
+| `se_prune_projects` | — | — |
+| `se_purge_confirmations` | — | — |
+| `se_read_document` | — | — |
+| `se_record_triage_decision` | — | — |
+| `se_register_project` | — | — |
+| `se_remove_project` | — | — |
+| `se_require_confirmation` | — | — |
+| `se_resolve_confirmation` | — | — |
+| `se_search_proposals` | — | — |
+| `se_set_project_state` | — | — |
+| `se_store_consistency_report` | — | — |
+| `se_store_document` | — | — |
+| `se_store_triage` | — | — |
+| `se_triage_prompt` | — | — |
+| `se_update_todo` | — | — |
+| `se_use_project` | — | — |
 
 ### 项目生命周期
 
@@ -409,7 +448,7 @@ CREATE INDEX IF NOT EXISTS idx_events_path ON project_events(path, id DESC);
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `code_extensions` | list[str] | `[".py",".c",".h",".cc",".cpp",".hpp",".rs",".go",".java",".ts",".tsx",".js"]` | 参与一致性检查的代码扩展名（v0.13：补入 .tsx/.js，支持前端工程） |
+| `code_extensions` | list[str] | `[".py",".c",".h",".cc",".cpp",".hpp",".rs",".go",".java",".ts",".tsx",".js"]` | 参与一致性检查的代码扩展名（补入 .tsx/.js，见 v0.13 节） |
 | `code_root` | str | `"."` | 代码根（相对工程根） |
 
 ## 模块契约
@@ -599,3 +638,112 @@ LLM 报告的每条 `inconsistencies` / `gaps` 增加：
 ## 版本历史
 
 | v0.12 | 2026-11-14 | 审计分级裁定：classification/confidence/recommendation、triage 门控决策、4 个新工具 |
+
+---
+
+# v0.14 审计契约补全（descent-13 / asc-012）
+
+> 本版回应 reviewer2 的 9 项设计侧发现（GAP-001~005、INC-005/007/009/012）。
+> 原则：**先补契约，再改实现**；实现侧改动见 L4 implementation.md。
+
+## 1. 漂移检测契约（GAP-001）
+
+### 数据模型 `drift`
+
+| 字段 | 类型 | 语义 |
+|------|------|------|
+| `state` | `clean` / `drifted` / `unknown` | **三态**。`unknown` 表示无法判定（指纹不可用、无审计历史），**不得等同于 clean** |
+| `detected` | bool | 兼容字段：等价于 `state == "drifted"` |
+| `reason` | str | `in_sync` / `workspace_changed_since_audit` / `no_audited_fingerprint` / `unavailable: ...` |
+| `changed` | list[str] | 变更条目，格式 `added|removed|modified:<相对路径>`；无审计哈希时为空 |
+| `baseline_fingerprint` | str \| null | 最近一次通过审计的指纹 |
+| `current_fingerprint` | str \| null | 当前工作区指纹 |
+| `audited_report` | str \| null | 对应的审计报告 id |
+
+### 呈现契约
+
+- `se_get_project.drift` 输出上述结构
+- TUI：`drifted` → 红色「⚠ 漂移告警」面板 + L4 块 `⚠漂移`；`unknown` → **黄色**「⚠ 漂移未知」面板（不得静默）
+- `drift_lines()`：`clean` 返回空；`drifted` 返回文件清单（最多 5 条 + 计数）；`unknown` 返回提示
+
+## 2. 阶段结束自动重审契约（GAP-002 / INC-012）
+
+| 项 | 规定 |
+|----|------|
+| 触发点 | `se_baseline(任意层)`、`se_descend`、`se_complete_project`；`se_ascend` **不触发**（上升本身就是推翻基线，无需重审旧代码） |
+| 执行顺序 | **在所有前置校验之后、状态写入之前**（INC-012）。被拒绝的迁移不得留下 `auto-audit` 记录 |
+| `force=true` | 跳过 heal，与跳过其余基线守卫一致 |
+| 重审动作 | `gate.ensure()`（text）；命中 `config_error`（无代码可审）时**放行但不写报告、不记日志** |
+| 失败语义 | text 不通过 → 抛 `ConsistencyGateError`，转换中止 |
+| 通过后 | 刷新 `consistency.code_fingerprint`；若策略要求 LLM 且报告指纹与当前不符 → 结果标 `needs_llm=true` |
+| 变更日志 | 仅成功重审时写 `auto-audit` 条目，before/after 记录指纹 |
+
+## 3. LLM 结论必须匹配当前指纹（INC-005）
+
+`llm_status()` 语义收紧：
+
+| 字段 | 定义 |
+|------|------|
+| `present` | 本轮存在 kind=llm 报告 |
+| `matches_current` | 该报告的 `code_fingerprint` == 当前指纹 |
+| `satisfied` | `not required` 或 (`present` 且 `matches_current`) |
+
+**三处门控（baseline-strict / descend-L4→L5 / complete）一律以 `matches_current` 为硬前置**：代码在审计后变动过，旧结论不再有效，必须重审。
+
+## 4. Triage 覆盖性约束（INC-009）
+
+- `se_store_triage` 提交的 findings 必须**覆盖该报告的全部 inconsistencies + gaps**
+- 缺项 → 返回 `TriageError`，列出缺失 id，**不写入**
+- 允许额外条目（例如报告中未列出的新发现），但必须有 classification/confidence
+- 理由：部分裁定等于静默丢弃未处理项，比伪造 status 更隐蔽
+
+## 5. 决策状态机（GAP-005）
+
+| decision | 条件 | 门控 |
+|----------|------|------|
+| `no_llm_report` | 本轮无 LLM 报告 | 阻断（要求先审核） |
+| `escalate` | 存在**未裁定**项（classification 缺失或 confidence 缺失），或存在需人工项且 status=open | 阻断 + 列升级项 |
+| `auto_fix_pending` | 全部已裁定为 impl_bug/high，但有 open | 阻断 + 列待修项 |
+| `auto_fixable` | 全部已裁定，且不需要人工修复（全部 fixed/decided/accepted） | 放行 |
+| `resolved` | 全部已裁定为 design_*/ambiguous 且均有 decision（decided/accepted/deferred） | 放行 |
+
+> 修正：原实现把"已裁定为 design_gap"落入 `auto_fixable`，语义相反。现拆出 `resolved`。
+
+## 6. 裁定流程单一化（INC-007）
+
+- **裁定走工具路线**：`se_triage_prompt` 出题 → 调用方（reviewer）作答 → `se_store_triage` 入库
+- **删除**"PROMPT v3 追加段"的表述；`PROMPT_TEMPLATE` 保持 v2（缺口清单 + 实现一致性），不要求 classification
+- 理由：一次审计与一次裁定是两种判断，混在一个 prompt 里会让 LLM 在"描述问题"时就预先下结论
+
+## 7. 工具清单以代码为准（GAP-004）
+
+- 设计文档的工具总表**由脚本从 `vinw/server.py` 生成**并与实现同步
+- 新增测试断言：`len(se_* 工具) == 设计清单条目数`
+- 版本历史表补齐缺失行（v0.11、v0.13）
+
+## 8. 版本编号统一（GAP-003）
+
+以 **L3 基线与 changelog 为准**：章节号 = 基线号 - 1（v0.14 ↔ 基线 v015）。历史缺口补齐，正文内联引用统一。
+
+## 版本历史补记
+
+| 版本 | 日期 | 变更 |
+|------|------|------|
+| v0.11 | 2026-11-14 | 分层审计契约（策略矩阵/kind 分流/v2 schema/tooling_discrepancy） |
+| v0.13 | 2026-11-14 | required/advisory 二分规则、默认扩展名补 .tsx/.js（原内联在 v0.10 章节，现独立成节） |
+| v0.14 | 2026-11-14 | 本版：漂移契约、自动重审契约、LLM 指纹前置、triage 覆盖性、决策状态机、裁定单流程、工具清单以代码为准 |
+
+## 9. 设计-实现同步契约（v0.14 补充，回应「代码不应跑在设计前面」）
+
+漂移分三态，**不得把"代码改了设计没改"当成正常漂移**：
+
+| state | 条件 | 处置 |
+|-------|------|------|
+| `design_synced` | 代码与 L3 设计**都**变了 | 允许，但必须重新审计 |
+| `design_lag` | 代码变了、L3 设计**未**变 | **拒绝**：先把变更补进设计（走 ascend），再审计 |
+| `drifted` | 代码变了，且**无法判定设计是否变**（无已记录 design_hash） | 提示"需重新建立审计基线"，不臆断为 lag |
+| `clean` / `unknown` | 一致 / 指纹不可用 | 见第 1 节 |
+
+判定依据：`layer_states[L4].consistency.design_hash`（审计时记录的 L3 全层哈希）与当前 L3 全层哈希比对；缺失时回退到最近一份 LLM 报告的 `design_hash`。
+
+呈现：`design_lag` 在 TUI 显示红色「🚫 实现先于设计」面板，文案明确"不接受只改代码不改设计"。

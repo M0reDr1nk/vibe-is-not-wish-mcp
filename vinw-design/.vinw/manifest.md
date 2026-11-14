@@ -94,12 +94,21 @@ ascent_history:
   reason: 新增能力：审计发现不一致需 LLM 分级裁定（实现错/方案错/设计缺失/待定），高置信实现错自动修正并记录，其余结构化升级给用户。需回需求层设计
   to_baseline: v002
   to_layer: L1-需求拆解
+- created_at: '2026-11-14T03:08:42.876696+00:00'
+  descent_after: 13
+  descent_before: 12
+  from_layer: L7-终验
+  id: asc-012
+  reason: reviewer2 审计的 9 项设计侧问题需补设计并落实：drift 契约缺失、heal_drift 契约缺失、版本编号错位、工具清单失真、决策表缺两态、LLM
+    结论未校验指纹、裁定流程双路线、triage 覆盖性约束缺失、heal 执行位置未定义
+  to_baseline: v014
+  to_layer: L3-方案细化
 code_root: ..
 completed_at: '2026-11-14T02:44:39.234701+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 12
-current_layer: L7-终验
-descent_started_at: '2026-11-13T18:08:09.780756+00:00'
+current_descent: 13
+current_layer: L4-编码实现
+descent_started_at: '2026-11-14T03:08:42.878453+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
@@ -115,10 +124,10 @@ layer_states:
     latest_baseline: v006
     status: baselined
   L3-方案细化:
-    active_ascent: asc-008
-    baselined_at: '2026-11-13T18:08:39.481242+00:00'
-    descent_count: 12
-    latest_baseline: v014
+    active_ascent: asc-012
+    baselined_at: '2026-11-14T03:09:04.250863+00:00'
+    descent_count: 13
+    latest_baseline: v015
     status: baselined
   L4-编码实现:
     audit:
@@ -129,18 +138,19 @@ layer_states:
       report_id: f454649b
     baselined_at: '2026-11-14T02:42:32.784118+00:00'
     consistency:
-      checked_at: '2026-11-14T02:53:28.667971+00:00'
-      code_fingerprint: 5660f9f92a66e1e6a7ee892747a6d2d1351ba834d2f86134a493cc6bf4e375d5
+      checked_at: '2026-11-14T03:15:20.029616+00:00'
+      code_fingerprint: f11d2a273ad06f42aca1e4087c90ce16226b32871031994e9d68dffb7c7061f3
       descend: 12
-      descent: 12
+      descent: 13
+      design_hash: 00616361704b3c55f6f4df81c0e4469d822c5aa856657255ad7302336c6c75c3
       llm_auditor: reviewer
       llm_report_id: f454649b
       llm_verdict: warning
       overall: passed
-      report_id: f01e70bf
-    descent_count: 11
+      report_id: 2e3b8c5c-01
+    descent_count: 12
     latest_baseline: v011
-    status: baselined
+    status: in_progress
   L5-测试验证:
     baselined_at: '2026-11-14T02:43:01.655609+00:00'
     descent_count: 10
@@ -154,7 +164,9 @@ layer_states:
   L7-终验:
     descent_count: 10
     latest_baseline: null
-    status: completed
+    status: superseded
+    superseded_at: '2026-11-14T03:08:42.878446+00:00'
+    superseded_by: asc-012
 name: vinw-self-design
 pending_confirmations:
 - blocking: true

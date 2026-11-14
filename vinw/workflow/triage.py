@@ -102,6 +102,18 @@ def _as_list(value: Any) -> list[dict[str, Any]]:
     return [v for v in value if isinstance(v, dict)]
 
 
+def is_untriaged(finding: dict[str, Any]) -> bool:
+    """No verdict yet: classification/confidence missing or the sentinel."""
+    cls = finding.get("classification")
+    conf = finding.get("confidence")
+    return (
+        not cls
+        or not conf
+        or cls == "untriaged"
+        or conf == "untriaged"
+    )
+
+
 def requires_human(finding: dict[str, Any]) -> bool:
     """Anything not a high-confidence implementation bug needs a human."""
     if not finding.get("classification") or not finding.get("confidence"):
@@ -203,6 +215,25 @@ class AuditTriage:
         if not isinstance(items, list):
             raise TriageError("triage 必须是数组")
 
+        # Partial triage silently drops the rest, which is worse than a forged
+        # status: every finding in the report must be adjudicated.
+        report_meta = frontmatter.load(path).metadata
+        expected = {
+            str(f.get("id"))
+            for f in (
+                _as_list(report_meta.get("inconsistencies"))
+                + _as_list(report_meta.get("gaps"))
+            )
+            if f.get("id")
+        }
+        provided = {str(item.get("id")) for item in items if item.get("id")}
+        missing = sorted(expected - provided)
+        if missing:
+            raise TriageError(
+                f"triage 未覆盖报告全部发现，缺少: {', '.join(missing)}"
+                f"（覆盖性约束：部分裁定会静默丢弃未处理项）"
+            )
+
         findings = []
         for item in items:
             finding = normalize_finding(item)
@@ -266,23 +297,50 @@ class AuditTriage:
             return {"decision": "clear", "report_id": report_id, "findings": 0}
 
         open_findings = [f for f in findings if f.get("status") == "open"]
-        auto = [f for f in findings if not requires_human(f)]
-        human = [f for f in findings if requires_human(f)]
-        open_human = [f for f in human if f.get("status") == "open"]
+        untriaged = [f for f in findings if is_untriaged(f)]
+        auto_open = [
+            f for f in open_findings if not is_untriaged(f) and not requires_human(f)
+        ]
+        human_open = [
+            f for f in open_findings if not is_untriaged(f) and requires_human(f)
+        ]
 
-        if open_human:
+        # Untriaged findings cannot be routed: they must reach a human
+        if untriaged:
             return {
                 "decision": "escalate",
                 "report_id": report_id,
                 "findings": len(findings),
-                "escalations": [f for f in open_human],
+                "untriaged": [f["id"] for f in untriaged],
+                "escalations": untriaged,
             }
-        if [f for f in auto if f["status"] == "open"]:
+        if human_open:
+            return {
+                "decision": "escalate",
+                "report_id": report_id,
+                "findings": len(findings),
+                "escalations": human_open,
+            }
+        if auto_open:
             return {
                 "decision": "auto_fix_pending",
                 "report_id": report_id,
                 "findings": len(findings),
-                "auto_fixable": [f for f in open_findings if not requires_human(f)],
+                "auto_fixable": auto_open,
+            }
+        # Everything decided. Distinguish "we fixed/blessed everything" from
+        # "the remainder needs design work" (they used to collapse into
+        # auto_fixable, which reads as the opposite of what it meant).
+        needs_design = [
+            f for f in findings if f["classification"] in ("design_bug", "design_gap")
+        ]
+        if needs_design:
+            return {
+                "decision": "resolved",
+                "report_id": report_id,
+                "findings": len(findings),
+                "design_followups": [f["id"] for f in needs_design],
+                "decided": len(findings),
             }
         return {
             "decision": "auto_fixable",

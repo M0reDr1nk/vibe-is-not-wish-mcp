@@ -39,7 +39,11 @@ class TestDriftDetection:
         result = detect_drift(proj)
         assert result["detected"] is True
         assert result["baseline_fingerprint"] != result["current_fingerprint"]
-        assert "workspace_changed_since_audit" == result["reason"]
+        # a code-only change is design lag (see TestDesignLag)
+        assert result["reason"] in (
+            "workspace_changed_since_audit",
+            "code_changed_without_design_update",
+        )
 
     def test_detected_after_design_change(self, proj):
         ConsistencyGate(proj).ensure()
@@ -51,7 +55,9 @@ class TestDriftDetection:
         (proj.root / "main.py").write_text("# changed\n")
         lines = drift_lines(proj)
         assert any("偏离审计基线" in line for line in lines)
-        assert any("se_check_consistency" in line for line in lines)
+        # code-only change is reported as design lag, with its own guidance
+        assert any("实现跑在设计前面" in line or "se_check_consistency" in line
+                   for line in lines)
 
     def test_no_lines_when_clean(self, proj):
         ConsistencyGate(proj).ensure()
@@ -126,3 +132,45 @@ class TestDriftDetails:
         ConsistencyGate(proj).ensure()
         assert detect_drift(proj)["state"] == "clean"
         assert drift_lines(proj) == []
+
+
+class TestDesignLag:
+    """A code change without a design change means implementation ran ahead."""
+
+    def _audit_with_design(self, proj):
+        import frontmatter
+
+        from vinw.workflow.consistency_llm import LLMConsistencyAuditor
+
+        gate = ConsistencyGate(proj)
+        gate.ensure()
+        fp = gate.current_fingerprint()
+        return LLMConsistencyAuditor(proj).store_report(
+            {"overall": "passed", "inconsistencies": [], "matched": []},
+            descent=proj.read_manifest().get("current_descent", 1),
+            design_digest=fp["design_hash"],
+            hashes=fp["file_hashes"],
+            kind="llm",
+            auditor="reviewer",
+        )
+
+    def test_code_only_change_is_design_lag(self, proj):
+        self._audit_with_design(proj)
+        (proj.root / "main.py").write_text("def main():\n    return 11\n")
+
+        result = detect_drift(proj)
+        assert result["state"] == "design_lag"
+        assert result["design_changed"] is False
+        assert result["reason"] == "code_changed_without_design_update"
+        assert any("实现跑在设计前面" in line for line in drift_lines(proj))
+
+    def test_code_and_design_change_is_design_synced(self, proj):
+        self._audit_with_design(proj)
+        (proj.root / "main.py").write_text("def main():\n    return 12\n")
+        proj.write_document("L3-方案细化", "design-doc.md", "# 设计\n\n同步更新\n")
+
+        result = detect_drift(proj)
+        assert result["state"] == "design_synced"
+        assert result["design_changed"] is True
+        assert result["reason"] == "code_and_design_changed_since_audit"
+        assert not any("实现跑在设计前面" in line for line in drift_lines(proj))

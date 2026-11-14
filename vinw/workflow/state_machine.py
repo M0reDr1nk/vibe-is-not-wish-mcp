@@ -136,9 +136,8 @@ class WorkflowEngine:
     # ── Baseline ──────────────────────────────────────────────
 
     def baseline(self, layer: str, reason: str = "", force: bool = False) -> dict[str, Any]:
-        if not force:
-            self.heal_drift(f"baseline:{layer}")
-
+        # heals run after the guards below (see the call site at the end):
+        # a rejected transition must not leave an auto-audit trail.
         if layer == L4_LAYER and not force:
             gate = ConsistencyGate(self.project)
             status = gate.ensure()
@@ -167,9 +166,9 @@ class WorkflowEngine:
             # strict: baseline also demands a semantic verdict
             if gate.policy() == "strict":
                 llm = gate.llm_status()
-                if not llm["present"]:
+                if not llm["satisfied"]:
                     raise LLMAuditRequiredError(
-                        "策略 strict 要求基线前提供本轮 LLM 语义审核结论，尚未提供"
+                        "策略 strict 要求基线前提供与当前代码匹配的 LLM 语义审核结论"
                     )
                 triage = AuditTriage(self.project).decision()
                 if triage["decision"] == "escalate":
@@ -185,6 +184,9 @@ class WorkflowEngine:
                     f"{layer} 待办仍为模板占位符 '{TODO_PLACEHOLDER}'；"
                     f"请先用 se_update_todo 填写真实待办，或以 force=true 跳过"
                 )
+        if not force:
+            self.heal_drift(f"baseline:{layer}")
+
         version = self._generate_baseline_version(layer)
         self.project.freeze_baseline(layer, version, reason)
 
@@ -319,12 +321,6 @@ class WorkflowEngine:
                 f"Descend only to lower layers; {to_layer} is not below {current_layer}"
             )
 
-        # Any stage boundary heals drift first; leaving L4 has extra checks.
-        # heal_drift writes the manifest, so re-read it afterwards to avoid
-        # clobbering the refreshed audit state with a stale snapshot.
-        self.heal_drift(f"descend:{current_layer}->{to_layer}")
-        manifest = self.project.read_manifest()
-        current_layer = manifest.get("current_layer", current_layer)
 
         # Consistency must be verified before leaving L4 (covers "never ran"
         # and "code changed after the check").
@@ -350,10 +346,15 @@ class WorkflowEngine:
                 )
 
             llm = gate.llm_status()
-            if llm["required"] and not llm["present"]:
+            if llm["required"] and not llm["satisfied"]:
+                if not llm["present"]:
+                    detail = "尚未提供"
+                elif not llm.get("matches_current"):
+                    detail = "报告针对旧代码（指纹已变），需在新代码上重审"
+                else:
+                    detail = f"结论为 {llm.get('overall')}，未通过"
                 raise LLMAuditRequiredError(
-                    f"策略 {llm['policy']} 要求本轮 LLM 语义审核结论，尚未提供："
-                    f"请用独立 reviewer 审核后调用 se_store_consistency_report"
+                    f"策略 {llm['policy']} 要求本轮 LLM 语义审核结论：{detail}"
                 )
 
             disc = gate.discrepancy()
@@ -386,6 +387,9 @@ class WorkflowEngine:
                     f"Intermediate layer {mid_layer} is not baselined; cannot skip to {to_layer}"
                 )
 
+        # Stage boundary: heal only once every guard above has passed
+        self.heal_drift(f"descend:{current_layer}->{to_layer}")
+        manifest = self.project.read_manifest()
         layer_states = manifest.get("layer_states", {})
 
         if to_layer in layer_states:

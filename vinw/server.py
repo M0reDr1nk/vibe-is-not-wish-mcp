@@ -800,10 +800,16 @@ def se_complete_project(project: str | None = None) -> str:
         )
     else:
         llm = gate.llm_status(descent_now)
-        if llm["required"] and not llm["present"]:
+        if llm["required"] and not llm["satisfied"]:
+            reason = (
+                "尚未提供"
+                if not llm["present"]
+                else "报告针对旧代码，需重审"
+                if not llm.get("matches_current")
+                else f"结论为 {llm.get('overall')}"
+            )
             errors.append(
-                f"策略 {llm['policy']} 要求本轮 LLM 语义审核结论，尚未提供"
-                "（se_store_consistency_report 提交 reviewer 结论后重试）"
+                f"策略 {llm['policy']} 要求与当前代码匹配的 LLM 语义审核结论（{reason}）"
             )
         disc = gate.discrepancy(descent_now)
         if disc is not None:

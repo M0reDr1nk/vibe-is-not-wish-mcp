@@ -285,8 +285,9 @@ def test_drift_warning_is_visible(registry_home):
         console = Console(width=110, record=True)
         console.print(app.query_one("#top-content").content)
         text = console.export_text()
-        assert "漂移告警" in text
-        assert "偏离审计基线" in text
-        assert "⚠漂移" in text
+        # code-only change => design lag, which is called out explicitly
+        assert "实现先于设计" in text
+        assert "实现跑在设计前面" in text
+        assert "🚫设计滞后" in text
 
     _run(app, scenario)

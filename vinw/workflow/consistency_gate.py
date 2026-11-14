@@ -252,7 +252,14 @@ class ConsistencyGate:
             and report.get("code_fingerprint")
             == self.current_fingerprint()["code_fingerprint"],
             "overall": overall,
-            "satisfied": (not required) or (report is not None and overall == "passed"),
+            # A verdict only counts for the code it was produced on; whether
+            # a non-passing verdict blocks is the triage layer's decision.
+            "satisfied": (not required)
+            or (
+                report is not None
+                and report.get("code_fingerprint")
+                == self.current_fingerprint()["code_fingerprint"]
+            ),
             "report_id": (report or {}).get("report_id"),
             "auditor": (report or {}).get("auditor"),
         }
@@ -361,6 +368,7 @@ class ConsistencyGate:
                 "descent": meta.get("descent"),
                 "checked_at": meta.get("checked_at"),
                 "code_fingerprint": meta.get("code_fingerprint"),
+                "design_hash": meta.get("design_hash"),
             }
         )
         entry["consistency"] = existing

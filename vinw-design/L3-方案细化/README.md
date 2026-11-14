@@ -1,13 +1,12 @@
 ---
-baseline_reason: descent-8 L3 v0.8：SQLite 注册表 schema/迁移/状态语义/API 增量设计定稿（门控 cfm-...-005
-  非阻塞供审阅）
-baseline_version: v010
-baselined_at: '2026-11-13T17:01:09.397664+00:00'
+baseline_reason: descent-12 L3 v0.14：分级裁定数据模型、triage 门控决策、4 个新工具
+baseline_version: v014
+baselined_at: '2026-11-13T18:08:39.479739+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-13T17:16:46.739191+00:00'
-rolled_back_from: v010
+rolled_back_at: '2026-11-14T03:08:42.878039+00:00'
+rolled_back_from: v014
 se_version: '2.0'
 status: in_progress
 todo_descent: 10

@@ -56,6 +56,13 @@ def detect_drift(project: Project) -> dict[str, Any]:
 
         report = gate.latest_llm() or gate.latest_passing(kind="llm")
         audited_hashes = _parse_hashes((report or {}).get("file_hashes"))
+
+        # Did the *design* move with the code? Prefer the hash recorded with the
+        # audited state — the newest LLM report may belong to another descent.
+        audited_design = state.get("design_hash") or (report or {}).get("design_hash")
+        design_changed = bool(
+            audited_design and audited_design != current["design_hash"]
+        )
         current_hashes = current["file_hashes"]
         if audited_hashes:
             changed = sorted(
@@ -65,10 +72,22 @@ def detect_drift(project: Project) -> dict[str, Any]:
             )
         else:
             changed = []
+        # Without a recorded design hash we cannot claim the design lagged;
+        # say "drifted" and let the next audit establish the baseline.
+        if not audited_design:
+            state = "drifted"
+            reason = "code_changed_since_audit_design_unknown"
+        elif design_changed:
+            state = "design_synced"
+            reason = "code_and_design_changed_since_audit"
+        else:
+            state = "design_lag"
+            reason = "code_changed_without_design_update"
         return {
             "detected": True,
-            "state": "drifted",
-            "reason": "workspace_changed_since_audit",
+            "state": state,
+            "design_changed": design_changed,
+            "reason": reason,
             "changed": changed,
             "baseline_fingerprint": audited,
             "current_fingerprint": current_fp,
@@ -106,8 +125,18 @@ def drift_lines(project: Project) -> list[str]:
         lines.append(f"   变更文件（{len(changed)}）: " + ", ".join(changed[:5]))
         if len(changed) > 5:
             lines.append(f"   … 另有 {len(changed) - 5} 个文件")
-    lines.append(
-        "   建议：重跑 se_check_consistency（text 会标记 stale_files），"
-        "并按流程补齐审核后再推进"
-    )
+    if drift.get("state") == "design_lag":
+        lines.insert(
+            0,
+            "🚫 实现跑在设计前面：代码已改动，但 L3 设计文档未同步更新",
+        )
+        lines.append(
+            "   处置：先把变更补进 L3 设计（走 ascend 改设计），再重新审计；"
+            "不接受「只改代码不改设计」"
+        )
+    else:
+        lines.append(
+            "   建议：重跑 se_check_consistency（text 会标记 stale_files），"
+            "并按流程补齐审核后再推进"
+        )
     return lines

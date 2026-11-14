@@ -6,6 +6,7 @@ tests/test_audit_policy.py
 tests/test_bootstrap.py
 tests/test_consistency_gate.py
 tests/test_consistency_llm.py
+tests/test_contract_v014.py
 tests/test_drift.py
 tests/test_project.py
 tests/test_registry.py

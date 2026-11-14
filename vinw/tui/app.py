@@ -17,7 +17,7 @@ from rich.text import Text
 
 from ..store.project import Project, LAYERS
 from ..store.registry import ProjectNotFound, ProjectRegistry, is_vinw_project
-from ..workflow.drift import detect_drift
+from ..workflow.drift import detect_drift, drift_lines
 from ..workflow.state_machine import WorkflowEngine
 from .selector import ProjectSelector
 
@@ -234,7 +234,7 @@ class SEApp(App):
             if layer == "L4-编码实现" and consistency:
                 extra += self._consistency_suffix(consistency)
             if layer == "L4-编码实现" and drift.get("detected"):
-                extra += " ⚠漂移"
+                extra += " 🚫设计滞后" if drift.get("state") == "design_lag" else " ⚠漂移"
                 color = "bold red"
 
             is_current = " [当前]" if is_current_layer else ""
@@ -258,9 +258,19 @@ class SEApp(App):
             Columns(layers_render, equal=True),
             Text(""),
         ]
-        if drift.get("detected") or drift.get("state") == "unknown":
-            from ..workflow.drift import drift_lines
-
+        if drift.get("state") == "design_lag":
+            children.append(
+                Panel(
+                    Text(
+                        "\n".join(drift_lines(self.project)),
+                        style="bold red",
+                    ),
+                    border_style="red",
+                    title="🚫 实现先于设计",
+                )
+            )
+            children.append(Text(""))
+        elif drift.get("detected") or drift.get("state") == "unknown":
             note = "\n".join(drift_lines(self.project)) or "⚠ 无法判定漂移状态"
             children.append(
                 Panel(
