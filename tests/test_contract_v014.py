@@ -1467,3 +1467,68 @@ class TestReviewer19Fixes:
         after = proj.read_manifest()
         assert "completed_at" not in after
         assert "completed_at" not in after["layer_states"]["L7-终验"]
+
+
+class TestStructuredAlignmentEntry:
+    """R33-2: alignment entries were unparseable free text."""
+
+    def _seed_clarification(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        engine = WorkflowEngine(proj)
+        cfm_id = engine.require_confirmation(
+            item_type="clarification",
+            description="分块尺寸选哪种？",
+            options=["4x8", "6x16", "assume-ok"],
+            blocking=False,
+            extra={
+                "question": "分块尺寸选哪种？",
+                "assumption": "取 4x8 | 因为寄存器够",
+                "deviation": "若 6x16 则 packing 布局不同",
+                "layer": "L3-方案细化",
+                "impact": "medium",
+                "reversibility": "reversible",
+            },
+        )
+        return engine, cfm_id
+
+    def test_alignment_entry_is_structured(self, proj):
+        from vinw.store.changelog import read_changelog_entries
+
+        engine, cfm_id = self._seed_clarification(proj)
+        engine.resolve_confirmation(cfm_id, "6x16", "换成 6x16")
+
+        entries = [
+            e for e in read_changelog_entries(proj.vinw_dir / "changelog.md")
+            if e.get("变更类型") == "alignment"
+        ]
+        assert entries, "应产生 alignment 条目"
+        entry = entries[-1]
+        assert entry["question"] == "分块尺寸选哪种？"
+        assert entry["chosen_option"] == "6x16"
+        assert entry["corrected"] == "True"
+        assert entry["feedback"] == "换成 6x16"
+        assert entry["deviation"].startswith("若 6x16")
+        # 管道符被转义，不会破坏表格
+        assert entry["assumption"] == "取 4x8 | 因为寄存器够"
+
+    def test_assume_ok_marks_not_corrected(self, proj):
+        from vinw.store.changelog import read_changelog_entries
+
+        engine, cfm_id = self._seed_clarification(proj)
+        engine.resolve_confirmation(cfm_id, "assume-ok", "")
+        entry = [
+            e for e in read_changelog_entries(proj.vinw_dir / "changelog.md")
+            if e.get("变更类型") == "alignment"
+        ][-1]
+        assert entry["chosen_option"] == "assume-ok"
+        assert entry["corrected"] == "False"
+
+    def test_reader_handles_legacy_entries(self, proj):
+        from vinw.store.changelog import read_changelog_entries
+
+        engine, _ = self._seed_clarification(proj)
+        engine.baseline("L1-需求拆解", "旧格式条目", force=True)
+        entries = read_changelog_entries(proj.vinw_dir / "changelog.md")
+        baseline = [e for e in entries if e.get("变更类型") == "baseline"]
+        assert baseline and "旧格式条目" in baseline[-1]["原因"]

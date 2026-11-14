@@ -77,6 +77,7 @@ class WorkflowEngine:
         reason: str,
         before: str = "",
         after: str = "",
+        extra: dict[str, object] | None = None,
     ) -> str:
         manifest = self.project.read_manifest()
         descent = manifest.get("current_descent", 1)
@@ -90,6 +91,7 @@ class WorkflowEngine:
             reason=reason,
             before=before,
             after=after,
+            extra=extra,
         )
 
     # ── State synchronisation ─────────────────────────────────
@@ -849,12 +851,19 @@ class WorkflowEngine:
             self._append_changelog(
                 change_type="alignment",
                 scope=cfm_id,
-                reason=(
-                    f"澄清对齐：{target.get('question', '')[:60]} | "
-                    f"假设：{(target.get('assumption') or '')[:40]} | "
-                    f"选择：{resolution} | corrected={corrected}"
-                ),
-                after=feedback[:200],
+                reason=f"澄清对齐：{target.get('question', '')} → {resolution}",
+                after=feedback,
+                extra={
+                    "question": target.get("question", ""),
+                    "assumption": target.get("assumption", ""),
+                    "deviation": target.get("deviation", ""),
+                    "chosen_option": resolution,
+                    "feedback": feedback,
+                    "corrected": corrected,
+                    "impact": target.get("impact", ""),
+                    "reversibility": target.get("reversibility", ""),
+                    "layer": target.get("layer", ""),
+                },
             )
             return {"id": cfm_id, "resolution": resolution, "corrected": corrected}
 

@@ -138,29 +138,16 @@ _CHANGE_STYLE = {
 
 
 def build_recent_changes(project, limit: int = 5) -> list[tuple[str, str, str]]:
-    """Parse the changelog into (time, kind_label, summary) rows."""
-    import re
+    """(time, kind_label, summary) rows from the shared structured parser."""
+    from ..store.changelog import read_changelog_entries
 
-    path = project.vinw_dir / "changelog.md"
-    if not path.exists():
-        return []
-    content = path.read_text(encoding="utf-8")
-    blocks = re.split(r"\n## (chg-\S+)", content)
     rows: list[tuple[str, str, str]] = []
-    for i in range(1, len(blocks), 2):
-        body = blocks[i + 1] if i + 1 < len(blocks) else ""
-        kind = scope = reason = ""
-        for line in body.splitlines():
-            if line.startswith("| **变更类型**"):
-                kind = line.split("|")[2].strip().strip("` ")
-            elif line.startswith("| **范围**"):
-                scope = line.split("|")[2].strip().strip("` ")
-            elif line.startswith("| **原因**"):
-                reason = line.split("|")[2].strip()
-        when = ""
-        m = re.search(r"\[(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})", body)
-        if m:
-            when = f"{m.group(1)[5:]} {m.group(2)}"
+    for entry in read_changelog_entries(project.vinw_dir / "changelog.md"):
+        kind = str(entry.get("变更类型", ""))
+        reason = str(entry.get("原因", ""))
+        scope = str(entry.get("范围", ""))
+        stamp = str(entry.get("timestamp", ""))
+        when = f"{stamp[5:10]} {stamp[11:16]}" if len(stamp) >= 16 else ""
         label = _CHANGE_STYLE.get(kind, ("dim", kind or "变更"))[1]
         rows.append((when, label, (reason or scope)[:90]))
     return rows[-limit:][::-1]
