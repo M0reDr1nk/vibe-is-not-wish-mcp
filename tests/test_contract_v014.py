@@ -1618,3 +1618,112 @@ class TestChangelogParsingRobustness:
         entry = payload["entries"][0]
         assert entry["question"] == "机读问题"
         assert entry["corrected"] is False
+
+
+class TestWorkflowExceptionApproval:
+    """R35: violations need explicit user approval; audit mandatory afterwards."""
+
+    def _request(self, proj, **kw):
+        import vinw.server as server
+
+        args = dict(
+            reason="完成态下报告数字错误需当场修正",
+            files="example/gemm/L7-终验/final-report.md",
+            necessity="不回改会导致验收报告数字错误",
+            impact="low",
+        )
+        args.update(kw)
+        saved = server._active_project
+        server._active_project = proj
+        try:
+            return json.loads(server.se_request_workflow_exception(**args))
+        finally:
+            server._active_project = saved
+
+    def test_request_is_blocking_and_pending(self, proj):
+        payload = self._request(proj)
+        assert payload["blocking"] is True
+        assert payload["status"] == "pending"
+        manifest = proj.read_manifest()
+        exc = manifest["workflow_exceptions"][-1]
+        assert exc["status"] == "pending"
+        assert exc["deadline_descent"] == manifest["current_descent"] + 1
+        # 进入阻塞确认
+        pending = [
+            c for c in manifest["pending_confirmations"]
+            if c["item_type"] == "workflow-exception" and not c.get("resolved_at")
+        ]
+        assert pending, "特例请求必须作为阻塞确认呈现给用户"
+
+    def test_duplicate_reason_reuses_record(self, proj):
+        first = self._request(proj)
+        second = self._request(proj)
+        assert second["exception_id"] == first["exception_id"]
+        assert second["blocking"] is True
+
+    def test_reject_keeps_violation_blocked(self, proj):
+        from vinw.workflow.state_machine import (
+            WorkflowEngine, WorkflowExceptionRequiredError,
+        )
+
+        payload = self._request(proj)
+        engine = WorkflowEngine(proj)
+        engine.resolve_confirmation(payload["confirmation_id"], "reject", "不允许")
+        manifest = proj.read_manifest()
+        exc = [e for e in manifest["workflow_exceptions"] if e["id"] == payload["exception_id"]][0]
+        assert exc["status"] == "rejected"
+        assert WorkflowEngine.exception_state(manifest)[0] == "none"
+
+    def test_approve_enables_tolerated_transition_and_requires_audit(self, proj):
+        from vinw.workflow.consistency_gate import ConsistencyGate
+        from vinw.workflow.state_machine import (
+            LLMAuditRequiredError, WorkflowEngine,
+        )
+
+        ConsistencyGate(proj).ensure()                 # 建立基线锚点
+        payload = self._request(proj)
+        engine = WorkflowEngine(proj)
+        engine.resolve_confirmation(payload["confirmation_id"], "approve", "同意，尽快正规化")
+
+        (proj.root / "main.py").write_text("def main():\n    return 5\n")   # 制造漂移
+        manifest = proj.read_manifest()
+        exc = [e for e in manifest["workflow_exceptions"] if e["id"] == payload["exception_id"]][0]
+        assert exc["status"] == "approved"
+
+        # 首次带漂移转换：允许，但打上"违约后必须校验"标记
+        healed = engine.heal_drift("baseline")
+        assert healed and healed.get("tolerated")
+        assert proj.read_manifest().get("post_violation_audit_required")
+
+        # 此后没有匹配结论就不能再转换
+        with pytest.raises(LLMAuditRequiredError):
+            engine.baseline("L1-需求拆解", "t", force=True)
+
+    def test_expired_exception_blocks(self, proj):
+        from vinw.workflow.state_machine import (
+            WorkflowEngine, WorkflowExceptionExpiredError,
+        )
+
+        payload = self._request(proj, expires_in_descents=0)
+        engine = WorkflowEngine(proj)
+        engine.resolve_confirmation(payload["confirmation_id"], "approve", "ok")
+        (proj.root / "main.py").write_text("def main():\n    return 9\n")   # 制造漂移
+        manifest = proj.read_manifest()
+        manifest["current_descent"] += 1      # 越过期限
+        proj.write_manifest(manifest)
+        with pytest.raises(WorkflowExceptionExpiredError):
+            engine.heal_drift("baseline")
+
+    def test_ascend_regularizes_exception(self, proj):
+        from vinw.workflow.state_machine import WorkflowEngine
+
+        payload = self._request(proj)
+        engine = WorkflowEngine(proj)
+        engine.resolve_confirmation(payload["confirmation_id"], "approve", "ok")
+        # 先存在一个 L1 基线，ascend 才能引用
+        engine.baseline("L1-需求拆解", "首次基线", force=True)
+        result = engine.ascend("L7-终验", "L1-需求拆解", "v001", "正规化")
+        assert payload["exception_id"] in result["regularized_exceptions"]
+        manifest = proj.read_manifest()
+        exc = [e for e in manifest["workflow_exceptions"] if e["id"] == payload["exception_id"]][0]
+        assert exc["status"] == "regularized"

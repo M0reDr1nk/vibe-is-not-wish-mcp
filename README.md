@@ -31,7 +31,7 @@ So the process is a directory tree, state transitions are tool calls, the change
 
 - **A process control plane.** Seven layers from requirements to final acceptance, with explicit baselines, recorded ascents, and descent rounds.
 - **A Markdown data plane.** Requirements, evidence, design, implementation notes, test results, and the final report are plain files you can read, diff, and commit.
-- **A tool surface over the same state.** 39 MCP tools, a CLI, and a read-only TUI, all looking at the same `.vinw/manifest.md`.
+- **A tool surface over the same state.** 40 MCP tools, a CLI, and a read-only TUI, all looking at the same `.vinw/manifest.md`.
 - **A methodology, not just a server.** An optional skill tells the agent which tool to call at each boundary.
 - **A gate against self-certification.** Independent audit reports, classification of every finding, and blocking checks at the points where a project would otherwise advance.
 
@@ -529,7 +529,7 @@ The TUI and MCP tools are designed to run at the same time:
 
 ## MCP Tools
 
-39 tools, grouped by job. Every project-scoped tool accepts an optional `project` argument (path or registered name); when omitted, the active project is used. Registry tools operate on the registry itself.
+40 tools, grouped by job. Every project-scoped tool accepts an optional `project` argument (path or registered name); when omitted, the active project is used. Registry tools operate on the registry itself.
 
 | Area | Tools |
 |------|-------|

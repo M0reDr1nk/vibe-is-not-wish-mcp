@@ -7,7 +7,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 
 # 接口设计
 
-## MCP 工具清单（共 39 个，由 scripts/gen_tool_catalog.py 生成）
+## MCP 工具清单（共 40 个，由 scripts/gen_tool_catalog.py 生成）
 
 > 生成方式：解析 `vinw/server.py` 中所有 `se_*` 函数；`tests/test_contract_v014.py` 断言此处条目数 == 实际注册数。
 
@@ -41,6 +41,7 @@ updated_at: '2026-11-13T10:02:22.615842'
 | `se_repair_state` | — | — |
 | `se_request_clarification` | — | — |
 | `se_request_clarification_from_finding` | — | — |
+| `se_request_workflow_exception` | — | — |
 | `se_require_confirmation` | — | — |
 | `se_resolve_confirmation` | — | — |
 | `se_search_proposals` | — | — |
@@ -1303,3 +1304,19 @@ def _exception_state(manifest) -> "none" | "active" | "expired":
 
 - 不传特例时行为与 v0.20 一致（漂移即阻断），**不会因为工具存在而放宽**
 - 特例必须经用户**显式 approve**，agent 不能自行批准（`se_resolve_confirmation` 是用户动作）
+
+## 七、违约结束后的强制一致性校验（AC8，用户追加）
+
+**规则**：一旦发生过「带漂移推进」（`violation-tolerated`），本轮**必须**在结束前完成一次
+与当前代码+设计匹配的一致性审核结论，**与 `consistency_policy` 无关**（text 策略项目同样强制）。
+
+实现：
+
+| 时机 | 行为 |
+|------|------|
+| 首次容忍转换 | manifest 写入 `post_violation_audit_required: {exception_id, since_descent}` |
+| 之后每次 baseline/descend/complete | 校验 `gate.llm_matches_current()`；不匹配则抛 `LLMAuditRequiredError`（提示"违约流程尚未收尾"） |
+| 提交匹配结论时 | 标志自动清除 |
+| 上升正规化 | 结转特例为 `regularized`，但**不豁免**校验要求 |
+
+设计意图：特例只允许"先跳过流程"，不允许"永久跳过验证"——跳过的那段必须在收尾前补审。

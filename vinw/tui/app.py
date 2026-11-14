@@ -220,6 +220,53 @@ def build_issue_panel(manifest, drift, detail: str = "") -> Panel | None:
     state = (drift or {}).get("state")
     l7_completed = layers.get("L7-终验", {}).get("status") == "completed"
 
+    # R35：流程违规特例优先展示
+    exceptions = manifest.get("workflow_exceptions", [])
+    descent_now = manifest.get("current_descent", 1)
+    pending_exc = [e for e in exceptions if e.get("status") == "pending"]
+    active_exc = [
+        e for e in exceptions
+        if e.get("status") == "approved"
+        and descent_now <= int(e.get("deadline_descent", descent_now))
+    ]
+    expired_exc = [
+        e for e in exceptions
+        if e.get("status") == "approved"
+        and descent_now > int(e.get("deadline_descent", descent_now))
+    ]
+    if expired_exc:
+        return Panel(
+            Text(
+                f"流程违规特例 {expired_exc[-1].get('id')} 已过期"
+                f"（期限 descent-{expired_exc[-1].get('deadline_descent')}）。\n"
+                "处置：se_ascend 回对应层把变更正规化，不能继续推进。",
+                style="bold red",
+            ),
+            title="🚫 特例已过期（需正规化）",
+            border_style="red",
+        )
+    if pending_exc:
+        return Panel(
+            Text(
+                f"流程违规特例待你批准：{pending_exc[-1].get('reason')}\n"
+                f"必要性：{pending_exc[-1].get('necessity')}\n"
+                "处置：approve 才允许带漂移推进；reject 则必须走正规流程。",
+                style="bold red",
+            ),
+            title="🔒 特例待批准（默认不允许违规）",
+            border_style="red",
+        )
+    if active_exc:
+        return Panel(
+            Text(
+                f"已批准特例 {active_exc[-1].get('id')}：{active_exc[-1].get('reason')}\n"
+                f"须于 descent-{active_exc[-1].get('deadline_descent')} 前正规化。",
+                style="yellow",
+            ),
+            title="🟡 已批准特例（限期正规化）",
+            border_style="yellow",
+        )
+
     if l7_completed and state not in (None, "clean"):
         title, severity = "⚠ 完成态已被改动（需上升）", "red"
         lines = [

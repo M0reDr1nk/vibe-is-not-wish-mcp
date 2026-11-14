@@ -865,6 +865,25 @@ def se_complete_project(project: str | None = None) -> str:
                 f"{layer} 未基线化（status={state.get('status', 'pending')}）"
             )
 
+    # R35 AC8: 违约流程结束前必须完成一致性校验
+    if proj.read_manifest().get("post_violation_audit_required"):
+        from .workflow.consistency_gate import ConsistencyGate as _Gate
+
+        if not _Gate(proj).llm_matches_current():
+            errors.append(
+                "违约流程尚未收尾：缺少与当前代码+设计匹配的一致性校验结论，"
+                "请先 se_store_consistency_report"
+            )
+
+    # R35: 完成态不得有未正规化的流程违规特例
+    exc_state, exc = WorkflowEngine.exception_state(proj.read_manifest())
+    if exc_state in ("pending", "active") and exc is not None:
+        errors.append(
+            f"流程违规特例 {exc.get('id')} 尚未正规化（状态 {exc.get('status')}，"
+            f"期限 descent-{exc.get('deadline_descent')}）。"
+            f"请先 se_ascend 把变更正规化，再完成项目"
+        )
+
     # Design lag is a guard, not a repair: refuse before touching anything
     drift = detect_drift(proj)
     if drift.get("state") == "design_lag":
@@ -1314,6 +1333,92 @@ def _clarification_record(
         "blocking": blocking,
         "repeat_warning": warning,
     }
+
+
+@mcp.tool()
+def se_request_workflow_exception(
+    reason: str,
+    files: str,
+    necessity: str,
+    impact: str = "medium",
+    expires_in_descents: int = 1,
+    project: str | None = None,
+) -> str:
+    """Request user approval to proceed despite a workflow violation (R35).
+
+    Default is deny: until the user explicitly approves this request, every
+    layer transition that touches drift is refused.
+    """
+    import re as _re
+    from datetime import datetime as _dt, timezone as _tz
+
+    proj, err = _project_or_error(project)
+    if err:
+        return err
+    if impact not in ("high", "medium", "low"):
+        return json.dumps({"error": "impact 需为 high/medium/low"}, ensure_ascii=False)
+    expires = max(0, int(expires_in_descents))
+
+    manifest = proj.read_manifest()
+    exceptions = manifest.get("workflow_exceptions", [])
+    descent_now = manifest.get("current_descent", 1)
+    for exc in exceptions:
+        if exc.get("reason") == reason and exc.get("status") in ("pending", "approved"):
+            return json.dumps(
+                {
+                    "exception_id": exc.get("id"),
+                    "status": exc.get("status"),
+                    "note": "同理由的特例已存在，未重复创建",
+                    "blocking": exc.get("status") == "pending",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+
+    count = len(exceptions) + 1
+    exc_id = "exc-" + _dt.now(_tz.utc).strftime("%Y%m%d-%H%M%S") + f"-{count:03d}"
+    files_list = [f.strip() for f in _re.split(r"[,\n]", files) if f.strip()]
+    record = {
+        "id": exc_id,
+        "reason": reason,
+        "files": files_list,
+        "necessity": necessity,
+        "impact": impact,
+        "requested_at": _dt.now(_tz.utc).isoformat(),
+        "requested_descent": descent_now,
+        "status": "pending",
+        "deadline_descent": descent_now + expires,
+    }
+    exceptions.append(record)
+    manifest["workflow_exceptions"] = exceptions
+    proj.write_manifest(manifest)
+
+    # 必须由用户批准：创建阻塞确认
+    engine = WorkflowEngine(proj)
+    cfm_id = engine.require_confirmation(
+        item_type="workflow-exception",
+        description=(
+            f"流程违规特例：{reason}（必要性：{necessity}；影响：{impact}；"
+            f"期限：descent-{descent_now + expires} 前必须正规化）"
+        ),
+        options=["approve", "reject", "modify"],
+        blocking=True,
+    )
+    return json.dumps(
+        {
+            "exception_id": exc_id,
+            "confirmation_id": cfm_id,
+            "status": "pending",
+            "blocking": True,
+            "deadline_descent": descent_now + expires,
+            "message": (
+                "特例已登记但**未生效**：默认不允许违规。请用户在 TUI 或通过 "
+                "se_resolve_confirmation 明确 approve；批准前所有涉及漂移的层转换都会被拒绝"
+            ),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 @mcp.tool()
