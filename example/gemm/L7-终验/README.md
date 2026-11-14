@@ -1,22 +1,21 @@
 ---
-completed_at: '2026-11-14T09:31:25.298593+00:00'
+completed_at: '2026-11-14T13:15:14.904320+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
-status: in_progress
-todo_descent: 4
+status: completed
+todo_descent: 5
 ---
 
 # L7-终验
 
 ## 当前待办
 
-- [x] R1-R7 验收逐条核对
-- [x] R4 三种优化尝试与回退（均未达标）
-- [x] 评审 20 项发现处置（含 3 项自身错误结论更正）
-- [x] 588/593 测试复验
-- [ ] R4 后续方向（B 面板流量/AMX 主算力）
+- [x] R1-R8 逐条验收
+- [x] descent-3/4/5 三轮尝试诚实记录
+- [x] 评审失败事实披露（self-audit）
+- [x] 遗留项登记
 
 ## 阶段小结
 

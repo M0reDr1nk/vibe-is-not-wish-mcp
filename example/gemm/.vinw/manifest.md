@@ -35,7 +35,7 @@ ascent_history:
     AMX 单线程，并重定义 R4 指标
   to_baseline: v002
   to_layer: L1-需求拆解
-completed_at: '2026-11-14T09:31:25.298593+00:00'
+completed_at: '2026-11-14T13:15:14.904320+00:00'
 created_at: '2026-11-13T17:28:57.208978+00:00'
 current_descent: 5
 current_layer: L7-终验
@@ -94,10 +94,10 @@ layer_states:
     latest_baseline: v003
     status: baselined
   L7-终验:
-    completed_at: '2026-11-14T09:31:25.298593+00:00'
+    completed_at: '2026-11-14T13:15:14.904320+00:00'
     descent_count: 3
     latest_baseline: null
-    status: in_progress
+    status: completed
 name: gemm
 pending_confirmations:
 - blocking: true
