@@ -14,7 +14,7 @@ from mcp.server.mcpserver import MCPServer
 
 import frontmatter
 
-from .store.project import Project, LAYERS, has_placeholder_todo
+from .store.project import Project, LAYERS, has_placeholder_todo, AdoptError
 from .store.registry import ProjectRegistry, ProjectNotFound
 from .store.document import DocumentStore
 from .workflow.state_machine import (
@@ -213,18 +213,31 @@ def _project_or_error(project: str | None) -> tuple[Project | None, str | None]:
 
 @mcp.tool()
 def se_init_project(
-    name: str, path: str, description: str = "", register: bool = True
+    name: str,
+    path: str,
+    description: str = "",
+    register: bool = True,
+    adopt_existing: bool = False,
 ) -> str:
     """Initialize a new project with 7-layer spiral-ascend structure.
 
     If the target already contains a VINW project (.vinw/manifest.md), adopt it
     as the active project instead of re-initializing.
 
+    adopt_existing=True (v0.23, R36): initialize IN an existing code
+    repository — `path` is used as the project root itself (name is not
+    appended), non-empty directories are allowed, the manifest is stamped
+    work_mode="existing-codebase" / code_root=".", and the L1 todo list is
+    seeded with the survey checklist (R38/R40). Guard refusals return a
+    structured error and create nothing. Default (False) is byte-identical
+    to the greenfield behaviour.
+
     The project is registered automatically (register=False to opt out) so the
     TUI selector can see it; a registration failure never fails the creation.
     """
     global _active_project
-    root = Path(path).expanduser().resolve() / name
+    base = Path(path).expanduser().resolve()
+    root = base if adopt_existing else base / name
     if (root / ".vinw" / "manifest.md").exists():
         _active_project = Project(root)
         manifest = _active_project.read_manifest()
@@ -236,6 +249,37 @@ def se_init_project(
                 "layers": LAYERS,
                 "current_layer": manifest.get("current_layer", LAYERS[0]),
                 "current_descent": manifest.get("current_descent", 1),
+                **registration,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    if adopt_existing:
+        try:
+            _active_project = Project.adopt(root, name, description)
+        except AdoptError as e:
+            return json.dumps(
+                {
+                    "error": str(e),
+                    "conflicts": e.conflicts,
+                    "hint": "清理冲突后可重试；或在仓库内用子目录布局："
+                            'se_init_project(name="vinw-design", path=...)',
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        except (FileNotFoundError, NotADirectoryError) as e:
+            return json.dumps({"error": str(e)}, ensure_ascii=False, indent=2)
+        registration = _register_quietly(root, register)
+        return json.dumps(
+            {
+                "project_id": str(root),
+                "layers": LAYERS,
+                "current_layer": "L1-需求拆解",
+                "current_descent": 1,
+                "adopted_existing": True,
+                "work_mode": "existing-codebase",
+                "code_root": ".",
                 **registration,
             },
             ensure_ascii=False,
@@ -1809,17 +1853,44 @@ def se_get_next_steps(project: str | None = None) -> str:
     engine = WorkflowEngine(proj)
     can_desc, desc_msg, next_layer = engine.can_descend_to_next()
 
+    # v0.23 (R37/R40): existing-codebase projects get survey-first guidance.
+    # Purely advisory — no gate semantics change.
+    work = list(s.get("work", []))
+    special = s.get("special", "")
+    gate = s.get("gate")
+    if manifest.get("work_mode") == "existing-codebase":
+        if current == "L1-需求拆解":
+            work = [
+                "现状摸底：通读现有代码与文档，《现状摸底》写入 proposals「现状」节（概述/模块与入口/公开契约/关键数据结构/构建与测试/已知债务）",
+                "明确本次变更范围（feature / extension / bugfix）与验收标准",
+                "初始一致性检查：text 检查摸底↔代码，修正循环至 passed（首次锚定变更前指纹）",
+                "初始 LLM 审计：存量发现逐条裁决 accept_as_is / defer，债务清单入 proposals「legacy-debt」节",
+            ]
+            if gate:
+                gate = f"{gate}（含现状摸底确认）"
+        elif current == "L4-编码实现":
+            work = [
+                "Modify existing code in place（对现有代码就地修改，非从零实现）",
+                "se_log_change(per modification) → se_check_consistency",
+            ]
+        special = (
+            "接管工程（existing-codebase）流程：① L1 完成现状摸底与初始锚定（text 修正循环至 passed；"
+            "首次 L4 基线 ensure() 自动锚定变更前指纹）；② 初始 LLM 审计的存量 design_gap 属预期——"
+            "逐条 se_record_triage_decision(accept_as_is/defer) 处置，勿与本次变更引入的问题混淆；"
+            "③ 债务清单进 proposals「legacy-debt」节。"
+        ) + (f" 原有提示：{special}" if special else "")
+
     return json.dumps(
         {
             "current_layer": current,
             "descent": descent,
             "layer_status": state.get("status"),
-            "suggested_work": s.get("work", []),
-            "gate_before_leave": s.get("gate"),
+            "suggested_work": work,
+            "gate_before_leave": gate,
             "can_descend": can_desc,
             "descend_message": desc_msg,
             "next_layer": next_layer,
-            "special_instruction": s.get("special", ""),
+            "special_instruction": special,
             "awaiting_review": pending_review,
             "consistency": _consistency_state(proj),
             "drift": detect_drift(proj),

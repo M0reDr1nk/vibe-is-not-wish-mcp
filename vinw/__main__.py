@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from .server import mcp
-from .store.project import Project
+from .store.project import Project, AdoptError
 from .store.registry import ProjectNotFound, ProjectRegistry
 from .tui.app import run_tui
 
@@ -40,6 +40,13 @@ def main():
         dest="register",
         action="store_false",
         help="Do not add the project to the registry (temporary projects)",
+    )
+    p_init.add_argument(
+        "--adopt-existing",
+        dest="adopt_existing",
+        action="store_true",
+        help="Adopt an existing code repository as the project root "
+        "(non-empty directory allowed; v0.23)",
     )
 
     # project (multi-project registry)
@@ -88,11 +95,34 @@ def main():
     elif args.command == "tui":
         run_tui(_resolve_tui_target(args.project))
     elif args.command == "init":
-        proj = Project.init(Path(args.path), args.name, args.desc)
-        print(f"✅ Project initialized: {proj.root}")
-        print(f"   Current layer: {proj.get_current_layer()}")
-        from vinw.store.project import LAYERS
-        print(f"   Layers: {', '.join(LAYERS)}")
+        if getattr(args, "adopt_existing", False):
+            # Idempotent adopt: a repo that is already a VINW project is
+            # reported, not tracebacked (design-doc v0.23, R36).
+            existing = (
+                Path(args.path).expanduser().resolve() / ".vinw" / "manifest.md"
+            )
+            if existing.exists():
+                print(f"✅ Already a VINW project: {existing.parent.parent}")
+                print("   (idempotent adopt — nothing to do)")
+                sys.exit(0)
+            try:
+                proj = Project.adopt(Path(args.path), args.name, args.desc)
+            except (AdoptError, FileNotFoundError, NotADirectoryError) as e:
+                print(f"❌ {e}")
+                sys.exit(1)
+            except FileExistsError:
+                print("✅ Already a VINW project (created concurrently).")
+                sys.exit(0)
+            print(f"✅ Adopted existing repo: {proj.root}")
+            print(f"   work_mode: existing-codebase · code_root: .")
+            print(f"   Current layer: {proj.get_current_layer()}")
+            print(f"   L1 todo seeded with the survey checklist (摸底清单)")
+        else:
+            proj = Project.init(Path(args.path), args.name, args.desc)
+            print(f"✅ Project initialized: {proj.root}")
+            print(f"   Current layer: {proj.get_current_layer()}")
+            from vinw.store.project import LAYERS
+            print(f"   Layers: {', '.join(LAYERS)}")
         if getattr(args, "register", True):
             try:
                 registration = ProjectRegistry().add(proj.root)
@@ -102,6 +132,7 @@ def main():
                     else args.name
                 )
                 print(f"   Registered as: {name}")
+                print(f"   Watch: vinw tui {name}")
                 if isinstance(registration, dict) and registration.get("warning"):
                     print(f"   ⚠ {registration['warning']}")
             except (OSError, sqlite3.Error, ValueError) as e:

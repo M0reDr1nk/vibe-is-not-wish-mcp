@@ -474,3 +474,34 @@ descent-16 进行 2 轮独立评审（reviewer14 设计定稿前、reviewer15 �
 | `test_complete_rejects_expired_exception` | 完成态守卫 |
 | `test_ascend_regularizes_exception` | 正规化结转 |
 | `test_expired_exception_blocks` | 轮次过期 |
+
+---
+
+# descent-21/22 round 1（asc-020/021：接管现有代码仓 v0.23，2026-11-21）
+
+## 测试矩阵
+
+| 项 | 结果 | 说明 |
+|----|------|------|
+| `pytest tests/test_adopt_existing.py` | 18/18 PASS | 守卫四例（不存在/非目录/半初始化/层目录冲突）+ 空层目录复用 + 成功路径（manifest 字段/L1 种子/changelog）+ MCP 响应（adopt/guard/幂等/默认兼容）+ next_steps 引导（L1/L4/绿地）+ CLI（成功输出/守卫退出码/幂等） |
+| 全量 `pytest -q` | 372/372 PASS | 旧 354 + 新 18；无回归 |
+| 工具目录契约 | PASS | 40 工具不变，`test_contract_v014.py` 目录断言通过 |
+| text 一致性 | PASS（0 不一致，59 文件，842 符号） | 含新增 adopt 符号 |
+
+## 评审闭环（report-b7c9e084-01，reviewer 独立审计，overall=warning）
+
+| 发现 | 分类 | 处置 |
+|------|------|------|
+| INC-001（gate 漏摸底后缀） | impl_bug/high | 自动修正 + 测试断言 |
+| INC-004（CLI 幂等裸 traceback） | impl_bug/high | 自动修正 + test_cli_adopt_idempotent |
+| GAP-001/002/003/004（测试覆盖 4 例） | design_gap | 用户批准全部 fix_impl，补测 4 例 |
+| INC-002（work 追加 vs 替换、special 作用域） | ambiguous | 用户裁定 fix_design：维持实现，asc-021 措辞写明 |
+| INC-003（hint 可选性） | ambiguous | 用户裁定 fix_design：本轮 api-design 窄化 |
+| INC-005（错误文案模板） | ambiguous | 用户裁定 fix_design：design-doc 文案对齐实现 |
+
+## 螺旋过程记录
+
+- asc-020（L7→L1）开启 descent-21；R40 由用户当场补充（摸底→检查→修正→锚定）
+- descent-20 遗留 design_lag（scripts/readme_stats.py）：用户裁决**严格路径**（零特例）——L1 阶段最小补 design-doc 覆盖条款 + 自审 report-762dd58d-01 → 漂移消除
+- L4 出口第一次撞 design_lag 后查明机制：每次通过的检查才重锚，故补独立评审 + 存储报告重锚
+- asc-021（L4→L3）措辞对齐（descent-22），过渡审计 report-9710146e-01 → L3 v024 → L4 v020 重基线

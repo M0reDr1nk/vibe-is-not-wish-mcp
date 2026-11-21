@@ -202,6 +202,14 @@ Steps:
 3. Create the project. Skip this step if
    "$WORK_ROOT/$PROJECT/.vinw/manifest.md" already exists.
      .venv/bin/vinw init "$WORK_ROOT/$PROJECT" --name "$PROJECT" --desc "<one sentence>"
+   Adopting an EXISTING repository (feature/extension/bugfix on code that
+   already exists) instead:
+     .venv/bin/vinw init "$EXISTING_REPO" --name "<project>" --adopt-existing
+   This initializes the 7-layer structure in the repo root itself (non-empty
+   directories are allowed), stamps the manifest work_mode="existing-codebase",
+   and seeds the L1 todo list with the survey checklist. The MCP equivalent is
+   se_init_project(name=..., path="$EXISTING_REPO", adopt_existing=true).
+   Over MCP, `path` is used as the project root itself (name is not appended).
 
 3.5 **Restart the MCP server after every install.** The DSH-spawned
    `vinw server` is a long-running process: `pip install` only changes
@@ -293,6 +301,26 @@ python3 -m venv .venv
 ```
 
 Why `-e` matters: it makes the `vinw` console script and the `vinw` Python package come from this checkout. A non-editable copy in `site-packages` will keep running old code after you pull, which produces the classic "the fix is in the source but the TUI still shows the bug" illusion.
+
+### Adopting an existing repository
+
+For work on a repository that already has code — a new feature, an extension, or a bugfix — initialize VINW in the repo root itself:
+
+```bash
+.venv/bin/vinw init /path/to/repo --name my-change --adopt-existing
+.venv/bin/vinw tui my-change
+```
+
+What this does (v0.23):
+
+- Creates `.vinw/` and the seven layer directories **in the repo root**, next to your code. Existing files are untouched.
+- Refuses safely instead of guessing: a partially-initialized `.vinw/`, or a non-empty directory whose name collides with a layer directory (e.g. you already have a real `L4-编码实现/`), returns a structured error — use the subdirectory layout (`se_init_project(name="vinw-design", path=...)`) in that case.
+- Stamps the manifest with `work_mode: "existing-codebase"` and `code_root: "."`, and seeds the L1 todo list with the **survey checklist** (现状摸底): read the existing code first, write the as-is survey into `L1 proposals`, run the initial consistency check to anchor the pre-change fingerprint, then triage legacy findings as `accept_as_is`/`defer` so they don't drown out new-change findings.
+- `se_get_next_steps` recognizes the mode and steers the survey-first flow.
+
+The MCP equivalent is `se_init_project(name="my-change", path="/path/to/repo", adopt_existing=true)`. Note the MCP tool uses `path` as the project root directly when adopting (it does not append `name`); without `adopt_existing` the tool keeps the greenfield behaviour of creating `path/name`.
+
+If you prefer the design project in a subdirectory instead, the greenfield flow still works as a manual alternative: `se_init_project(name="vinw-design", path="/path/to/repo")`, then set `code_root: ".."` in the manifest.
 
 `vinw init` registers the project automatically in current revisions. On an older revision, or when you pass `--no-register`, register it explicitly:
 

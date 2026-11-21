@@ -357,3 +357,22 @@ updated_at: "2026-11-13T10:02:19.675591"
 
 评审：r25 判 **failed**（2 critical：force 旁路、AC8 标志漏写），修复后 r26 判 **passed**
 （6 项漏洞逐一复核关闭）；r26 另指出 4 处文档未真正更新，已同步。
+
+## descent-21 实现记录（asc-020：接管现有代码仓 v0.23，R36-R40）
+
+### 交付
+
+| 项 | 实现 | 位置 |
+|----|------|------|
+| R36 | `Project.adopt()`：非空仓接管（守卫：不存在/非目录/半初始化 .vinw/非空层目录冲突〔空层目录复用〕）；manifest 写 `work_mode/code_root/adopted_at`；changelog 记 `adopt` | `vinw/store/project.py` |
+| R36 | `AdoptError(RuntimeError)` 带 `conflicts` 列表，结构化错误 | `vinw/store/project.py` |
+| D5 | 脚手架提取 `_scaffold()` 共享（init/adopt 同一层目录/模板/manifest 生成）；`init` 空目录守卫不变 | `vinw/store/project.py` |
+| R36 | `se_init_project(..., adopt_existing=False)`：true 时 root=path（不拼 name），守卫拒绝返回 `{error, conflicts?, hint}` 且零写入 | `vinw/server.py` |
+| R39 | CLI `vinw init --adopt-existing` | `vinw/__main__.py` |
+| R37 | `se_get_next_steps` 识别 work_mode：L1 换摸底清单、L4 "Modify existing code in place"、special_instruction 四步引导（纯提示，无门控语义变化） | `vinw/server.py` |
+| R38 | `ADOPT_TODO_SECTION` 摸底种子（5 项，替换模板占位符） | `vinw/store/project.py` |
+
+### 验证
+
+- 新增 `tests/test_adopt_existing.py` 12 例：守卫三例（半初始化/层目录冲突/不存在）+ 成功路径（manifest 字段/L1 种子/changelog/adopted_existing 响应）+ 空层目录复用 + next_steps 引导（adopted 与绿地各一例）+ 兼容红线（默认路径拼 name 且无 adopted_existing）
+- 全量 366/366 通过（旧 354 + 新 12），工具数 40 不变

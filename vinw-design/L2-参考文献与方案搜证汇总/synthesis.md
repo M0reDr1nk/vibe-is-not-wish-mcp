@@ -363,3 +363,40 @@ SRE 的变更管理用"blameless postmortem + 变更审批分级"——高影响
 1. 假设必须显性记录（否则用户事后无法追责/追溯）
 2. 队列不能无限堆积——同一主题反复延后要升级为阻塞
 3. 批量呈报必须包含"本轮已按假设推进了什么"，让用户一次看清全貌
+
+---
+
+# descent-21 搜证：接管现有代码仓（adopt-existing-codebase）
+
+## 结论 1：无新机制，全部复用既有件（零新造检查系统，R40 约束满足）
+
+| 需求点 | 复用机制 | 位置 |
+|--------|---------|------|
+| 非空仓初始化 | `Project.init` 脚手架提取为共享 helper，adopt 加自己的守卫 | `vinw/store/project.py` |
+| 代码定位 | `manifest.code_root`（默认 "."）+ `_resolve_code_root` | `vinw/workflow/consistency_llm.py:25` |
+| 扫描噪声控制 | `code_extensions` 白名单 + `_EXCLUDED_DIR_PARTS`（.venv/build/node_modules/.git/__pycache__）；层目录只含 .md，天然不进扫描 | `vinw/workflow/consistency_llm.py:22,48` |
+| 初始锚定 | 首次 L4 基线 `gate.ensure()` 自动 text 检查并锚定指纹（机制已有，仅补引导） | `vinw/workflow/state_machine.py::baseline` |
+| 摸底修正循环 | `TextConsistencyChecker`（毫秒级，可反复跑） | `vinw/workflow/consistency_llm.py` |
+| 存量发现处置 | triage `accept_as_is` / `defer` 已是合法 decision（`DECISIONS` 含）；债务清单可用 L1 proposals 节承载 | `vinw/workflow/triage.py` |
+| 登记 | `_register_quietly`（R29 已有，登记失败不阻断创建） | `vinw/server.py` |
+| L1 待办种子 | `replace_todo_section()`（待办生命周期契约已有） | `vinw/store/project.py` |
+
+## 结论 2：两种布局并存，adopt 默认"仓库根就地"
+
+| 布局 | 初始化方式 | 适用 |
+|------|-----------|------|
+| 子目录布局（现状可绕行） | `se_init_project(name="vinw-design", path="<repo>")` + 手工 `code_root: ".."` | 不想在仓库根出现 7 个层目录 |
+| **仓库根就地（adopt 新增）** | `se_init_project(path="<repo>", name=..., adopt_existing=true)` | 默认；TUI/CLI 直接 `vinw tui <repo>` |
+
+冲突守卫：仓库根已存在非空层目录（如真有目录叫 `L4-编码实现`）→ 拒绝并建议子目录布局；`.vinw` 半存在 → 拒绝。
+
+## 结论 3：work_mode 不加状态机
+
+`work_mode: "existing-codebase"` 只是 manifest 元数据，`se_get_next_steps` 读取后换提示文案；
+不新增转移规则、不改门控语义（R40 AC7 用提示承载，v1 不加 `adoption.phase` 状态位——若实践不够再升需求）。
+
+## 风险记录
+
+1. 设计哈希含 design-doc.md：adopt 后首次补设计会产生 design_synced，转换点 heal 自动重锚——descent-21 开头已实测该路径（补欠账条款 + 自审报告 762dd58d-01 → baseline 通过）
+2. adopt 工程的首次 LLM 审计（text+llm 策略下 L4 出口强制）会报存量 design_gap——这正是 R40 AC5 要逐条裁决的，预期行为
+3. `_active_project` 进程内单例：adopt 后同进程直接可用（init 本就设 `_active_project`），无变化

@@ -1341,3 +1341,51 @@ def exception_state(manifest) -> ("none"|"pending"|"active"|"expired", exc):
 | INC-003 四态 | §三 伪代码更新为 none/pending/active/expired |
 | INC-001 clean + pending/expired | 明确为**硬停**（需用户裁决或 reject 解除），文档补行 |
 | GAP-007 agent 可自行批准 | **架构级限制**：MCP 无法区分调用者身份，agent 仍可自行调用 `se_resolve_confirmation`。已记录为已知限制；缓解：特例与裁决均写 changelog + 结构化字段（含 `decision`/`exception_id`），事后可审计；真正强制需由宿主（TUI 人类通道/一次性令牌）实现 |
+
+---
+
+# v0.23 接口变更：接管现有代码仓（descent-21 / asc-020）
+
+## `se_init_project`（签名变更，工具数不变）
+
+```
+se_init_project(name: str, path: str, description: str = "",
+                register: bool = True, adopt_existing: bool = False) -> str
+```
+
+| 参数 | 默认 | 语义 |
+|------|------|------|
+| `adopt_existing` | `false` | `false`：行为与 v0.22 逐字节一致（`root = path/name`，空目录守卫）<br>`true`：`root = path`（**不拼 name**），允许非空目录，执行 `Project.adopt` 守卫 |
+
+### 响应契约
+
+| 场景 | 响应 |
+|------|------|
+| adopt 成功 | `{project_id, layers, current_layer: "L1-需求拆解", current_descent: 1, adopted_existing: true, work_mode: "existing-codebase", code_root: ".", registered/name/warning...}` |
+| `.vinw/manifest.md` 已存在 | 幂等 adopted（现有行为，不加 `adopted_existing`） |
+| 守卫拒绝（半初始化/层目录冲突/不存在） | `{"error": str, "conflicts"?: [...], "hint"?: str}`，**不创建任何文件**。`hint` 仅冲突/半初始化场景提供（asc-021 修订：INC-003 裁定，对齐 design-doc 守卫表窄语义）；不存在/非目录仅 `{"error": str}` |
+
+## CLI 变更
+
+```
+vinw init <path> --name <name> [--desc D] [--adopt-existing] [--no-register]
+```
+
+`--adopt-existing`：path 直接作为工程根；成功打印 work_mode 与 TUI 提示。
+
+## `Project` 存储层新增
+
+| 成员 | 契约 |
+|------|------|
+| `Project.adopt(root, name, description="") -> Project`（classmethod） | 非空仓接管：守卫见 design-doc v0.23 R36 节；manifest 写 `work_mode/code_root/adopted_at`；L1 README 待办替换为摸底种子；changelog 记 `adopt` |
+| `Project.init` 重构 | 脚手架提取共享 helper；空目录守卫不变（兼容红线） |
+
+## `se_get_next_steps` 变更（引导 only，无门控语义变化）
+
+`manifest.work_mode == "existing-codebase"` 时：L1 work 换摸底清单、L4 work 加 "Modify existing code in place"、
+`special_instruction` 输出摸底四步（摸底→text 修正循环→LLM 审计→存量处置）。
+
+## 测试契约
+
+- `tests/test_adopt_existing.py`：守卫三例（半初始化/非空层目录冲突/不存在）+ 成功路径（manifest 字段/L1 种子/changelog/adopted_existing 响应）+ next_steps 引导 + 兼容（默认参数路径不变，既有 init 用例全绿）
+- 工具目录数不变（40），`gen_tool_catalog.py` 重新生成后契约测试通过

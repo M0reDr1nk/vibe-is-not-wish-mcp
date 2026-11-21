@@ -1,19 +1,20 @@
 ---
-baseline_version: v017
-baselined_at: '2026-11-14T14:33:19.745731+00:00'
+baseline_version: v018
+baselined_at: '2026-11-21T14:20:29.095510+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L5-测试验证
 se_version: '2.0'
 status: baselined
-todo_descent: 20
+todo_descent: 22
 ---
 
 # L5-测试验证
 
 ## 当前待办
 
-- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
+- [x] L5 descent-21/22：18 新例 + 372 全量 PASS；reviewer 9 项发现全部处置（2 自动修/4 补测/3 措辞对齐）
+- [ ] L5 v018 基线 → 下降 L6 检视清理
 
 - [x] 342/342 全绿
 - [x] 围栏/CRLF/反引号/旧格式/MCP 机读 6 类鲁棒性用例

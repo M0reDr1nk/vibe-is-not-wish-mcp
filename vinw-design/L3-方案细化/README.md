@@ -1,22 +1,25 @@
 ---
-baseline_reason: descent-18 L3 v019：可见性与状态可信度定稿（路径登记、三栏 IA、下层作废上层 + current 保护、completed_dirty、R33-1）
-baseline_version: v022
-baselined_at: '2026-11-14T14:33:02.652696+00:00'
+baseline_reason: descent-21 L3 v023：接管现有代码仓设计（v0.23）；转换点审计 report-77fc78a2-01（2 项
+  design-ahead GAP 为预期内）
+baseline_version: v024
+baselined_at: '2026-11-21T14:19:16.017611+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L3-方案细化
-rolled_back_at: '2026-11-14T13:40:10.784204+00:00'
-rolled_back_from: v020
+rolled_back_at: '2026-11-21T14:17:47.684564+00:00'
+rolled_back_from: v023
 se_version: '2.0'
 status: baselined
-todo_descent: 20
+todo_descent: 22
 ---
 
 # L3-方案细化
 
 ## 当前待办
 
-- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
+- [x] asc-021 上升回 L3（descent-22）：INC-002/003/005 措辞对齐
+- [x] design-doc/api-design 措辞修订（work 替换语义+special 全层、hint 窄化、错误文案模板）
+- [ ] L3 v024 基线 → 下降 L4（重做）→ 重锚审计 → L4 v020 基线 → L5
 
 - [x] changelog extra 字段与转义规则
 - [x] 共享解析器契约（围栏/反引号/分隔符/类型）

@@ -1,21 +1,18 @@
 ---
-completed_at: '2026-11-14T14:34:39.250409+00:00'
+completed_at: '2026-11-21T14:22:42.066818+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L7-终验
 se_version: '2.0'
 status: completed
-todo_descent: 20
+todo_descent: 22
 ---
 
 # L7-终验
 
 ## 当前待办
 
-- [x] R35 AC1-AC7 逐条核对
-- [x] AC8 违约后强制校验
-- [x] r25 判 failed → 修复 → r26 复审 passed
-- [x] 354/354 复验
+- [x] L7 descent-22：终验报告完成（v0.23 全量交付 + reviewer 闭环 + 372 测试）
 
 - [x] R33-2 验收（写入/读取/alignment/统一）
 - [x] r23 8 项发现处置

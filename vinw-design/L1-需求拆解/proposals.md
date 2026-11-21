@@ -563,3 +563,79 @@ P1（用户明确指出：更多场景应走 harness 询问而非直接停下）
 - 不阻止文件系统写入（无法阻止），只约束**工作流转换**
 - 特例不是"免罪符"：批准后仍必须在到期前上升正规化
 - 「非必要不允许违规」：请求必须附必要性说明，且默认阻塞，用户可拒绝
+
+---
+
+# R36-R39（descent-21）：接管现有代码仓（adopt-existing-codebase，用户提出）
+
+## 问题
+
+用户场景：在一个**已有代码的仓库**上，需要新增扩展/特性或修 bug，希望初始化 VINW 并从螺旋工作流开始工作。
+
+当前缺口（实测）：
+
+| # | 缺口 | 现状 |
+|---|------|------|
+| A | 无接管现有仓库的一等入口 | `Project.init` 对非空目录 `FileExistsError`；`se_init_project` 永远拼 `path/name` 子目录；CLI 同样 |
+| B | 无"变更模式"概念 | manifest 不区分绿地新建 vs 对现有代码做变更；`se_get_next_steps` 只给绿地指引（无现状摸底、无"就地修改"提示） |
+| C | code_root 不自动设置 | 设计工程落子目录后一致性检查默认扫设计目录自身，须手工改 `code_root: ".."`，无引导 |
+| D | 接管后首次审计无引导 | 首次 L4 基线 `ensure()` 会自动锚定现有代码指纹（机制已有），但 agent 不知道；首次 LLM 审计会把"代码远超设计"报成 design_gap 升级项，需预期管理 |
+
+可用绕行（今天就能走，但有摩擦）：`se_init_project(name="vinw-design", path="<repo>")` 建空子目录 + bootstrap 自动探测 `cwd/vinw-design` + 手工配 `code_root: ".."`。
+
+## 需求拆解
+
+| 编号 | 子需求 | 优先级 | 验收 |
+|------|--------|--------|------|
+| R36 | adopt 模式：`se_init_project(..., adopt_existing=true)` 与 `vinw init --adopt-existing` 以**现有仓库根本身**为工程根初始化（允许非空）；manifest 写 `work_mode: "existing-codebase"`、`code_root: "."`、`adopted_at`；changelog 记 adopt 条目 | P0 | 非空仓库根初始化成功；`se_check_consistency` 扫描到的是仓库代码而非设计文档 |
+| R36-AC1 | 目录已含 `.vinw/manifest.md` → 幂等返回 adopted（现有行为不变） | P0 | 重复调用返回 `adopted: true` |
+| R36-AC2 | 层目录名冲突（仓库根已存在**非空**同名目录，如 `L4-编码实现`）→ 拒绝，报冲突清单 + 建议子目录布局 | P0 | 冲突时报结构化错误 |
+| R36-AC3 | `.vinw` 目录已部分存在（manifest 缺失）→ 拒绝（防半初始化状态） | P0 | 明确错误信息 |
+| R36-AC4 | `adopt_existing=false`（默认）行为与现状**逐字节一致**（兼容红线） | P0 | 既有用例全绿 |
+| R37 | 变更模式引导：`se_get_next_steps` 识别 `work_mode: "existing-codebase"`：L1 工作项含"现状摸底（阅读现有代码、记录受影响模块）"；L4 提示"就地修改 + 首次基线建立锚点"；special_instruction 说明首次 LLM 审计预期 | P1 | next_steps 对 adopted 工程返回专属建议 |
+| R38 | L1 待办种子：adopt 时 L1 README 待办替换为摸底清单（替代模板占位符，避免基线守卫误拦，并给出明确第一步） | P1 | 新 adopted 工程 L1 README 待办为摸底清单 |
+| R39 | 文档：README 新增 "Adopting an existing repository" 章节；安装 prompt 步骤 3 增加 adopt 分支说明 | P2 | README 章节存在且与实现一致 |
+
+## 非目标
+
+- 不自动扫描/导入现有代码进设计文档（摸底是 agent 在 L1 的工作项，不是工具行为）
+- 不改变一致性门控语义（首次 L4 基线自动锚定，机制已有，仅补引导）
+- 不做"部分接管"（v1 全仓接管；`code_scope` 收窄留给用户后续配置）
+- 子目录布局（`vinw-design/` 工程内嵌代码仓）维持现有绕行方式可用，adopt 模式与之并存不互斥
+
+## 顺带正规化
+
+descent-20 的 workflow-exception `exc-20261114-143658-001`（`scripts/readme_stats.py` 触发 design_lag）已随 asc-020 自动转入本轮正规化：R39 文档改动将使其进入正式设计基线，漂移在 L4 重锚后消除。
+
+---
+
+# R40（descent-21）：接管时的现状摸底与初始锚定（用户提出，P0）
+
+## 问题
+
+非空仓接管后，直接开始 feature/bugfix 会有两个根本问题：
+
+1. **没有可信基线**：漂移检测的锚点是"首次一致性检查通过的指纹"。若摸底未做就开工，
+   变更后的检查无法区分"存量不一致"与"本次变更引入的不一致"。
+2. **存量问题与增量发现混淆**：现有代码必然存在"代码有但文档没写"（design_gap 类）。
+   不先盘点处置，它们会在本次变更的 LLM 审计里反复出现，淹没真正的增量发现。
+
+## 需求
+
+| 编号 | 标准 | 优先级 |
+|------|------|--------|
+| AC1 | **LLM 现状摸底**：adopt 后、变更设计前，agent 必须通读现有代码与已有文档，产出《现状摸底》——架构、模块划分、入口/公开契约、关键数据结构、构建与测试方式、已知债务 | P0 |
+| AC2 | **摸底产物落点**：《现状摸底》写入工程文档（L1 proposals「现状」节 + L3 design-doc「现状」节，由 L3 设计定具体契约）；是后续所有设计条款的"现状参照系" | P0 |
+| AC3 | **初始一致性检查与修正循环**：以摸底文档为设计侧，跑 text 一致性检查；发现不一致→修正摸底文档（或记录为债务）→重跑，直至 passed | P0 |
+| AC4 | **初始锚定**：修正循环通过后首次基线 L4（或专门锚定动作）时锚定"变更前指纹"；此后漂移检测以此为基准 | P0 |
+| AC5 | **存量发现分级处置**：初始 LLM 审计列出的存量 design_gap/design_bug/ambiguous，逐条裁决 `accept_as_is`（记为已知债务，进 L1 债务清单）/ `defer`（注明复查点）；**不允许 silent** | P0 |
+| AC6 | **债务清单可见**：legacy 债务清单在 `se_get_project` / next_steps / TUI 可见（至少 count），不阻断变更工作，但不得消失 | P1 |
+| AC7 | **流程引导**：adopted 工程首次下降时，`se_get_next_steps` 给出摸底→检查→修正→锚定的完整步骤提示（R37 扩展） | P1 |
+
+## 机制边界（L3 待定，先立约束）
+
+- **复用不新造**：修正循环与锚定复用现有 text/llm 门控与 `ensure()` 锚定机制；不新增并行检查系统
+- **存量处置复用 triage**：AC5 走 `se_record_triage_decision`（accept_as_is / defer 已是合法 decision）
+- 是否引入 manifest 状态位（如 `adoption: {phase: surveying|anchored}`）由 L3 决定——v1 可用
+  L1 债务清单 + next_steps 引导承载，能不加状态机就不加
+- 摸底不是一次性快照：后续 descent 中现状演化时，"现状"节随设计一起更新并留痕

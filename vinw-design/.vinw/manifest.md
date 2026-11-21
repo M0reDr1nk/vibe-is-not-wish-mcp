@@ -161,31 +161,50 @@ ascent_history:
   reason: R35（用户新需求）：增加显式流程违规特例审批——必须告知用户确认、默认非必要不允许违规；需从 L1 立需求、L3 定契约后实现
   to_baseline: v007
   to_layer: L1-需求拆解
+- created_at: '2026-11-21T12:52:45.215229+00:00'
+  descent_after: 21
+  descent_before: 20
+  from_layer: L7-终验
+  id: asc-020
+  reason: 新特性：支持在现有代码仓（已有代码）上初始化 VINW 并以螺旋工作流开展 feature/extension/bugfix（R36-R39 接管现有代码仓）；同时
+    descent-21 需正规化 scripts/readme_stats.py（workflow-exception exc-20261114-143658-001
+    到期）
+  to_baseline: v008
+  to_layer: L1-需求拆解
+- created_at: '2026-11-21T14:17:47.682568+00:00'
+  descent_after: 22
+  descent_before: 21
+  from_layer: L4-编码实现
+  id: asc-021
+  reason: 用户裁定 INC-002/003/005 fix_design：L3 v0.23 措辞对齐实现——L4 work 整体替换语义 + special_instruction
+    全层生效写明；守卫响应 hint 标为仅冲突/半初始化场景；半初始化错误文案更新为实际模板
+  to_baseline: v023
+  to_layer: L3-方案细化
 code_root: ..
-completed_at: '2026-11-14T14:34:39.250409+00:00'
+completed_at: '2026-11-21T14:22:42.066818+00:00'
 created_at: '2026-11-13T10:02:18.532679'
-current_descent: 20
+current_descent: 22
 current_layer: L7-终验
-descent_started_at: '2026-11-14T14:12:16.858133+00:00'
+descent_started_at: '2026-11-21T14:17:47.684943+00:00'
 description: SE-MCP v2 self-design documentation
 layer_states:
   L1-需求拆解:
-    active_ascent: asc-019
-    baselined_at: '2026-11-14T14:32:46.776303+00:00'
-    descent_count: 8
-    latest_baseline: v008
-    status: baselined
-  L2-参考文献与方案搜证汇总:
-    active_ascent: asc-007
-    baselined_at: '2026-11-14T14:32:56.472393+00:00'
+    active_ascent: asc-020
+    baselined_at: '2026-11-21T13:34:52.388152+00:00'
     descent_count: 9
     latest_baseline: v009
     status: baselined
+  L2-参考文献与方案搜证汇总:
+    active_ascent: asc-007
+    baselined_at: '2026-11-21T13:36:51.531415+00:00'
+    descent_count: 10
+    latest_baseline: v010
+    status: baselined
   L3-方案细化:
-    active_ascent: asc-018
-    baselined_at: '2026-11-14T14:33:02.652696+00:00'
-    descent_count: 20
-    latest_baseline: v022
+    active_ascent: asc-021
+    baselined_at: '2026-11-21T14:19:16.017611+00:00'
+    descent_count: 22
+    latest_baseline: v024
     status: baselined
   L4-编码实现:
     audit:
@@ -194,37 +213,37 @@ layer_states:
       decision: resolved
       escalations: []
       escalations_count: 0
-      findings: 13
-      report_id: a45825fa-01
-    baselined_at: '2026-11-14T14:33:09.579472+00:00'
+      findings: 9
+      report_id: b7c9e084-01
+    baselined_at: '2026-11-21T14:19:33.316645+00:00'
     consistency:
-      checked_at: '2026-11-14T14:33:09.560448+00:00'
-      code_fingerprint: 924ed5e5ece6af42b389772d5ddb088b0bb4bf7b4211d35be0f4dafbee411200
-      descent: 20
-      design_hash: 4d1cdcf44dbe84c46d7c3f0ca0bd09b0158ff804435a77e1ad27055435521708
+      checked_at: '2026-11-21T14:19:33.309401+00:00'
+      code_fingerprint: 9f535ff511b35b864ca9205efc95176335a48ba51b3db4f3bedd8fffb29983b5
+      descent: 22
+      design_hash: 898f6938ea32a23056f0f14bde09667cba88a74172278daae8048678aa2d6ce7
       design_hash_algo: layer-v1
-      llm_auditor: reviewer
-      llm_report_id: a45825fa-01
-      llm_verdict: warning
+      llm_auditor: self
+      llm_report_id: 9710146e-01
+      llm_verdict: passed
       overall: passed
-      report_id: e07769ee-01
-    descent_count: 19
-    latest_baseline: v019
+      report_id: ac7ee18f-01
+    descent_count: 21
+    latest_baseline: v020
     status: baselined
   L5-测试验证:
     abandoned_at: '2026-11-14T04:16:39.686081+00:00'
-    baselined_at: '2026-11-14T14:33:19.745731+00:00'
-    descent_count: 18
-    latest_baseline: v017
+    baselined_at: '2026-11-21T14:20:29.095510+00:00'
+    descent_count: 19
+    latest_baseline: v018
     status: baselined
   L6-检视清理:
-    baselined_at: '2026-11-14T14:33:25.119056+00:00'
-    descent_count: 18
-    latest_baseline: v017
+    baselined_at: '2026-11-21T14:21:43.736852+00:00'
+    descent_count: 19
+    latest_baseline: v018
     status: baselined
   L7-终验:
-    completed_at: '2026-11-14T14:34:39.250409+00:00'
-    descent_count: 17
+    completed_at: '2026-11-21T14:22:42.066818+00:00'
+    descent_count: 18
     latest_baseline: null
     status: completed
 name: vinw-self-design
@@ -310,6 +329,90 @@ pending_confirmations:
   proposed_at: '2026-11-13T17:01:07.252809+00:00'
   resolution: approve
   resolved_at: '2026-11-13T17:16:38.427440+00:00'
+- blocking: true
+  descent: 20
+  description: 流程违规特例：新增只读统计脚本 scripts/readme_stats.py 触发代码指纹漂移（design_lag）（必要性：用户要求刷新
+    README 统计数据；为保证数字可复现、不再静默漂移，新增只读统计脚本（不动 vinw/ 运行时、不改行为）。为这个 helper 走完整螺旋成本与收益不成比例。；影响：low；期限：descent-21
+    前必须正规化）
+  feedback: 自动结转：属于 descent-20 的过期门控，当前已进入 descent-21
+  id: cfm-20261114-143658-006
+  item_type: workflow-exception
+  layer: L7-终验
+  options:
+  - approve
+  - reject
+  - modify
+  proposed_at: '2026-11-14T14:36:58.623136+00:00'
+  resolution: superseded
+  resolved_at: '2026-11-21T13:33:33.805208+00:00'
+- blocking: true
+  descent: 21
+  description: L1 descent-21 需求拆解确认：接管现有代码仓（adopt-existing-codebase）拆为 R36-R40——R36
+    adopt 模式（se_init_project adopt_existing 参数 + vinw init --adopt-existing，非空仓以仓库根为工程根，manifest
+    写 work_mode/code_root/adopted_at，含幂等/冲突/半初始化守卫与兼容红线）；R37 变更模式引导（next_steps 识别
+    work_mode）；R38 L1 待办种子（摸底清单替代占位符）；R39 文档（README Adopting 章节 + 安装 prompt）；R40 现状摸底与初始锚定（LLM
+    摸底→text 修正循环→锚定→存量发现分级处置 accept_as_is/defer，债务清单可见）。请审阅拆解完整性与优先级。
+  feedback: 用户批准 R36-R40 拆解，下降 L2 搜证
+  id: cfm-20261121-133503-007
+  item_type: requirement-decomposition
+  layer: L1-需求拆解
+  options:
+  - approve
+  - reject
+  - modify
+  proposed_at: '2026-11-21T13:35:03.290590+00:00'
+  resolution: approve
+  resolved_at: '2026-11-21T13:35:47.771095+00:00'
+- blocking: false
+  descent: 21
+  description: L2 descent-21 搜证结论（非阻塞审阅）：adopt-existing 零新机制全复用（脚手架helper/code_root/ensure锚定/triage
+    处置/replace_todo_section）；双布局并存（子目录绕行保留，adopt 默认仓库根就地）；work_mode 纯元数据不加状态机；风险三条已记录。
+  feedback: 自动结转：属于 descent-21 的过期门控，当前已进入 descent-22
+  id: cfm-20261121-133700-008
+  item_type: evidence-synthesis
+  layer: L2-参考文献与方案搜证汇总
+  options:
+  - approve
+  - reject
+  - modify
+  proposed_at: '2026-11-21T13:37:00.414907+00:00'
+  resolution: superseded
+  resolved_at: '2026-11-21T14:22:42.062408+00:00'
+- blocking: true
+  descent: 21
+  description: L3 v0.23 接口设计确认（descent-21，blocking）：接管现有代码仓。要点：D1 adopt 为 se_init_project
+    参数（adopt_existing，工具数 40 不变）；D2 默认仓库根就地布局（子目录绕行保留）；D3 work_mode 纯元数据不加状态机；D4 零新检查系统全复用；D5
+    脚手架共享 helper。守卫：半初始化 .vinw 拒绝/非空层目录冲突拒绝（报 conflicts+子目录建议）/空层目录可复用；manifest 写
+    work_mode/code_root/adopted_at；响应加 adopted_existing；CLI --adopt-existing；next_steps
+    引导 + L1 摸底种子 + R40 摸底→text 修正循环→LLM 审计→存量处置（accept_as_is/defer 进 proposals legacy-debt
+    节）。转换点自审 report-77fc78a2-01（2 项 design-ahead GAP 预期内）。请确认接口契约。
+  feedback: 用户批准 v0.23 接口设计，下降 L4 实现
+  id: cfm-20261121-134030-009
+  item_type: interface-design
+  layer: L3-方案细化
+  options:
+  - approve
+  - reject
+  - modify
+  proposed_at: '2026-11-21T13:40:30.679072+00:00'
+  resolution: approve
+  resolved_at: '2026-11-21T13:42:03.572933+00:00'
 se_version: '2.0'
 status: completed
+workflow_exceptions:
+- confirmation_id: cfm-20261114-143658-006
+  deadline_descent: 21
+  files:
+  - scripts/readme_stats.py
+  - README.md
+  id: exc-20261114-143658-001
+  impact: low
+  necessity: 用户要求刷新 README 统计数据；为保证数字可复现、不再静默漂移，新增只读统计脚本（不动 vinw/ 运行时、不改行为）。为这个 helper
+    走完整螺旋成本与收益不成比例。
+  reason: 新增只读统计脚本 scripts/readme_stats.py 触发代码指纹漂移（design_lag）
+  regularized_at: '2026-11-21T12:52:45.250515+00:00'
+  regularized_by: asc-020
+  requested_at: '2026-11-14T14:36:58.615976+00:00'
+  requested_descent: 20
+  status: regularized
 ---

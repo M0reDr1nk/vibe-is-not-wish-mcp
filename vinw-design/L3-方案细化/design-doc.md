@@ -215,3 +215,145 @@ pending_confirmations: []
 - 状态机**语义**合理（螺旋上升需要 superseded/needs_redo 承载"作废待重做"）
 - 缺失的是**状态归属契约**：谁写、写几处、如何镜像。本版补齐为"manifest 唯一 + README 镜像 + 转移处强制同步"
 - `repair_ascend_state()` 作为**状态修复能力**保留：历史上已产生过错误状态（旧版本 ascend 范围不全），需要可重复修复而非一次性脚本
+
+---
+
+# descent-21 补欠账：开发工具脚本（scripts/）的设计覆盖（严格路径正规化）
+
+## 背景
+
+`scripts/` 下有一批开发侧 helper 脚本（populate/finalize/l*-finalize/run_consistency_check/gen_tool_catalog 等），
+descent-20 新增 `scripts/readme_stats.py`（README 统计的可复现脚本）时未同步设计 → design_lag 漂移。
+按用户裁决走**严格路径**（零特例）：在 L1 阶段先最小补设计覆盖，heal 重锚后漂移消除。
+
+## 契约（新增）
+
+| 项 | 内容 |
+|----|------|
+| 定位 | `scripts/` 为**开发侧工具**，不属于 MCP 运行时（`vinw/`），不进工具清单，不改运行时行为 |
+| 分类 | 一次性流程脚本（populate/finalize/l*-finalize）；可复现统计脚本（`readme_stats.py`）；目录生成（`gen_tool_catalog.py`，产物已入 api-design 工具清单） |
+| `readme_stats.py` | 只读统计：从 `L4-编码实现/consistency-reports/` 按内容哈希去重计数 LLM 审计发现，口径写在其 docstring；README「Self-hosting Record」数字**以该脚本输出为准** |
+| 变更纪律 | 脚本变更与 `vinw/` 代码同等对待：走螺旋流程（本条款即 descent-21 对其的正规化）；脚本的代码指纹计入一致性扫描（默认扩展名 `.py`） |
+| 新增脚本 | 新增长驻/可复用脚本（如 readme_stats.py 这类）必须在设计文档登记一句定位，防止再次出现"代码先行、设计滞后" |
+
+## 影响
+
+- 设计哈希变化（本条款入 design-doc.md）→ 与代码侧新增的 readme_stats.py 同步 → design_synced →
+  转换点 heal 自动重跑 text 检查并重锚，漂移消除
+- 本条款同时是 R39（文档）的实现依据之一
+
+---
+
+# v0.23 接管现有代码仓（descent-21 / asc-020，R36-R40）
+
+## 设计决策
+
+| 决策 | 结论 | 理由 |
+|------|------|------|
+| D1 | adopt 是 `se_init_project` 的**参数**（`adopt_existing: bool = False`），不新增工具 | 接管语义已在该工具（adopted=true）；工具数稳定（40 不变），目录生成与契约测试零改动 |
+| D2 | 布局默认**仓库根就地**；子目录布局保留为绕行 | 用户诉求是"在现有仓初始化"；就地布局让 `vinw tui <repo>`/`vinw status <repo>` 直接可用 |
+| D3 | `work_mode` 为**纯元数据**，不加状态机 | 仅 next_steps 换提示文案；零门控语义变化（L2 结论 3） |
+| D4 | 零新检查系统：摸底修正循环复用 `TextConsistencyChecker`，锚定复用 `ensure()`，存量处置复用 triage `accept_as_is`/`defer` | R40 机制边界约束 |
+| D5 | 脚手架提取共享 helper（`init` 与 `adopt` 共用层目录/模板/manifest 生成） | 防两岔漂移；init 的空目录守卫与 adopt 的冲突守卫各自独立 |
+
+## R36：`Project.adopt()` 与入口契约
+
+### 守卫（拒绝 = 结构化 error，不抛裸异常）
+
+| 守卫 | 行为 |
+|------|------|
+| root 不存在 | error：`目录不存在` |
+| root 不是目录 | error |
+| `.vinw/manifest.md` 已存在 | 不走 adopt（调用方返回幂等 adopted，现有行为） |
+| `.vinw/` 存在但 manifest 缺失 | error：`检测到半初始化状态 <绝对路径>/.vinw（manifest 缺失），请清理后重试` |
+| 任一**层目录名**已存在且非空 | error + `conflicts: [...]` + hint：改用子目录布局（`se_init_project(name="vinw-design", path=...)`） |
+| 层目录存在但为空 | 允许（复用该目录，mkdir exist_ok 语义） |
+
+### manifest 附加字段（仅 adopt 写入）
+
+```yaml
+work_mode: "existing-codebase"
+code_root: "."
+adopted_at: "<ISO8601>"
+```
+
+绿地工程不写 `work_mode`（缺省即绿地）；`next_steps` 判定 `manifest.get("work_mode") == "existing-codebase"`。
+
+### changelog
+
+adopt 成功追加 `change_type: "adopt"` 条目（scope=工程根，reason 含触发场景描述）。
+
+### `se_init_project` 变更
+
+- 新参数 `adopt_existing: bool = False`
+- `adopt_existing=false`（默认）：**行为逐字节不变**（兼容红线，既有用例全绿）
+- `adopt_existing=true`：`root = Path(path).expanduser().resolve()`（**不再拼 name**；name 仅作 manifest/注册名）
+- 成功响应增加 `adopted_existing: true, work_mode, code_root`
+- 守卫拒绝 → `{"error": ..., "conflicts": [...]?, "hint": ...}`（不创建任何文件）
+
+### CLI
+
+`vinw init <path> --name <name> [--adopt-existing] [--no-register]`：adopt 成功打印 `Adopted existing repo: <root>` + `work_mode: existing-codebase` + 提示 `vinw tui <name>`。
+
+## R37/R38：`se_get_next_steps` 引导 + L1 待办种子
+
+### work_mode == "existing-codebase" 时
+
+- L1 `work` 替换为摸底清单（见 R38）；`gate` 文案加"（含现状摸底确认）"
+- L4 `work` **整体替换**为就地修改清单（含 "Modify existing code in place"）；`special_instruction` = 摸底→检查→修正→锚定四步 + 首次 LLM 审计预期
+- `special_instruction` 在 existing-codebase 模式下对**所有层**生效（asc-021 修订：INC-002 裁定，替换语义 + 全层提示为设计本意）
+
+### L1 待办种子（R38，adopt 时写入，替换模板占位符）
+
+```markdown
+## 当前待办
+
+- [ ] 现状摸底：通读现有代码与文档，产出《现状摸底》（结构见 R40）写入 L1 proposals「现状」节
+- [ ] 明确本次变更范围（feature / extension / bugfix）与验收标准，写入 proposals
+- [ ] 标注关键歧义点（必要时 se_request_clarification）
+- [ ] 初始一致性检查：text 检查《现状摸底》↔ 代码，修正循环至 passed（首次锚定变更前指纹）
+- [ ] 初始 LLM 审计：存量发现逐条裁决 accept_as_is / defer，债务清单入 proposals「legacy-debt」节
+```
+
+（占位符守卫天然通过：待办已不是模板行；但仍须逐条勾选后才允许 L1 基线。）
+
+## R40：现状摸底与初始锚定契约
+
+### 《现状摸底》结构（L1 proposals「现状」节，必填）
+
+| 小节 | 内容 |
+|------|------|
+| 概述 | 一句话：这是什么系统、做什么 |
+| 模块与入口 | 目录/模块划分、公开入口（API/CLI/主流程） |
+| 公开契约 | 对外接口签名/协议/配置键（现状，非目标态） |
+| 关键数据结构 | 核心模型/表/消息格式 |
+| 构建与测试 | 如何构建、跑测试、现状测试覆盖概况 |
+| 已知债务 | 代码中可见的不良结构/TODO/文档缺口（摸底时观察到什么写什么） |
+
+### 修正循环（复用机制，无新工具）
+
+1. `se_store_document` 写入摸底节
+2. `se_check_consistency(method="text")` → 不一致 = 摸底文档写错（或真债务）→ 修文档/记债务 → 重跑
+3. 终止条件：`overall == "passed"`（此时 `ensure()` 在后续转换点自动锚定变更前指纹）
+4. 然后 `se_check_consistency(method="llm")` → 独立/自审语义审计 → `se_store_triage` 逐条裁定
+
+### 存量发现处置（复用 triage）
+
+| 裁决 | 语义 | 落点 |
+|------|------|------|
+| `accept_as_is` | 记为已知债务，不阻断 | proposals「legacy-debt」节：`\| id \| 描述 \| 裁决 \| 复查点 \|` |
+| `defer` | 推迟，注明复查点（层/轮次） | 同上 + 复查点列 |
+| `fix_impl` / `fix_design` | 属于本次变更范围内的真问题 | 走正常螺旋，不进债务清单 |
+
+### 可见性（AC6 取舍）
+
+v1：债务清单 = proposals「legacy-debt」节（人读 + agent 经 se_read_document 可见）；
+不进 `se_get_project` 结构化输出（避免 schema 变更）。若实践发现"看不到债务"的问题，再升需求。
+
+## 非目标（继承 L1）
+
+- 不自动扫描导入现有代码；不做部分接管；子目录布局不自动配 code_root（保持手工，README 记录）
+
+## 版本历史
+
+| v0.23 | 2026-11-21 | 接管现有代码仓：Project.adopt + se_init_project(adopt_existing) + CLI --adopt-existing + work_mode 引导 + R40 摸底锚定契约 |

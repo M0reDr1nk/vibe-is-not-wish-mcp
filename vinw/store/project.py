@@ -41,6 +41,18 @@ TODO_SECTION_HEADING = "## 当前待办"
 TODO_PLACEHOLDER = "- [ ] 初始化本层工作"
 
 
+class AdoptError(RuntimeError):
+    """Refused to adopt a directory as a project root (v0.23, R36 guards).
+
+    Carries ``conflicts`` (list of layer-directory names blocking the adopt)
+    so the MCP layer can return a structured error with a layout suggestion.
+    """
+
+    def __init__(self, message: str, conflicts: list[str] | None = None):
+        super().__init__(message)
+        self.conflicts = conflicts or []
+
+
 def extract_todo_section(content: str) -> str | None:
     """Return the '## 当前待办' block (heading included), or None if absent."""
     lines = content.split("\n")
@@ -134,13 +146,106 @@ class Project:
         self.vinw_dir = self.root / ".vinw"
         self.manifest_path = self.vinw_dir / "manifest.md"
 
+    # ── L1 todo seed for adopted (existing-codebase) projects (v0.23) ──
+
+    ADOPT_TODO_SECTION = (
+        "## 当前待办\n\n"
+        "- [ ] 现状摸底：通读现有代码与文档，产出《现状摸底》（概述/模块与入口/公开契约/"
+        "关键数据结构/构建与测试/已知债务）写入 L1 proposals「现状」节\n"
+        "- [ ] 明确本次变更范围（feature / extension / bugfix）与验收标准，写入 proposals\n"
+        "- [ ] 标注关键歧义点（必要时 se_request_clarification）\n"
+        "- [ ] 初始一致性检查：text 检查《现状摸底》↔ 代码，修正循环至 passed"
+        "（首次锚定变更前指纹）\n"
+        "- [ ] 初始 LLM 审计：存量发现逐条裁决 accept_as_is / defer，"
+        "债务清单入 proposals「legacy-debt」节\n"
+    )
+
     @classmethod
     def init(cls, root: Path, name: str, description: str = "") -> "Project":
         root = Path(root)
         if root.exists() and any(root.iterdir()):
             raise FileExistsError(f"Directory not empty: {root}")
         root.mkdir(parents=True, exist_ok=True)
+        cls._scaffold(root, name, description)
+        return cls(root)
 
+    @classmethod
+    def adopt(cls, root: Path, name: str, description: str = "") -> "Project":
+        """Adopt an existing code repository as the project root (v0.23, R36).
+
+        Unlike ``init`` (greenfield, empty directory only), ``adopt`` accepts a
+        non-empty repository: the 7-layer structure is scaffolded in-place next
+        to the existing code, ``code_root`` stays ".", and the manifest is
+        stamped with ``work_mode: "existing-codebase"`` so downstream guidance
+        (se_get_next_steps) can steer the survey-first flow (R40).
+
+        Guards (all raise before anything is written):
+        - root must exist and be a directory
+        - a partial ``.vinw/`` (manifest missing) is refused
+        - a non-empty directory named like a layer is refused (conflict list);
+          an empty one is reused
+        """
+        root = Path(root).expanduser().resolve()
+        if not root.exists():
+            raise FileNotFoundError(f"Directory not found: {root}")
+        if not root.is_dir():
+            raise NotADirectoryError(f"Not a directory: {root}")
+        vinw_dir = root / ".vinw"
+        if (vinw_dir / "manifest.md").exists():
+            # Caller (se_init_project) intercepts this case for idempotent
+            # adopt; reaching here means a direct adopt call.
+            raise FileExistsError(f"Already a VINW project: {root}")
+        if vinw_dir.exists():
+            raise AdoptError(
+                f"检测到半初始化状态 {vinw_dir}（manifest 缺失），请清理后重试"
+            )
+        conflicts = [
+            layer
+            for layer in LAYERS
+            if (root / layer).is_dir() and any((root / layer).iterdir())
+        ]
+        if conflicts:
+            raise AdoptError(
+                "仓库根已存在与层目录同名的非空目录: "
+                + ", ".join(conflicts)
+                + "。可采用子目录布局：se_init_project(name=\"vinw-design\", path=...)",
+                conflicts=conflicts,
+            )
+
+        cls._scaffold(root, name, description)
+
+        proj = cls(root)
+        now = datetime.now(timezone.utc).isoformat()
+        manifest = proj.read_manifest()
+        manifest["work_mode"] = "existing-codebase"
+        manifest["code_root"] = "."
+        manifest["adopted_at"] = now
+        proj.write_manifest(manifest)
+
+        # Seed the L1 todo list with the survey checklist (R38): replaces the
+        # template placeholder so the baseline guard passes and the agent has
+        # an explicit first step.
+        readme_path = proj.get_layer_dir(LAYERS[0]) / "README.md"
+        post = frontmatter.load(readme_path)
+        post.content = replace_todo_section(post.content, cls.ADOPT_TODO_SECTION)
+        readme_path.write_text(frontmatter.dumps(post), encoding="utf-8")
+
+        from .changelog import append_changelog_entry
+
+        append_changelog_entry(
+            proj.vinw_dir / "changelog.md",
+            change_type="adopt",
+            layer=LAYERS[0],
+            descent=manifest.get("current_descent", 1),
+            scope=str(root),
+            reason=f"接管现有代码仓（adopt-existing-codebase）：{description or name}",
+            after=f"work_mode=existing-codebase, code_root=.",
+        )
+        return proj
+
+    @staticmethod
+    def _scaffold(root: Path, name: str, description: str) -> None:
+        """Create .vinw state files and the 7-layer tree (shared by init/adopt)."""
         vinw_dir = root / ".vinw"
         vinw_dir.mkdir()
 
@@ -179,12 +284,13 @@ class Project:
             encoding="utf-8",
         )
 
-        # Layer directories + templates
+        # Layer directories + templates (adopt may reuse pre-existing EMPTY
+        # layer-named directories — mkdir is tolerant, content guard is adopt's)
         for layer in LAYERS:
             layer_dir = root / layer
-            layer_dir.mkdir()
+            layer_dir.mkdir(exist_ok=True)
             baseline_dir = layer_dir / ".baseline"
-            baseline_dir.mkdir()
+            baseline_dir.mkdir(exist_ok=True)
 
             templates = LAYER_TEMPLATES.get(layer, {})
             for filename, tmpl in templates.items():
@@ -211,8 +317,6 @@ class Project:
                     },
                 )
                 readme_path.write_text(frontmatter.dumps(readme), encoding="utf-8")
-
-        return cls(root)
 
     # ── Manifest ──────────────────────────────────────────────
 

@@ -221,3 +221,16 @@ status: "completed"
 | 异常映射 | 特例异常在 server 层转结构化 JSON，不再裸抛 |
 | 文档 | 四态伪代码、硬停表行、返回值键名、TUI 判定全部与实现对齐 |
 | 测试复验 | 354/354 ✅ |
+
+---
+
+# descent-22 检视清理（asc-020/021：接管现有代码仓 v0.23）
+
+| 检查项 | 结果 |
+|--------|------|
+| 调试代码（print/breakpoint/pdb） | ✅ 无（project.py 中 TODO_* 为合法常量） |
+| 未使用导入 | ✅ 无（AdoptError/frontmatter 等均使用；ruff 未装，ast 解析通过） |
+| 风格统一 | ✅ 与既有代码一致（类型注解、docstring、中文提示语惯例） |
+| 文档同步 | ✅ README（Adopting 章节 + 安装 prompt 3/3.5 步）、design-doc v0.23+asc-021 修订、api-design v0.23+修订、implementation.md、test-results.md 均已同步 |
+| 测试复验 | ✅ 372/372 PASS（清理后复跑） |
+| 设计-实现一致 | ✅ report-9710146e-01 passed，锚定匹配 |

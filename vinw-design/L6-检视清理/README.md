@@ -1,19 +1,20 @@
 ---
-baseline_version: v017
-baselined_at: '2026-11-14T14:33:25.119056+00:00'
+baseline_version: v018
+baselined_at: '2026-11-21T14:21:43.736852+00:00'
 descent_count: 0
 doc_type: layer-readme
 layer: L6-检视清理
 se_version: '2.0'
 status: baselined
-todo_descent: 20
+todo_descent: 22
 ---
 
 # L6-检视清理
 
 ## 当前待办
 
-- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
+- [x] L6 descent-22：无调试残留/导入干净/文档同步/372 复验通过
+- [ ] L6 v018 基线 → 下降 L7 终验
 
 - [x] 死导入与误导弹注释清除
 - [x] 双解析器统一

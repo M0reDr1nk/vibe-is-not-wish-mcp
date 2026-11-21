@@ -1,20 +1,22 @@
 ---
-baseline_version: v019
-baselined_at: '2026-11-14T14:33:09.579472+00:00'
+baseline_version: v020
+baselined_at: '2026-11-21T14:19:33.316645+00:00'
 descent_count: 1
 doc_type: layer-readme
 layer: L4-编码实现
 se_version: '2.0'
 started_at: '2026-11-13T10:15:00Z'
 status: baselined
-todo_descent: 20
+todo_descent: 21
 ---
 
 # L4-编码实现
 
 ## 当前待办
 
-- [x] descent-20：R35 流程违规特例审批（含违约后强制校验）
+- [x] L4 v0.23 实现：Project.adopt + AdoptError + 脚手架共享 + se_init_project(adopt_existing) + CLI --adopt-existing + next_steps 引导
+- [x] tests/test_adopt_existing.py 12 例；全量 366/366 通过；README Adopting 章节 + 安装 prompt
+- [ ] L4 基线：一致性门控（text 重查 + LLM 审计 + 裁定）→ 下降 L5
 
 - [x] extra 写入 + 转义 + 行分隔符归一
 - [x] 行级状态机解析器（围栏优先）
